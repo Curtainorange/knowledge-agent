@@ -1,0 +1,1 @@
+"""DeepSeek 供应商实现（OpenAI 兼容协议，单一模型 + reasoning 开关）。"""

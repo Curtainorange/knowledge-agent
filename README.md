@@ -1,0 +1,66 @@
+# 认知副驾（Cognitive Copilot）· P0 骨架
+
+个人知识学习智能体的最小可运行骨架，验证「一次模型调用全链路可追踪、可计费」。
+
+## 技术栈
+
+- Python 3.12 · FastAPI · SQLAlchemy 2.0 · pydantic-settings
+- LLM：DeepSeek（OpenAI 兼容协议，单一模型 `deepseek-v4-flash`，每请求 `reasoning` 开关切换思考模式）
+- 无 `DEEPSEEK_API_KEY` 时网关自动路由到 **MockProvider**（确定性、零成本，测试与本地演示）
+
+## 快速开始
+
+```bash
+# 1. 安装依赖
+pip install -e .[dev]
+
+# 2. 环境变量（可选；不配置 KEY 则用 MockProvider）
+cp .env.example .env
+
+# 3. 启动
+uvicorn app.main:app --reload
+```
+
+验证：
+
+```bash
+# 健康检查
+curl http://127.0.0.1:8000/health
+
+# 对话（返回 reply 与同一条 request_id）
+curl -X POST http://127.0.0.1:8000/api/v1/chat \
+  -H "Content-Type: application/json" \
+  -d '{"conversation_id": null, "message": "你好"}'
+```
+
+## 测试
+
+```bash
+pytest          # 全程 Mock，不触发真实 API
+```
+
+## 目录结构
+
+```
+app/
+├── main.py            # FastAPI 入口 + request_id 中间件
+├── core/              # obs：config / 结构化日志 / request_id 链路
+├── domain/            # SQLAlchemy ORM 实体 + 仓储（强制 user_id 过滤）
+├── llm/               # 统一模型网关（唯一收口点）
+│   ├── gateway.py     #   策略路由（task_type → reasoning 开关）+ 重试 + 成本
+│   ├── retry.py       #   2 次重试 + 指数退避 + 抖动（仅可重试错误）
+│   ├── cost.py        #   计费：token → 估算费用 → CostLog
+│   └── deepseek/      #   DeepSeekProvider / MockProvider
+├── agent/             # 最小对话 orchestrator
+├── api/               # HTTP 端点
+└── capabilities|workers|ingestion|retrieval|feedback|push/
+                       # L1~L5 能力与独立链路的占位模块（P0 只建边界）
+```
+
+## 设计约束（P0 落地项）
+
+1. **唯一收口**：所有模型调用走 `llm` 网关，业务不感知供应商细节。
+2. **可追踪**：`X-Request-Id` / contextvar 贯穿「API → agent → 网关 → provider」，日志统一带 `request_id`。
+3. **可计费**：每次模型调用 token 与估算费用写入 `cost_logs`，可按 user/task/date 归因。
+4. **可替换**：`LLMProvider` 抽象接口，`DeepSeekProvider` 为当前实现，预留替换能力。
+5. **结构性防越权**：仓储层强制 `user_id` 过滤。

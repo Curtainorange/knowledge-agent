@@ -1,0 +1,36 @@
+"""应用配置：全部通过 pydantic-settings 从环境变量 / .env 注入。
+
+铁律：代码内不硬编码供应商细节（型号、base_url、单价、reasoning 字段名），
+一律以 .env 为准，保证接入真实 DeepSeek 时可无感校准。
+"""
+from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class Settings(BaseSettings):
+    model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8", extra="ignore")
+
+    # --- 应用 ---
+    app_name: str = "认知副驾 Cognitive Copilot"
+    debug: bool = False
+
+    # --- 数据库（P0 默认 SQLite，免基础设施；production 可切 PostgreSQL）---
+    database_url: str = "sqlite:///./dev.db"
+
+    # --- DeepSeek（OpenAI 兼容协议）---
+    # 未配置 DEEPSEEK_API_KEY → 网关路由到 MockProvider（确定性、零成本）
+    deepseek_api_key: str = ""
+    deepseek_base_url: str = "https://api.deepseek.com"
+    deepseek_model: str = "deepseek-v4-flash"
+    deepseek_timeout_seconds: float = 60.0
+
+    # 单价（每百万 token，人民币）；接入实测后回填 .env
+    deepseek_price_input_per_1m: float = 1.0
+    deepseek_price_output_per_1m: float = 4.0
+
+    @property
+    def model_provider(self) -> str:
+        """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""
+        return "deepseek" if self.deepseek_api_key else "mock"
+
+
+settings = Settings()
