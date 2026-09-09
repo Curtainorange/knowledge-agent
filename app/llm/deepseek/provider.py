@@ -49,10 +49,11 @@ class DeepSeekProvider(LLMProvider):
             kwargs["tools"] = tools
         if response_format:
             kwargs["response_format"] = response_format
-        # 思考模式切换（reasoner/chat）。reasoning 字段名以接入实测为准，必要时收敛到配置项。
+        # 思考模式切换。单模型 + 每请求开关：openai SDK 不认识 reasoning 顶层参数，
+        # 通过 extra_body 塞进 JSON 请求体（服务器接受未知字段时静默忽略/启用）。
+        # 字段名以接入实测为准，必要时收敛到配置项。
         if reasoning:
-            kwargs["reasoning"] = True
-            kwargs["reasoning_effort"] = "medium"
+            kwargs["extra_body"] = {"reasoning": True, "reasoning_effort": "medium"}
 
         try:
             resp = self._client.chat.completions.create(**kwargs)

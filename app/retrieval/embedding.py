@@ -11,6 +11,7 @@ from __future__ import annotations
 
 import hashlib
 import logging
+import os
 import pickle
 from abc import ABC, abstractmethod
 from typing import ClassVar
@@ -54,6 +55,11 @@ class BGEHesEmbedding(EmbeddingModel):
 
     def _ensure(self):
         if self._model is None:
+            # 国内走 HF 镜像（config 优先级低于已有环境变量，避免覆盖 shell 显式配置）
+            if settings.hf_endpoint and not os.environ.get("HF_ENDPOINT"):
+                os.environ["HF_ENDPOINT"] = settings.hf_endpoint
+            if settings.hf_hub_disable_xet:
+                os.environ.setdefault("HF_HUB_DISABLE_XET", "1")
             try:
                 from fastembed import TextEmbedding
             except ImportError as exc:  # pragma: no cover - 依赖缺失路径
@@ -62,7 +68,7 @@ class BGEHesEmbedding(EmbeddingModel):
                 ) from exc
             logger.info("lazy-loading local embedding model %s ...", settings.embedding_model)
             self._model = TextEmbedding(model_name=settings.embedding_model)
-            self.dim = len(self._model.embed(["测试"])[0]) or self.dim
+            self.dim = len(list(self._model.embed(["测试"]))[0]) or self.dim
             logger.info("local embedding model ready (dim=%d)", self.dim)
 
     def embed(self, texts: list[str]) -> list[list[float]]:

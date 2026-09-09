@@ -33,6 +33,10 @@ class Settings(BaseSettings):
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
     embedding_dim: int = 512
 
+    # --- Hugging Face 模型下载（国内走镜像，见 .env.example 说明）---
+    hf_endpoint: str = ""            # 例 https://hf-mirror.com
+    hf_hub_disable_xet: bool = False # 禁 Xet，强制镜像普通 HTTP 下载
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""
