@@ -11,10 +11,16 @@ build/
 .DS_Store
 *.log
 Thumbs.db
+*.egg-info/
+
+# --- 运行时产物 ---
+*.db
+*.sqlite3
 
 # --- 环境变量 / 密钥（千万别传）---
 .env
 .env.*
+!.env.example
 *.pem
 *.key
 
