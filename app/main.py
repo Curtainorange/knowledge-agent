@@ -5,7 +5,7 @@ import uuid
 
 from fastapi import FastAPI, Request
 
-from app.api.endpoints import chat, health
+from app.api.endpoints import chat, health, knowledge, l1
 from app.core import logging as core_logging
 from app.core import trace
 from app.domain import db
@@ -28,3 +28,5 @@ async def request_id_middleware(request: Request, call_next):
 
 app.include_router(health.router)
 app.include_router(chat.router)
+app.include_router(knowledge.router)
+app.include_router(l1.router)

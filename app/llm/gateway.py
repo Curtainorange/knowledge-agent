@@ -38,6 +38,7 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     "plan_generation": Strategy("plan_generation", True, ""),
     "causal_reasoning": Strategy("causal_reasoning", True, ""),
     "cognitive_brief": Strategy("cognitive_brief", True, ""),
+    "l1_mining": Strategy("l1_mining", True, ""),  # L1 模糊意图→定位判断（reasoning=on）
     "batch_extraction": Strategy("batch_extraction", False, ""),
     "topic_analysis": Strategy("topic_analysis", False, ""),
 }

@@ -1,4 +1,4 @@
-"""知识接入（UC-G-01）—— P0 占位。"""
-from __future__ import annotations
+"""知识接入（ingestion）：录入条目 + 计算 embedding。"""
+from app.ingestion.service import IngestionService
 
-__all__: list[str] = []
+__all__ = ["IngestionService"]

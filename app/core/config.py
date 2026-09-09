@@ -27,6 +27,12 @@ class Settings(BaseSettings):
     deepseek_price_input_per_1m: float = 1.0
     deepseek_price_output_per_1m: float = 4.0
 
+    # --- Embedding（语义检索；独立于 LLM，DeepSeek 无标准 embedding 接口）---
+    # backend: bge（本地真语义，默认）| hash（确定性零依赖，测试/离线）
+    embedding_backend: str = "bge"
+    embedding_model: str = "BAAI/bge-small-zh-v1.5"
+    embedding_dim: int = 512
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

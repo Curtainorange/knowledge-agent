@@ -1,4 +1,7 @@
-"""语义检索（向量库抽象）—— P0 占位，P1 引入 pgvector/Milvus。"""
-from __future__ import annotations
+"""语义检索（retrieval）：双通道召回（向量语义 + 关键词兜底）。"""
+from app.retrieval.embedding import EmbeddingModel, build_embedding
+from app.retrieval.keyword import score_keyword
+from app.retrieval.retriever import RetrievedItem, Retriever
+from app.retrieval.vector_store import VectorStore, cos_sim
 
-__all__: list[str] = []
+__all__ = ["EmbeddingModel", "build_embedding", "score_keyword", "RetrievedItem", "Retriever", "VectorStore", "cos_sim"]

@@ -18,6 +18,8 @@ from app.main import app
 
 # 测试强制走 Mock（即便本机配了 .env）
 settings.deepseek_api_key = ""
+# 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
+settings.embedding_backend = "hash"
 
 # 覆盖 DATABASE_URL，使用内存 SQLite（StaticPool 共享同一连接）
 settings.database_url = "sqlite://"

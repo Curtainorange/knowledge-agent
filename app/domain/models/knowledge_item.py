@@ -20,5 +20,9 @@ class KnowledgeItem(Base, TimestampMixin):
     raw_content: Mapped[str] = mapped_column(Text)  # 原文（生产按 ADR-03 入对象存储快照）
     tags: Mapped[list | None] = mapped_column(JSON, default=list)
     read_progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0..1 阅读进度
+    # embedding 向量（pickle 序列化 bytes）；MVP 存入关系库，检索时加载做余弦；P2 迁移 pgvector
+    embedding: Mapped[bytes | None] = mapped_column(nullable=True)
+    # 向量化状态：pending=待算 / embedded=可检索 / embed_failed=失败（降级关键词召回）
+    embed_status: Mapped[str] = mapped_column(default="pending")
     # 软删（需求安全-5 / §6.3：全表软删 + 保留期物理清除）
     is_deleted: Mapped[bool] = mapped_column(default=False)
