@@ -26,3 +26,14 @@ class KnowledgeItem(Base, TimestampMixin):
     embed_status: Mapped[str] = mapped_column(default="pending")
     # 软删（需求安全-5 / §6.3：全表软删 + 保留期物理清除）
     is_deleted: Mapped[bool] = mapped_column(default=False)
+
+    @property
+    def snippet(self) -> str:
+        """列表 / 定位场景的定长摘要（不落库、不参与向量化）。"""
+        text = (self.raw_content or "").replace("\n", " ").strip()
+        return text[:120] + ("…" if len(text) > 120 else "")
+
+    @property
+    def is_readable(self) -> bool:
+        """是否已读完（用于 L1 定位后的复用提醒，避免恒真的假信号）。"""
+        return self.read_progress >= 1.0

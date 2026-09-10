@@ -40,6 +40,9 @@ class LocatedItem:
     item_id: str
     title: str
     read_progress: float
+    # 定位后直接给出摘要与向量化状态，调用方无需二次请求即可展示
+    snippet: str = ""
+    embed_status: str = ""
 
 
 @dataclass
@@ -49,6 +52,7 @@ class L1Result:
     question: str = ""
     located_items: list[LocatedItem] = field(default_factory=list)
     candidates: list[RetrievedItem] = field(default_factory=list)
+    read_hint: str = ""
 
 
 _SYS = (
@@ -57,6 +61,20 @@ _SYS = (
     "否则 → clarify，提出 1 个最有效、不多问的澄清问题帮助收敛。输出严格 JSON："
     '{"decision":"located|clarify","item_ids":[],"question":"","reason":""}。'
 )
+
+
+def _read_hint(item: KnowledgeItem) -> str:
+    """按真实阅读进度给出提醒；已读完则不提示。
+
+    read_progress 由 PATCH /api/v1/knowledge/items/{id} 写入，因此该提醒会随
+    用户行为变化——早期它是恒真的死信号（字段无处更新），现在已可写。
+    """
+    progress = item.read_progress or 0.0
+    if progress >= 1.0:
+        return ""
+    if progress <= 0.0:
+        return "这条你还没开始读，建议先读一遍再复用"
+    return f"这条已读 {int(round(progress * 100))}%，还没读完，建议补完再复用"
 
 
 class L1Orchestrator:
@@ -151,11 +169,22 @@ class L1Orchestrator:
 
     def _finish_located(self, conv, repo, item_id: str, items: dict[str, KnowledgeItem]) -> L1Result:
         located: list[LocatedItem] = []
+        hint = ""
         if item_id in items:
             it = items[item_id]
-            located.append(LocatedItem(item_id=it.id, title=it.title, read_progress=it.read_progress))
+            located.append(
+                LocatedItem(
+                    item_id=it.id,
+                    title=it.title,
+                    read_progress=it.read_progress,
+                    snippet=it.snippet,
+                    embed_status=it.embed_status,
+                )
+            )
+            hint = _read_hint(it)
         repo.set_state(conv, "located")
         self._session.commit()
-        read_hint = "但该条尚未读完，建议先读一遍再复用" if located and located[0].read_progress < 1.0 else ""
-        logger.info("l1 located items=%s %s conv=%s", [l.item_id for l in located], read_hint, conv.id)
-        return L1Result(state="located", conversation_id=conv.id, located_items=located)
+        logger.info("l1 located items=%s hint=%r conv=%s", [l.item_id for l in located], hint, conv.id)
+        return L1Result(
+            state="located", conversation_id=conv.id, located_items=located, read_hint=hint
+        )

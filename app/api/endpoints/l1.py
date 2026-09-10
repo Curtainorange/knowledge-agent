@@ -23,6 +23,7 @@ class L1MineResponse(BaseModel):
     conversation_id: str
     question: str = ""
     located_items: list[LocatedItem] = Field(default_factory=list)
+    read_hint: str = ""
     request_id: str
 
 
@@ -40,5 +41,6 @@ def l1_mine(
         conversation_id=result.conversation_id,
         question=result.question,
         located_items=result.located_items,
+        read_hint=result.read_hint,
         request_id=trace.get_request_id() or "",
     )

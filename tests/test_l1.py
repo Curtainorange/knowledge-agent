@@ -104,3 +104,34 @@ def test_invalid_provider_json_falls_back_to_clarify(session):
     result = orch.mine(user_id="u1", conversation_id=None, message="线索")
     assert result.state == "clarifying"
     assert result.question  # 回落通用问题
+
+
+def test_located_returns_snippet_and_embed_status(session):
+    """定位后直接交付摘要，调用方无需二次请求即可展示。"""
+    item = _ingest_one(session, title="数据库索引", content="B+树与哈希索引的区别，以及覆盖索引用法")
+    orch = _orchestrator(session, [{"decision": "located", "item_ids": [item.id]}])
+    result = orch.mine(user_id="u1", conversation_id=None, message="索引")
+
+    located = result.located_items[0]
+    assert located.snippet.startswith("B+树")
+    assert "覆盖索引" in located.snippet
+    assert located.embed_status == "embedded"
+
+
+def test_read_hint_tracks_real_progress(session):
+    """阅读提醒随真实进度变化；读完即静默——不再是恒真的死信号。"""
+    item = _ingest_one(session, title="进度条目", content="一些内容")
+
+    def _mine():
+        orch = _orchestrator(session, [{"decision": "located", "item_ids": [item.id]}])
+        return orch.mine(user_id="u1", conversation_id=None, message="线索")
+
+    assert "还没开始读" in _mine().read_hint
+
+    item.read_progress = 0.5
+    session.flush()
+    assert "已读 50%" in _mine().read_hint
+
+    item.read_progress = 1.0
+    session.flush()
+    assert _mine().read_hint == ""
