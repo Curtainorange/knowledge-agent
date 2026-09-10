@@ -2,8 +2,10 @@
 from __future__ import annotations
 
 import uuid
+from pathlib import Path
 
 from fastapi import FastAPI, Request
+from fastapi.responses import FileResponse
 
 from app.api.endpoints import chat, health, knowledge, l1
 from app.core import logging as core_logging
@@ -30,3 +32,14 @@ app.include_router(health.router)
 app.include_router(chat.router)
 app.include_router(knowledge.router)
 app.include_router(l1.router)
+
+WEB_DIR = Path(__file__).resolve().parents[1] / "web"
+
+
+@app.get("/", include_in_schema=False)
+def index() -> FileResponse:
+    """单页界面入口。
+
+    与 API 同源托管（无需 CORS，也避免 file:// 打开时的跨域限制）。
+    """
+    return FileResponse(WEB_DIR / "index.html")
