@@ -45,6 +45,13 @@ class Settings(BaseSettings):
     refresh_token_days: int = 7       # Refresh Token 有效期 7 天
     password_pbkdf2_iterations: int = 600000  # OWASP 推荐量级；测试中调低以提速
 
+    # --- 登录失败限流（进程内计数；多 worker 部署时各算各的，阈值等效放大）---
+    login_throttle_enabled: bool = True
+    login_max_attempts: int = 5        # 按账号：窗口内失败次数上限
+    login_ip_max_attempts: int = 20    # 按来源 IP：阈值放宽，避免 NAT 后的正常用户被连带
+    login_window_seconds: int = 300    # 失败计数滑动窗口
+    login_lock_seconds: int = 300      # 触发上限后的锁定时长
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

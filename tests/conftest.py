@@ -23,6 +23,11 @@ settings.embedding_backend = "hash"
 # 鉴权：固定密钥（避免随机密钥带来的不可预期），并调低 PBKDF2 迭代数以免拖慢测试
 settings.jwt_secret = "pytest-fixed-secret-not-for-production"
 settings.password_pbkdf2_iterations = 1000
+# 限流：账号维度调小便于断言；IP 维度放大，避免测试客户端同一 IP 跨用例累计导致误伤
+settings.login_max_attempts = 3
+settings.login_ip_max_attempts = 100000
+settings.login_window_seconds = 300
+settings.login_lock_seconds = 300
 
 # 覆盖 DATABASE_URL，使用内存 SQLite（StaticPool 共享同一连接）
 settings.database_url = "sqlite://"
