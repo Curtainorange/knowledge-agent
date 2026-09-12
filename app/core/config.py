@@ -64,6 +64,10 @@ class Settings(BaseSettings):
     l2_max_pairs_per_scan: int = 20      # 单次扫描最多送 LLM 判定的候选对数（成本闸门）
     l2_min_confidence: float = 0.5       # 低于此置信度的冲突直接丢弃（架构 §7.3 阈值策略）
     l2_ignore_suppress_threshold: int = 3  # 同类型冲突被忽略 ≥N 次后收敛该类推荐（UC-L2-03）
+    # 候选对语义距离带（L2-2）：BGE 余弦。太近≈重复表述、太远≈无关，两端都排除；
+    # 实测：相关但立场不同的主张对多落在 0.4~0.85
+    l2_pair_sim_lo: float = 0.35
+    l2_pair_sim_hi: float = 0.95
 
     @property
     def model_provider(self) -> str:

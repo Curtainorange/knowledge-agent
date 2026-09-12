@@ -34,6 +34,8 @@ from app.domain.repositories.conflict_repository import ConflictRepository, make
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.llm.gateway import ModelGateway
 from app.llm.structure import JsonParseError, parse_structured
+from app.retrieval.embedding import EmbeddingModel, build_embedding
+from app.retrieval.vector_store import cos_sim
 
 logger = logging.getLogger(__name__)
 
@@ -120,9 +122,15 @@ class L2ScanResult:
 
 
 class L2Orchestrator:
-    def __init__(self, gateway: ModelGateway, session: Session):
+    def __init__(
+        self,
+        gateway: ModelGateway,
+        session: Session,
+        embedding: EmbeddingModel | None = None,
+    ):
         self._gateway = gateway
         self._session = session
+        self._embedding = embedding or build_embedding()
 
     # ---- 对外入口 ------------------------------------------------------
 
@@ -248,33 +256,55 @@ class L2Orchestrator:
 
     # ---- L2-2~4 候选对生成 -------------------------------------------------
 
-    @staticmethod
-    def _candidate_pairs(claims: list[Claim]) -> list[tuple[Claim, Claim]]:
-        """同 topic 组对 + 立场/强度排序 + 单次上限闸门（ADR-12 禁止全量两两比对）。"""
-        by_topic: dict[str, list[Claim]] = {}
-        for claim in claims:
-            topic = (claim.topic or "").strip()
-            if topic:
-                by_topic.setdefault(topic, []).append(claim)
+    def _candidate_pairs(self, claims: list[Claim]) -> list[tuple[Claim, Claim]]:
+        """候选对生成：topic 通道 ∪ 语义近邻通道，按立场/相似度排序，上限闸门。
 
-        pairs: list[tuple[Claim, Claim]] = []
-        for bucket in by_topic.values():
-            if len(bucket) < 2:
-                continue
-            for i in range(len(bucket)):
-                for j in range(i + 1, len(bucket)):
-                    a, b = bucket[i], bucket[j]
-                    if a.knowledge_item_id == b.knowledge_item_id:
-                        continue  # 同条目内部的自洽性不是跨知识冲突
-                    pairs.append((a, b))
+        - topic 通道：归一化后同主题即组对（召回廉价但受 LLM 标签措辞影响——
+          实测两次提取把同一主题标成「战略定力/快速调整」等互不相同的词）
+        - 语义通道（L2-2）：主张向量余弦落在 [sim_lo, sim_hi] 带内才组对——
+          太近≈重复表述、太远≈无关，两端都排除（架构 §7.2 要点）
+        - embedding 不可用时自动退化为纯 topic 通道，不阻断扫描
+        """
+        if not claims:
+            return []
+        sims = self._claim_similarities(claims)
 
-        def priority(pair: tuple[Claim, Claim]) -> float:
-            a, b = pair
+        pairs: list[tuple[Claim, Claim, float]] = []
+        for i in range(len(claims)):
+            for j in range(i + 1, len(claims)):
+                a, b = claims[i], claims[j]
+                if a.knowledge_item_id == b.knowledge_item_id:
+                    continue  # 同条目内部的自洽性不是跨知识冲突
+                sim = sims.get((a.id, b.id))
+                same_topic = (
+                    (a.topic or "").strip() != ""
+                    and (a.topic or "").strip() == (b.topic or "").strip()
+                )
+                if same_topic:
+                    pairs.append((a, b, sim if sim is not None else 0.0))
+                elif sim is not None and settings.l2_pair_sim_lo <= sim <= settings.l2_pair_sim_hi:
+                    pairs.append((a, b, sim))
+
+        def priority(pair: tuple[Claim, Claim, float]) -> float:
+            a, b, sim = pair
             opposite = 2.0 if a.polarity * b.polarity == -1 else 0.0
-            return opposite + (a.strength + b.strength) / 2
+            return opposite * 10 + sim  # 极性相反优先，其次语义越近越优先
 
         pairs.sort(key=priority, reverse=True)
-        return pairs[: settings.l2_max_pairs_per_scan]
+        return [(a, b) for a, b, _ in pairs[: settings.l2_max_pairs_per_scan]]
+
+    def _claim_similarities(self, claims: list[Claim]) -> dict[tuple[str, str], float]:
+        """批量向量化主张并计算两两余弦；失败返回空表（退化为 topic 通道）。"""
+        try:
+            vectors = self._embedding.embed([c.statement for c in claims])
+        except Exception as exc:
+            logger.warning("l2 claim embedding unavailable, topic-only pairing: %s", exc)
+            return {}
+        sims: dict[tuple[str, str], float] = {}
+        for i in range(len(claims)):
+            for j in range(i + 1, len(claims)):
+                sims[(claims[i].id, claims[j].id)] = cos_sim(vectors[i], vectors[j])
+        return sims
 
     # ---- L2-6 反馈抑制 -----------------------------------------------------
 

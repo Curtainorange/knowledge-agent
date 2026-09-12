@@ -10,6 +10,7 @@ import pytest
 
 from app.agent.l2_orchestrator import L2Orchestrator
 from app.api import deps
+from app.domain.models.claim import Claim
 from app.domain.models.conflict import Conflict
 from app.domain.repositories.claim_repository import ClaimRepository
 from app.domain.repositories.conflict_repository import ConflictRepository, make_pair_key
@@ -18,6 +19,7 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
+from app.retrieval.embedding import EmbeddingModel
 from tests.helpers import auth_headers
 
 
@@ -255,8 +257,83 @@ def test_pairs_capped_per_scan(session):
     claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
     assert len(claims) == 8
 
-    pairs = L2Orchestrator._candidate_pairs(claims)
+    pairs = orch._candidate_pairs(claims)
     assert len(pairs) == settings.l2_max_pairs_per_scan
+
+
+# ---------- L2-2 语义近邻通道 ----------
+
+
+class StubEmbedding(EmbeddingModel):
+    """按 statement → 预设向量回放，精确控制余弦距离，不依赖具体 embedding 实现。"""
+
+    dim = 2
+
+    def __init__(self, vec_by_statement: dict[str, list[float]]):
+        self._vecs = vec_by_statement
+
+    def embed(self, texts):
+        return [list(self._vecs[t]) for t in texts]
+
+
+def test_semantic_channel_pairs_different_topics(session):
+    """主题标签措辞不一致时，语义近邻通道兜底组对（真实场景：LLM 标签不稳定）。"""
+    _ingest(session, "u1", "长期主义", "坚守战略。")
+    _ingest(session, "u1", "敏捷思维", "快速掉头。")
+    orch = _orchestrator(session, {
+        "batch_extraction": [
+            {"claims": [{"statement": "主张甲", "topic": "战略定力", "polarity": 1, "strength": 0.9}]},
+            {"claims": [{"statement": "主张乙", "topic": "快速调整", "polarity": -1, "strength": 0.9}]},
+        ],
+    })
+    orch.scan(user_id="u1")  # 先落主张（判定走默认「无关」，不产生冲突）
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    assert len(claims) == 2
+    vecs = {c.statement: v for c, v in zip(claims, ([1.0, 0.0], [0.8, 0.6]))}  # cos≈0.8，带内
+    orch._embedding = StubEmbedding(vecs)
+    pairs = orch._candidate_pairs(claims)
+    assert len(pairs) == 1
+
+
+def test_semantic_channel_excludes_out_of_band(session):
+    """语义距离带两端排除：太近≈重复，太远≈无关（架构 §7.2）。"""
+    _ingest(session, "u1", "条目A", "内容A")
+    _ingest(session, "u1", "条目B", "内容B")
+    _ingest(session, "u1", "条目C", "内容C")
+    orch = _orchestrator(session, {})
+    claims = [
+        Claim(knowledge_item_id="ia", statement="主张A", topic="索引"),
+        Claim(knowledge_item_id="ib", statement="主张B", topic="健身"),   # 与 A 无关
+        Claim(knowledge_item_id="ic", statement="主张C", topic="查询"),   # 与 A 近似重复
+    ]
+    orch._embedding = StubEmbedding({
+        "主张A": [1.0, 0.0],
+        "主张B": [0.0, 1.0],   # sim=0 → 太远
+        "主张C": [1.0, 0.0],   # sim=1.0 → 太近
+    })
+    pairs = orch._candidate_pairs(claims)
+    assert pairs == []
+
+
+def test_embedding_unavailable_falls_back_to_topic(session):
+    """向量模型不可用时退化为纯 topic 通道，扫描不中断。"""
+    class BrokenEmbedding(EmbeddingModel):
+        dim = 8
+
+        def embed(self, texts):
+            raise RuntimeError("模型不可用")
+
+    provider_rows = _two_same_topic_items(session)
+    provider_rows["conflict_detection"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "d", "suggestion": "s", "confidence": 0.9,
+    }]
+    orch = L2Orchestrator(
+        ModelGateway(provider=FakeProvider(provider_rows)), session,
+        embedding=BrokenEmbedding(),
+    )
+    result = orch.scan(user_id="u1")
+    assert result.conflicts_found == 1  # topic 通道仍组对并完成判定
 
 
 # ---------- API ----------
