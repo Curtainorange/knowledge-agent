@@ -18,7 +18,8 @@ Thumbs.db
 *.sqlite3
 
 # --- 本地模型权重（体积大，用 scripts/fetch_embedding_model.py 按需获取）---
-models/
+# 锚定根目录，避免误伤代码目录 app/domain/models/
+/models/
 
 # --- 上传的书籍文件（用户数据，不入库）---
 data/
