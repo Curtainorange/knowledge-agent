@@ -5,6 +5,7 @@
 from app.domain.models.base import Base
 from app.domain.models.user import User
 from app.domain.models.knowledge_item import KnowledgeItem
+from app.domain.models.book import Book
 from app.domain.models.claim import Claim
 from app.domain.models.learning_event import LearningEvent
 from app.domain.models.conversation import Conversation
@@ -17,6 +18,7 @@ __all__ = [
     "Base",
     "User",
     "KnowledgeItem",
+    "Book",
     "Claim",
     "LearningEvent",
     "Conversation",

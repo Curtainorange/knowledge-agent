@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>书架 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="books">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">书架</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>书架 <button id="btn-upload" class="sm">上传书籍</button></h2>
+    <input type="file" id="file-input" accept=".txt,.epub" hidden>
+    <div class="meta" style="margin-bottom:12px">
+      支持 .txt / .epub，上传后自动解析章节；点开即可阅读并记录进度，选中文字可一键记入知识库。
+    </div>
+    <div class="list" id="book-list"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+
+  function fmtChars(n) {
+    if (n >= 10000) {
+      return (n / 10000).toFixed(1) + ' 万字';
+    }
+    return n + ' 字';
+  }
+
+  function renderBooks(books) {
+    var box = $('#book-list');
+    if (!books.length) {
+      box.innerHTML = '<div class="empty">书架是空的，点「上传书籍」添加一本。</div>';
+      return;
+    }
+    box.innerHTML = books.map(function (b) {
+      var pct = Math.round((b.read_progress || 0) * 100);
+      return '<div class="book-item" data-id="' + esc(b.book_id) + '">' +
+        '<div class="book-cover">' + esc((b.format || '?').toUpperCase()) + '</div>' +
+        '<div class="book-info">' +
+          '<div class="row"><strong>' + esc(b.title) + '</strong>' +
+            '<button class="danger sm" data-act="del" data-id="' + esc(b.book_id) + '">删除</button></div>' +
+          '<div class="meta">' + esc(b.author || '佚名') + ' · ' + b.chapter_count + ' 章 · ' + fmtChars(b.total_chars) + '</div>' +
+          '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+          '<div class="meta">已读 ' + pct + '%</div>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function loadBooks() {
+    var data = await CC.api('GET', '/api/v1/books');
+    renderBooks(data.items || []);
+  }
+
+  async function uploadBook(file) {
+    var token = CC.token();
+    var bytes = await file.arrayBuffer();
+    var btn = $('#btn-upload');
+    btn.disabled = true;
+    btn.textContent = '解析中…';
+    try {
+      var res = await fetch('/api/v1/books', {
+        method: 'POST',
+        headers: {
+          'Authorization': 'Bearer ' + token,
+          'X-Filename': encodeURIComponent(file.name),
+          'Content-Type': 'application/octet-stream'
+        },
+        body: bytes
+      });
+      var data = {};
+      try { data = await res.json(); } catch (err) { data = {}; }
+      if (!res.ok) {
+        throw new Error(data.detail || 'HTTP ' + res.status);
+      }
+      CC.toast('已上传：' + data.title + '（' + data.chapter_count + ' 章）');
+      await loadBooks();
+    } catch (err) {
+      CC.toast('上传失败：' + err.message);
+    } finally {
+      btn.disabled = false;
+      btn.textContent = '上传书籍';
+    }
+  }
+
+  $('#btn-upload').addEventListener('click', function () {
+    $('#file-input').click();
+  });
+
+  $('#file-input').addEventListener('change', function (event) {
+    var file = event.target.files[0];
+    if (!file) {
+      return;
+    }
+    uploadBook(file);
+    event.target.value = '';
+  });
+
+  $('#book-list').addEventListener('click', async function (event) {
+    var item = event.target.closest('.book-item');
+    if (!item) {
+      return;
+    }
+    var id = item.getAttribute('data-id');
+    var act = event.target.closest('[data-act]');
+    if (act && act.getAttribute('data-act') === 'del') {
+      if (!confirm('确定删除这本书？（软删除，原文保留）')) {
+        return;
+      }
+      try {
+        await CC.api('DELETE', '/api/v1/books/' + id);
+        CC.toast('已删除');
+        await loadBooks();
+      } catch (err) {
+        CC.toast('删除失败：' + err.message);
+      }
+      return;
+    }
+    location.href = '/reader.html?book=' + encodeURIComponent(id);
+  });
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    try {
+      await loadBooks();
+    } catch (err) {
+      CC.toast('加载书架失败：' + err.message);
+    }
+  })();
+})();
+</script>
+</body>
+</html>

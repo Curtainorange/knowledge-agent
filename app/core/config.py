@@ -36,6 +36,10 @@ class Settings(BaseSettings):
     # local 后端读取的模型目录，用 scripts/fetch_embedding_model.py 预取
     embedding_local_dir: str = "models/bge-small-zh-v1.5"
 
+    # --- 书籍（阅读器）---
+    # 上传的电子书原始文件存放目录（体积大，不入库；已加入 .gitignore）
+    books_dir: str = "data/books"
+
     # --- Hugging Face 模型下载（国内走镜像，见 .env.example 说明）---
     hf_endpoint: str = ""            # 例 https://hf-mirror.com
     hf_hub_disable_xet: bool = False # 禁 Xet，强制镜像普通 HTTP 下载

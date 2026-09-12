@@ -5,6 +5,8 @@
 """
 from __future__ import annotations
 
+import tempfile
+
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy import create_engine
@@ -20,6 +22,8 @@ from app.main import app
 settings.deepseek_api_key = ""
 # 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
 settings.embedding_backend = "hash"
+# 书籍文件写到临时目录，避免污染真实 data/books
+settings.books_dir = tempfile.mkdtemp(prefix="cc_test_books_")
 # 鉴权：固定密钥（避免随机密钥带来的不可预期），并调低 PBKDF2 迭代数以免拖慢测试
 settings.jwt_secret = "pytest-fixed-secret-not-for-production"
 settings.password_pbkdf2_iterations = 1000

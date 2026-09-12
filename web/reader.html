@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阅读器 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="books">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">阅读器</span></div>
+  <div class="reader-tools">
+    <button id="btn-back" class="sm">← 书架</button>
+    <select id="chapter-select" title="跳转章节"></select>
+    <button id="font-down" class="sm">A-</button>
+    <button id="font-up" class="sm">A+</button>
+  </div>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card reader-card">
+    <div class="reader-title" id="chapter-title">加载中…</div>
+    <div class="reader-body" id="reader-body"></div>
+  </div>
+</main>
+
+<div id="selection-pop"></div>
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+
+  var bookId = new URLSearchParams(location.search).get('book');
+  var state = { book: null, chapter: null, font: Number(localStorage.getItem('reader_font') || 18), saveTimer: null };
+
+  if (!bookId) {
+    location.replace('/books.html');
+  }
+
+  function chapterByIndex(index) {
+    return (state.book.chapters || []).find(function (c) { return c.index === index; });
+  }
+
+  function currentChapterIndex() {
+    if (!state.book || !state.book.chapters || !state.book.chapters.length) {
+      return null;
+    }
+    var ch = (state.book.chapters || []).find(function (c) {
+      return state.book.current_char >= c.char_start && state.book.current_char < c.char_end;
+    });
+    return ch ? ch.index : state.book.chapters[0].index;
+  }
+
+  function renderChapterSelect() {
+    var sel = $('#chapter-select');
+    sel.innerHTML = (state.book.chapters || []).map(function (c) {
+      return '<option value="' + c.index + '">' + esc(c.title) + '</option>';
+    }).join('');
+  }
+
+  function applyFont() {
+    $('#reader-body').style.fontSize = state.font + 'px';
+    localStorage.setItem('reader_font', String(state.font));
+  }
+
+  async function loadChapter(index, scrollRatio) {
+    var data = await CC.api('GET', '/api/v1/books/' + bookId + '/chapter/' + index);
+    state.chapter = data.index;
+    $('#chapter-title').textContent = data.title;
+    $('#reader-body').textContent = data.content;
+    $('#chapter-select').value = String(index);
+    $('#reader-body').scrollTop = 0;
+    applyFont();
+
+    // 续读：按比例滚到上次的位置
+    if (scrollRatio != null) {
+      requestAnimationFrame(function () {
+        var body = $('#reader-body');
+        var max = body.scrollHeight - body.clientHeight;
+        body.scrollTop = Math.max(0, scrollRatio * max);
+      });
+    }
+  }
+
+  function saveProgress() {
+    var chapter = chapterByIndex(state.chapter);
+    if (!chapter) {
+      return;
+    }
+    var body = $('#reader-body');
+    var max = body.scrollHeight - body.clientHeight;
+    var ratio = max > 0 ? body.scrollTop / max : 0;
+    var span = chapter.char_end - chapter.char_start;
+    var globalChar = chapter.char_start + Math.floor(ratio * span);
+    var progress = state.book.total_chars ? Math.min(1, globalChar / state.book.total_chars) : 0;
+    // 不 await：进度保存是后台行为，失败也不打断阅读
+    CC.api('PATCH', '/api/v1/books/' + bookId + '/progress', {
+      current_char: globalChar,
+      read_progress: progress
+    }).catch(function () { /* 静默 */ });
+  }
+
+  function scheduleSave() {
+    clearTimeout(state.saveTimer);
+    state.saveTimer = setTimeout(saveProgress, 800);
+  }
+
+  /* ---------- 划词存知识 ---------- */
+  var pop = $('#selection-pop');
+  function hidePop() {
+    pop.classList.remove('show');
+  }
+  function showPop(x, y, text) {
+    pop.textContent = '记入知识库';
+    pop.style.left = x + 'px';
+    pop.style.top = (y - 44) + 'px';
+    pop.classList.add('show');
+    pop.onclick = async function () {
+      try {
+        var r = await CC.api('POST', '/api/v1/books/' + bookId + '/notes', {
+          text: text,
+          chapter_index: state.chapter
+        });
+        CC.toast(r.embed_status === 'embedded' ? '已记入知识库（含向量）' : '已记入知识库');
+      } catch (err) {
+        CC.toast('记入失败：' + err.message);
+      }
+      hidePop();
+      window.getSelection().removeAllRanges();
+    };
+  }
+
+  document.addEventListener('mouseup', function (event) {
+    var sel = window.getSelection();
+    var text = sel ? sel.toString().trim() : '';
+    var body = $('#reader-body');
+    var inReader = sel && sel.anchorNode && body.contains(sel.anchorNode);
+    if (inReader && text.length >= 5 && text.length <= 4000) {
+      showPop(event.clientX, event.clientY, text);
+    } else if (!pop.contains(event.target)) {
+      hidePop();
+    }
+  });
+
+  /* ---------- 事件 ---------- */
+  $('#btn-back').addEventListener('click', function () {
+    saveProgress();
+    location.href = '/books.html';
+  });
+
+  $('#chapter-select').addEventListener('change', function (event) {
+    var index = Number(event.target.value);
+    saveProgress();
+    loadChapter(index, null);
+  });
+
+  $('#font-down').addEventListener('click', function () {
+    state.font = Math.max(14, state.font - 2);
+    applyFont();
+  });
+  $('#font-up').addEventListener('click', function () {
+    state.font = Math.min(28, state.font + 2);
+    applyFont();
+  });
+
+  $('#reader-body').addEventListener('scroll', scheduleSave);
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      saveProgress();
+    }
+  });
+  window.addEventListener('beforeunload', saveProgress);
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    try {
+      state.book = await CC.api('GET', '/api/v1/books/' + bookId);
+      document.querySelector('.brand .sub').textContent = '阅读 · ' + state.book.title;
+    } catch (err) {
+      CC.toast('加载书籍失败：' + err.message);
+      setTimeout(function () { location.replace('/books.html'); }, 1500);
+      return;
+    }
+
+    renderChapterSelect();
+    var idx = currentChapterIndex();
+    if (idx == null) {
+      CC.toast('这本书没有可读内容');
+      return;
+    }
+    var chapter = chapterByIndex(idx);
+    var localChar = state.book.current_char - chapter.char_start;
+    var span = chapter.char_end - chapter.char_start;
+    var ratio = span > 0 ? localChar / span : 0;
+    await loadChapter(idx, ratio);
+  })();
+})();
+</script>
+</body>
+</html>
