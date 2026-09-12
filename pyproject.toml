@@ -12,6 +12,7 @@ dependencies = [
     "alembic>=1.13",
     "openai>=1.40",
     "httpx>=0.27",
+    "PyJWT>=2.8",
 ]
 
 [project.optional-dependencies]

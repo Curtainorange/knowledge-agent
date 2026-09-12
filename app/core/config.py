@@ -37,6 +37,14 @@ class Settings(BaseSettings):
     hf_endpoint: str = ""            # 例 https://hf-mirror.com
     hf_hub_disable_xet: bool = False # 禁 Xet，强制镜像普通 HTTP 下载
 
+    # --- 认证（JWT，见系统设计 9.3.1）---
+    # 生产环境务必配置 JWT_SECRET；留空则进程内随机生成，重启后所有 token 失效
+    jwt_secret: str = ""
+    jwt_algorithm: str = "HS256"
+    access_token_minutes: int = 120   # Access Token 有效期 2 小时
+    refresh_token_days: int = 7       # Refresh Token 有效期 7 天
+    password_pbkdf2_iterations: int = 600000  # OWASP 推荐量级；测试中调低以提速
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

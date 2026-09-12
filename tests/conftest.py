@@ -20,6 +20,9 @@ from app.main import app
 settings.deepseek_api_key = ""
 # 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
 settings.embedding_backend = "hash"
+# 鉴权：固定密钥（避免随机密钥带来的不可预期），并调低 PBKDF2 迭代数以免拖慢测试
+settings.jwt_secret = "pytest-fixed-secret-not-for-production"
+settings.password_pbkdf2_iterations = 1000
 
 # 覆盖 DATABASE_URL，使用内存 SQLite（StaticPool 共享同一连接）
 settings.database_url = "sqlite://"

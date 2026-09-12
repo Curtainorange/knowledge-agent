@@ -7,6 +7,7 @@ from app.domain.models.cost_log import CostLog
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.domain.repositories.user_repository import UserRepository
+from tests.helpers import auth_headers
 
 
 def _count_by_task(session: Session, task_type: str) -> int:
@@ -17,6 +18,7 @@ def test_chat_returns_reply_and_request_id(client, session):
     resp = client.post(
         "/api/v1/chat",
         json={"message": "你好，我想找一个关于拖延症的内容"},
+        headers=auth_headers(client, "chat_basic"),
     )
     assert resp.status_code == 200
     body = resp.json()
@@ -38,10 +40,12 @@ def test_chat_returns_reply_and_request_id(client, session):
 
 
 def test_chat_multi_turn_reuses_conversation(client, session):
-    first = client.post("/api/v1/chat", json={"message": "第一句"}).json()
+    headers = auth_headers(client, "chat_multi")
+    first = client.post("/api/v1/chat", json={"message": "第一句"}, headers=headers).json()
     second = client.post(
         "/api/v1/chat",
         json={"conversation_id": first["conversation_id"], "message": "第二句"},
+        headers=headers,
     ).json()
     assert second["conversation_id"] == first["conversation_id"]
     conv = session.get(Conversation, first["conversation_id"])
