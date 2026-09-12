@@ -59,6 +59,12 @@ class Settings(BaseSettings):
     login_window_seconds: int = 300    # 失败计数滑动窗口
     login_lock_seconds: int = 300      # 触发上限后的锁定时长
 
+    # --- L2 冲突检测（漏斗参数，初值按架构设计 §7.2，实测后校准）---
+    l2_max_claims_per_item: int = 5      # 每条目最多提取的主张数
+    l2_max_pairs_per_scan: int = 20      # 单次扫描最多送 LLM 判定的候选对数（成本闸门）
+    l2_min_confidence: float = 0.5       # 低于此置信度的冲突直接丢弃（架构 §7.3 阈值策略）
+    l2_ignore_suppress_threshold: int = 3  # 同类型冲突被忽略 ≥N 次后收敛该类推荐（UC-L2-03）
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

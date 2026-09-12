@@ -93,7 +93,11 @@ class KnowledgeRepository(BaseRepository[KnowledgeItem]):
         tags: list | None = None,
         read_progress: float | None = None,
     ) -> bool:
-        """按传入字段局部更新；返回「可检索文本是否变化」以决定是否重算 embedding。"""
+        """按传入字段局部更新；返回「可检索文本是否变化」以决定是否重算 embedding。
+
+        文本变化时同步把 `claims_scanned_at` 置回 NULL：已提取的 L2 主张基于旧文本，
+        已过期，下次 L2 扫描需重新提取（置 NULL 而非比较 updated_at，避免跨时钟比较）。
+        """
         text_changed = False
         if title is not None and title != item.title:
             item.title = title
@@ -105,5 +109,7 @@ class KnowledgeRepository(BaseRepository[KnowledgeItem]):
             item.tags = list(tags)
         if read_progress is not None:
             item.read_progress = max(0.0, min(1.0, float(read_progress)))
+        if text_changed:
+            item.claims_scanned_at = None
         self._session.flush()
         return text_changed
