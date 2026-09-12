@@ -7,6 +7,7 @@ from app.domain.models.user import User
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.models.book import Book
 from app.domain.models.claim import Claim
+from app.domain.models.conflict import Conflict  # 显式 import：未导入时 SQLAlchemy metadata 不会注册此表，init_db / alembic 都会跳过建表
 from app.domain.models.learning_event import LearningEvent
 from app.domain.models.conversation import Conversation
 from app.domain.models.learning_goal import LearningGoal
