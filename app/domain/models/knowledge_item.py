@@ -1,9 +1,10 @@
 """知识条目实体（需求 §6.1 KnowledgeItem）：知识库基本单位。"""
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, Float, String, Text
+from sqlalchemy import JSON, DateTime, Float, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.base import Base, TimestampMixin
@@ -29,6 +30,11 @@ class KnowledgeItem(Base, TimestampMixin):
     # 来源定位：如书籍内的字符区间 {chapter_index, char_start, char_end}，
     # 用于回溯原文、以及阅读时高亮「已录入」的区间
     source_locator: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # L2 冲突检测：主张提取的扫描标记（NULL = 尚未提取）。
+    # 用于**增量扫描**——只遍历新增条目，避免每次扫描都重跑全量主张提取（成本与耗时）
+    claims_scanned_at: Mapped[datetime | None] = mapped_column(
+        DateTime(timezone=True), nullable=True, default=None
+    )
     # 软删（需求安全-5 / §6.3：全表软删 + 保留期物理清除）
     is_deleted: Mapped[bool] = mapped_column(default=False)
 

@@ -20,6 +20,7 @@ __all__ = [
     "KnowledgeItem",
     "Book",
     "Claim",
+    "Conflict",
     "LearningEvent",
     "Conversation",
     "LearningGoal",
