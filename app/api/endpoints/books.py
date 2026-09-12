@@ -17,6 +17,7 @@ from app.api.deps import get_session, get_user_id
 from app.books.service import BookService
 from app.core import trace
 from app.domain.models.book import Book
+from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.book_repository import BookRepository
 
 router = APIRouter(prefix="/api/v1/books", tags=["books"])
@@ -67,6 +68,9 @@ class ChapterContentResponse(BaseModel):
     index: int
     title: str
     content: str
+    # 该章在全文中的字符区间：前端据此把「选中位置」换算成全文偏移，用于高亮与回溯
+    char_start: int = 0
+    char_end: int = 0
     next_index: int | None
     request_id: str
 
@@ -78,12 +82,32 @@ class ProgressRequest(BaseModel):
 
 class NoteRequest(BaseModel):
     text: str = Field(min_length=1, max_length=4000)
+    note: str = Field(default="", max_length=2000, description="自己的想法（可空）")
     chapter_index: int | None = None
+    char_start: int | None = Field(default=None, ge=0)
+    char_end: int | None = Field(default=None, ge=0)
 
 
 class NoteResponse(BaseModel):
     item_id: str
     embed_status: str
+    has_note: bool = False
+    request_id: str
+
+
+class NoteItemOut(BaseModel):
+    item_id: str
+    excerpt: str  # 摘录原文（不含自己的想法）
+    note: str = ""
+    chapter_index: int | None = None
+    char_start: int | None = None
+    char_end: int | None = None
+    created_at: datetime
+
+
+class NotesResponse(BaseModel):
+    items: list[NoteItemOut]
+    total: int
     request_id: str
 
 
@@ -201,6 +225,8 @@ def get_chapter(
         index=chapter["index"],
         title=chapter["title"],
         content=content,
+        char_start=chapter["char_start"],
+        char_end=chapter["char_end"],
         next_index=next_index,
         request_id=trace.get_request_id() or "",
     )
@@ -242,6 +268,13 @@ def delete_book(
     return DeleteResponse(book_id=book.id, deleted=True, request_id=trace.get_request_id() or "")
 
 
+def _excerpt(item: KnowledgeItem) -> str:
+    """取回摘录原文（去掉拼接进 raw_content 的想法部分）。"""
+    content = item.raw_content or ""
+    marker = "\n\n【我的想法】"
+    return content.split(marker, 1)[0] if marker in content else content
+
+
 @router.post("/{book_id}/notes", response_model=NoteResponse, status_code=status.HTTP_201_CREATED)
 def add_note(
     book_id: str,
@@ -249,12 +282,16 @@ def add_note(
     user_id: str = Depends(get_user_id),
     session: Session = Depends(get_session),
 ) -> NoteResponse:
+    """阅读时划选一段文字存为知识；可附带自己的想法。"""
     try:
         item = BookService(session).add_note(
             user_id=user_id,
             book_id=book_id,
             text=body.text,
+            note=body.note,
             chapter_index=body.chapter_index,
+            char_start=body.char_start,
+            char_end=body.char_end,
         )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail="无权访问该书籍") from exc
@@ -263,5 +300,35 @@ def add_note(
     return NoteResponse(
         item_id=item.id,
         embed_status=item.embed_status,
+        has_note=bool(item.note),
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.get("/{book_id}/notes", response_model=NotesResponse)
+def list_notes(
+    book_id: str,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> NotesResponse:
+    """本书已录入的知识（含原文位置），供阅读页高亮与「本书知识」面板使用。"""
+    try:
+        items = BookService(session).list_notes(user_id=user_id, book_id=book_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="无权访问该书籍") from exc
+    return NotesResponse(
+        items=[
+            NoteItemOut(
+                item_id=item.id,
+                excerpt=_excerpt(item),
+                note=item.note or "",
+                chapter_index=(item.source_locator or {}).get("chapter_index"),
+                char_start=(item.source_locator or {}).get("char_start"),
+                char_end=(item.source_locator or {}).get("char_end"),
+                created_at=item.created_at,
+            )
+            for item in items
+        ],
+        total=len(items),
         request_id=trace.get_request_id() or "",
     )

@@ -13,6 +13,7 @@
   <div class="reader-tools">
     <button id="btn-back" class="sm">← 书架</button>
     <select id="chapter-select" title="跳转章节"></select>
+    <button id="btn-notes" class="sm">本书知识 <span id="notes-count">0</span></button>
     <button id="font-down" class="sm">A-</button>
     <button id="font-up" class="sm">A+</button>
   </div>
@@ -29,7 +30,28 @@
   </div>
 </main>
 
-<div id="selection-pop"></div>
+<div id="selection-pop">
+  <button data-act="excerpt">存摘录</button>
+  <button data-act="thought">写想法</button>
+</div>
+
+<div class="thought-drawer" id="thought-drawer" hidden>
+  <div class="quote" id="thought-quote"></div>
+  <textarea id="thought-input" placeholder="写下你此刻的想法…（会和这段原文一起存为一条知识）"></textarea>
+  <div class="row-actions">
+    <button id="thought-cancel" class="sm">取消</button>
+    <button id="thought-save" class="primary sm">保存</button>
+  </div>
+</div>
+
+<aside class="notes-panel" id="notes-panel" hidden>
+  <div class="panel-head">
+    <h3>本书知识</h3>
+    <button id="notes-close" class="sm">关闭</button>
+  </div>
+  <div id="notes-list"></div>
+</aside>
+
 <div id="toast"></div>
 <script src="/assets/app.js"></script>
 <script>
@@ -40,7 +62,14 @@
   var esc = CC.esc;
 
   var bookId = new URLSearchParams(location.search).get('book');
-  var state = { book: null, chapter: null, font: Number(localStorage.getItem('reader_font') || 18), saveTimer: null };
+  var state = {
+    book: null,
+    chapter: null,
+    notes: [],
+    font: Number(localStorage.getItem('reader_font') || 18),
+    saveTimer: null,
+    pendingSelection: null
+  };
 
   if (!bookId) {
     location.replace('/books.html');
@@ -60,37 +89,266 @@
     return ch ? ch.index : state.book.chapters[0].index;
   }
 
-  function renderChapterSelect() {
-    var sel = $('#chapter-select');
-    sel.innerHTML = (state.book.chapters || []).map(function (c) {
-      return '<option value="' + c.index + '">' + esc(c.title) + '</option>';
-    }).join('');
-  }
-
   function applyFont() {
     $('#reader-body').style.fontSize = state.font + 'px';
     localStorage.setItem('reader_font', String(state.font));
   }
 
+  /* 把已录入的区间渲染成高亮标记：绿色=带想法，黄色=纯摘录 */
+  function renderContent(text, chapter) {
+    var marks = (state.notes || [])
+      .filter(function (n) { return n.char_start != null && n.char_end != null; })
+      .map(function (n) {
+        return {
+          itemId: n.item_id,
+          hasNote: !!n.note,
+          start: Math.max(0, n.char_start - chapter.char_start),
+          end: Math.min(text.length, n.char_end - chapter.char_start)
+        };
+      })
+      .filter(function (m) { return m.end > 0 && m.end > m.start; })
+      .sort(function (a, b) { return a.start - b.start; });
+
+    if (!marks.length) {
+      return esc(text);
+    }
+
+    var html = '';
+    var cursor = 0;
+    marks.forEach(function (m) {
+      if (m.start < cursor) {
+        return; // 区间重叠时跳过后者，避免标签错位
+      }
+      html += esc(text.slice(cursor, m.start));
+      html += '<mark class="' + (m.hasNote ? 'mark-note' : 'mark-excerpt') +
+        '" data-item="' + esc(m.itemId) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
+      cursor = m.end;
+    });
+    html += esc(text.slice(cursor));
+    return html;
+  }
+
   async function loadChapter(index, scrollRatio) {
     var data = await CC.api('GET', '/api/v1/books/' + bookId + '/chapter/' + index);
     state.chapter = data.index;
+    var body = $('#reader-body');
     $('#chapter-title').textContent = data.title;
-    $('#reader-body').textContent = data.content;
+    body.innerHTML = renderContent(data.content, chapterByIndex(index) || { char_start: 0 });
     $('#chapter-select').value = String(index);
-    $('#reader-body').scrollTop = 0;
     applyFont();
+    body.scrollTop = 0;
 
-    // 续读：按比例滚到上次的位置
     if (scrollRatio != null) {
       requestAnimationFrame(function () {
-        var body = $('#reader-body');
         var max = body.scrollHeight - body.clientHeight;
         body.scrollTop = Math.max(0, scrollRatio * max);
       });
     }
   }
 
+  function renderBookInfo() {
+    document.querySelector('.brand .sub').textContent = '阅读 · ' + state.book.title;
+  }
+
+  function renderChapterSelect() {
+    $('#chapter-select').innerHTML = (state.book.chapters || []).map(function (c) {
+      return '<option value="' + c.index + '">' + esc(c.title) + '</option>';
+    }).join('');
+  }
+
+  /* ---------- 本书知识面板 ---------- */
+  function renderNotesPanel() {
+    $('#notes-count').textContent = String(state.notes.length);
+    var box = $('#notes-list');
+    if (!state.notes.length) {
+      box.innerHTML = '<div class="empty">这本书还没有记录。<br>选中正文里的文字即可存为知识。</div>';
+      return;
+    }
+    box.innerHTML = state.notes.map(function (n) {
+      return '<div class="note-card" data-item="' + esc(n.item_id) + '">' +
+        '<div class="excerpt">' + esc(n.excerpt) + '</div>' +
+        (n.note ? '<div class="thought">' + esc(n.note) + '</div>' : '') +
+        '<div class="meta">' + (n.chapter_index != null ? '第 ' + n.chapter_index + ' 章 · ' : '') +
+          (n.note ? '含想法' : '摘录') + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function reloadNotes() {
+    try {
+      var data = await CC.api('GET', '/api/v1/books/' + bookId + '/notes');
+      state.notes = data.items || [];
+    } catch (err) {
+      state.notes = [];
+    }
+    renderNotesPanel();
+  }
+
+  async function jumpToNote(itemId) {
+    var note = state.notes.find(function (n) { return n.item_id === itemId; });
+    if (!note) {
+      return;
+    }
+    if (note.chapter_index != null && note.chapter_index !== state.chapter) {
+      await loadChapter(note.chapter_index, null);
+    }
+    requestAnimationFrame(function () {
+      var el = document.querySelector('mark[data-item="' + itemId + '"]');
+      if (!el) {
+        CC.toast('未能定位到原文（可能是旧数据）');
+        return;
+      }
+      el.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      el.classList.add('flash');
+      setTimeout(function () { el.classList.remove('flash'); }, 1600);
+    });
+    $('#notes-panel').hidden = true;
+  }
+
+  $('#btn-notes').addEventListener('click', function () {
+    $('#notes-panel').hidden = !$('#notes-panel').hidden;
+    renderNotesPanel();
+  });
+  $('#notes-close').addEventListener('click', function () {
+    $('#notes-panel').hidden = true;
+  });
+  $('#notes-list').addEventListener('click', function (event) {
+    var card = event.target.closest('.note-card');
+    if (card) {
+      jumpToNote(card.getAttribute('data-item'));
+    }
+  });
+
+  /* ---------- 划词：存摘录 / 写想法 ---------- */
+  var pop = $('#selection-pop');
+  var drawer = $('#thought-drawer');
+
+  function hidePop() {
+    pop.classList.remove('show');
+  }
+
+  function showPop(x, y) {
+    pop.style.left = Math.min(x, window.innerWidth - 200) + 'px';
+    pop.style.top = Math.max(8, y - 46) + 'px';
+    pop.classList.add('show');
+  }
+
+  function getSelectionInfo() {
+    var sel = window.getSelection();
+    var text = sel ? sel.toString().trim() : '';
+    var body = $('#reader-body');
+    if (!sel || !sel.anchorNode || !body.contains(sel.anchorNode) || text.length < 2) {
+      return null;
+    }
+    // 用 Range 计算选区在章节文本中的字符偏移
+    var range = sel.getRangeAt(0).cloneRange();
+    var pre = document.createRange();
+    pre.selectNodeContents(body);
+    pre.setEnd(range.startContainer, range.startOffset);
+    var localStart = pre.toString().length;
+    return { text: text.slice(0, 4000), localStart: localStart, localEnd: localStart + text.length };
+  }
+
+  async function saveNote(text, note, localStart, localEnd) {
+    var chapter = chapterByIndex(state.chapter) || { char_start: 0 };
+    var payload = {
+      text: text,
+      note: note || '',
+      chapter_index: state.chapter,
+      char_start: chapter.char_start + localStart,
+      char_end: chapter.char_start + localEnd
+    };
+    await CC.api('POST', '/api/v1/books/' + bookId + '/notes', payload);
+    // 重新渲染以显示高亮，但要保住当前阅读位置（否则每存一次就跳回顶部）
+    var body = $('#reader-body');
+    var keepTop = body.scrollTop;
+    await reloadNotes();
+    await loadChapter(state.chapter, null);
+    body.scrollTop = keepTop;
+    CC.toast(note ? '已记入知识库（含想法）' : '已记入知识库');
+  }
+
+  pop.addEventListener('click', async function (event) {
+    var act = event.target.closest('[data-act]');
+    if (!act || !state.pendingSelection) {
+      return;
+    }
+    var info = state.pendingSelection;
+    hidePop();
+
+    if (act.getAttribute('data-act') === 'excerpt') {
+      try {
+        await saveNote(info.text, '', info.localStart, info.localEnd);
+      } catch (err) {
+        CC.toast('保存失败：' + err.message);
+      }
+      window.getSelection().removeAllRanges();
+      return;
+    }
+
+    // 写想法：弹出抽屉，带着选中的原文
+    $('#thought-quote').textContent = info.text;
+    $('#thought-input').value = '';
+    drawer.hidden = false;
+    $('#thought-input').focus();
+  });
+
+  $('#thought-cancel').addEventListener('click', function () {
+    drawer.hidden = true;
+    state.pendingSelection = null;
+    window.getSelection().removeAllRanges();
+  });
+
+  $('#thought-save').addEventListener('click', async function () {
+    var info = state.pendingSelection;
+    if (!info) {
+      drawer.hidden = true;
+      return;
+    }
+    var thought = $('#thought-input').value.trim();
+    try {
+      await saveNote(info.text, thought, info.localStart, info.localEnd);
+    } catch (err) {
+      CC.toast('保存失败：' + err.message);
+    }
+    drawer.hidden = true;
+    state.pendingSelection = null;
+    window.getSelection().removeAllRanges();
+  });
+
+  document.addEventListener('mouseup', function (event) {
+    if (pop.contains(event.target) || drawer.contains(event.target)) {
+      return;
+    }
+    var info = getSelectionInfo();
+    if (info) {
+      state.pendingSelection = info;
+      showPop(event.clientX, event.clientY);
+    } else {
+      hidePop();
+    }
+  });
+
+  // 快捷键：选中后 Ctrl/Cmd + Enter 直接存摘录，不打断阅读
+  document.addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      var info = getSelectionInfo();
+      if (!info) {
+        return;
+      }
+      event.preventDefault();
+      hidePop();
+      saveNote(info.text, '', info.localStart, info.localEnd)
+        .then(function () { window.getSelection().removeAllRanges(); })
+        .catch(function (err) { CC.toast('保存失败：' + err.message); });
+    } else if (event.key === 'Escape') {
+      hidePop();
+      drawer.hidden = true;
+      $('#notes-panel').hidden = true;
+    }
+  });
+
+  /* ---------- 进度保存 ---------- */
   function saveProgress() {
     var chapter = chapterByIndex(state.chapter);
     if (!chapter) {
@@ -102,11 +360,10 @@
     var span = chapter.char_end - chapter.char_start;
     var globalChar = chapter.char_start + Math.floor(ratio * span);
     var progress = state.book.total_chars ? Math.min(1, globalChar / state.book.total_chars) : 0;
-    // 不 await：进度保存是后台行为，失败也不打断阅读
     CC.api('PATCH', '/api/v1/books/' + bookId + '/progress', {
       current_char: globalChar,
       read_progress: progress
-    }).catch(function () { /* 静默 */ });
+    }).catch(function () { /* 后台行为，失败不打断阅读 */ });
   }
 
   function scheduleSave() {
@@ -114,55 +371,14 @@
     state.saveTimer = setTimeout(saveProgress, 800);
   }
 
-  /* ---------- 划词存知识 ---------- */
-  var pop = $('#selection-pop');
-  function hidePop() {
-    pop.classList.remove('show');
-  }
-  function showPop(x, y, text) {
-    pop.textContent = '记入知识库';
-    pop.style.left = x + 'px';
-    pop.style.top = (y - 44) + 'px';
-    pop.classList.add('show');
-    pop.onclick = async function () {
-      try {
-        var r = await CC.api('POST', '/api/v1/books/' + bookId + '/notes', {
-          text: text,
-          chapter_index: state.chapter
-        });
-        CC.toast(r.embed_status === 'embedded' ? '已记入知识库（含向量）' : '已记入知识库');
-      } catch (err) {
-        CC.toast('记入失败：' + err.message);
-      }
-      hidePop();
-      window.getSelection().removeAllRanges();
-    };
-  }
-
-  document.addEventListener('mouseup', function (event) {
-    var sel = window.getSelection();
-    var text = sel ? sel.toString().trim() : '';
-    var body = $('#reader-body');
-    var inReader = sel && sel.anchorNode && body.contains(sel.anchorNode);
-    if (inReader && text.length >= 5 && text.length <= 4000) {
-      showPop(event.clientX, event.clientY, text);
-    } else if (!pop.contains(event.target)) {
-      hidePop();
-    }
-  });
-
-  /* ---------- 事件 ---------- */
   $('#btn-back').addEventListener('click', function () {
     saveProgress();
     location.href = '/books.html';
   });
-
   $('#chapter-select').addEventListener('change', function (event) {
-    var index = Number(event.target.value);
     saveProgress();
-    loadChapter(index, null);
+    loadChapter(Number(event.target.value), null);
   });
-
   $('#font-down').addEventListener('click', function () {
     state.font = Math.max(14, state.font - 2);
     applyFont();
@@ -171,7 +387,6 @@
     state.font = Math.min(28, state.font + 2);
     applyFont();
   });
-
   $('#reader-body').addEventListener('scroll', scheduleSave);
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
@@ -186,24 +401,24 @@
     }
     try {
       state.book = await CC.api('GET', '/api/v1/books/' + bookId);
-      document.querySelector('.brand .sub').textContent = '阅读 · ' + state.book.title;
     } catch (err) {
       CC.toast('加载书籍失败：' + err.message);
       setTimeout(function () { location.replace('/books.html'); }, 1500);
       return;
     }
-
+    renderBookInfo();
     renderChapterSelect();
-    var idx = currentChapterIndex();
-    if (idx == null) {
+    await reloadNotes();
+
+    var index = currentChapterIndex();
+    if (index == null) {
       CC.toast('这本书没有可读内容');
       return;
     }
-    var chapter = chapterByIndex(idx);
+    var chapter = chapterByIndex(index);
     var localChar = state.book.current_char - chapter.char_start;
     var span = chapter.char_end - chapter.char_start;
-    var ratio = span > 0 ? localChar / span : 0;
-    await loadChapter(idx, ratio);
+    await loadChapter(index, span > 0 ? localChar / span : 0);
   })();
 })();
 </script>

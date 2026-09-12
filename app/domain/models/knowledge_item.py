@@ -24,6 +24,11 @@ class KnowledgeItem(Base, TimestampMixin):
     embedding: Mapped[bytes | None] = mapped_column(nullable=True)
     # 向量化状态：pending=待算 / embedded=可检索 / embed_failed=失败（降级关键词召回）
     embed_status: Mapped[str] = mapped_column(default="pending")
+    # 用户自己的批注 / 想法（阅读时随手写下，与摘录原文一起沉淀为一条知识）
+    note: Mapped[str] = mapped_column(Text, default="")
+    # 来源定位：如书籍内的字符区间 {chapter_index, char_start, char_end}，
+    # 用于回溯原文、以及阅读时高亮「已录入」的区间
+    source_locator: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 软删（需求安全-5 / §6.3：全表软删 + 保留期物理清除）
     is_deleted: Mapped[bool] = mapped_column(default=False)
 

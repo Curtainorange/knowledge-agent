@@ -3,6 +3,7 @@ from __future__ import annotations
 
 from uuid import uuid4
 
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.books import parser
@@ -82,12 +83,17 @@ class BookService:
         user_id: str,
         book_id: str,
         text: str,
+        note: str = "",
         chapter_index: int | None = None,
+        char_start: int | None = None,
+        char_end: int | None = None,
     ) -> KnowledgeItem | None:
-        """把阅读时划选的一段文字存为知识条目（source=book）。
+        """把阅读时划选的一段文字（可附带自己的想法）存为知识条目。
 
-        复用 IngestionService 走与手动录入完全相同的「先落库、再向量化」链路，
-        因此这段摘录会直接进入语义检索，可被 L1 挖掘命中。
+        - 摘录原文进 `raw_content`，自己的想法进 `note`
+        - 想法**同时拼进** `raw_content`：这样它能被语义检索命中，
+          L1 挖掘到的是「你的理解」，而不只是原文
+        - `source_locator` 记录原文位置，供阅读页高亮与跳回原文
         """
         repo = BookRepository(self._session, user_id=user_id)
         book = repo.get(book_id)
@@ -102,14 +108,44 @@ class BookService:
                     break
         title = f"{book.title} · {chapter_title}".strip(" ·") if chapter_title else book.title
 
+        excerpt = text.strip()
+        thought = (note or "").strip()
+        content = excerpt if not thought else f"{excerpt}\n\n【我的想法】{thought}"
+
         svc = IngestionService(self._session, build_embedding())
         item = svc.add_knowledge(
             user_id=user_id,
             title=title[:256],
-            content=text.strip(),
+            content=content,
             source="book",
-            tags=["书籍摘录"],
+            tags=["书籍摘录"] if not thought else ["书籍摘录", "读书笔记"],
         )
-        item.source_item_id = book_id  # 关联回原书，便于溯源
+        item.source_item_id = book_id
+        item.note = thought
+        if char_start is not None and char_end is not None:
+            item.source_locator = {
+                "chapter_index": chapter_index,
+                "char_start": int(char_start),
+                "char_end": int(char_end),
+            }
         self._session.commit()
         return item
+
+    def list_notes(self, *, user_id: str, book_id: str) -> list[KnowledgeItem]:
+        """本书已录入的知识，按原文位置排序。
+
+        供阅读页做「已录区间高亮」与「本书知识面板」。
+        """
+        repo = BookRepository(self._session, user_id=user_id)
+        book = repo.get(book_id)
+        if book is None:
+            return []
+        stmt = select(KnowledgeItem).where(
+            KnowledgeItem.user_id == user_id,
+            KnowledgeItem.source == "book",
+            KnowledgeItem.source_item_id == book_id,
+            KnowledgeItem.is_deleted.is_(False),
+        )
+        items = list(self._session.scalars(stmt))
+        items.sort(key=lambda i: (i.source_locator or {}).get("char_start", 0))
+        return items

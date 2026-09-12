@@ -198,3 +198,84 @@ def test_cross_user_access_forbidden(client):
         f"/api/v1/books/{book['book_id']}/chapter/1", headers=headers_b
     ).status_code == 403
     assert client.get("/api/v1/books", headers=headers_b).json()["total"] == 0
+
+
+def test_note_with_thought_and_locator(client, session):
+    """阅读时写下的想法要单独留存，同时拼进正文以便被 L1 挖到；位置用于高亮回溯。"""
+    headers = auth_headers(client, "book_thought")
+    book = _upload(client, headers, "书.txt", SAMPLE_TXT.encode("utf-8")).json()
+
+    resp = client.post(
+        f"/api/v1/books/{book['book_id']}/notes",
+        json={
+            "text": "这是第一章的内容。",
+            "note": "这段让我想到：索引设计要以查询模式为先",
+            "chapter_index": 1,
+            "char_start": 7,
+            "char_end": 16,
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["has_note"] is True
+
+    item = session.get(KnowledgeItem, resp.json()["item_id"])
+    assert item.note == "这段让我想到：索引设计要以查询模式为先"
+    assert "【我的想法】" in item.raw_content  # 想法也进正文，才能被检索命中
+    assert item.source_locator == {"chapter_index": 1, "char_start": 7, "char_end": 16}
+    assert "读书笔记" in (item.tags or [])
+
+
+def test_note_without_thought_has_no_note(client, session):
+    headers = auth_headers(client, "book_plain_note")
+    book = _upload(client, headers, "书.txt", SAMPLE_TXT.encode("utf-8")).json()
+    resp = client.post(
+        f"/api/v1/books/{book['book_id']}/notes",
+        json={"text": "纯摘录", "chapter_index": 1, "char_start": 0, "char_end": 3},
+        headers=headers,
+    )
+    assert resp.status_code == 201
+    assert resp.json()["has_note"] is False
+    item = session.get(KnowledgeItem, resp.json()["item_id"])
+    assert item.note == ""
+    assert "【我的想法】" not in item.raw_content
+
+
+def test_list_notes_sorted_with_excerpt(client):
+    headers = auth_headers(client, "book_notes_list")
+    book = _upload(client, headers, "书.txt", SAMPLE_TXT.encode("utf-8")).json()
+    bid = book["book_id"]
+
+    client.post(
+        f"/api/v1/books/{bid}/notes",
+        json={"text": "第二章的段落", "note": "我的想法", "chapter_index": 2,
+              "char_start": 30, "char_end": 36},
+        headers=headers,
+    )
+    client.post(
+        f"/api/v1/books/{bid}/notes",
+        json={"text": "第一章的段落", "chapter_index": 1, "char_start": 7, "char_end": 13},
+        headers=headers,
+    )
+
+    resp = client.get(f"/api/v1/books/{bid}/notes", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    # 按原文位置排序（第一章在前）
+    assert body["items"][0]["char_start"] < body["items"][1]["char_start"]
+
+    second = body["items"][1]
+    assert second["note"] == "我的想法"
+    # 摘录里不能带上拼接进去的想法
+    assert "【我的想法】" not in second["excerpt"]
+    assert second["chapter_index"] == 2
+
+
+def test_list_notes_cross_user_forbidden(client):
+    headers_a = auth_headers(client, "book_notes_a")
+    headers_b = auth_headers(client, "book_notes_b")
+    book = _upload(client, headers_a, "书.txt", SAMPLE_TXT.encode("utf-8")).json()
+    assert client.get(
+        f"/api/v1/books/{book['book_id']}/notes", headers=headers_b
+    ).status_code == 403
