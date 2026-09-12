@@ -30,14 +30,17 @@ class Strategy:
 
 
 # 静态映射（配表驱动，可热更新；缺省为"默认对话 reasoning=off"）
+# reasoning 开关与设计文档 §3.1.2 对齐：深度/冲突/归因任务开思考，标准对话/规划/简报关思考省成本。
+# （曾因骨架期笔误把 multi_turn_dialogue/plan_generation/cognitive_brief 写成 on，
+#   已校回 off——这三类均非深度推理任务，且 reasoning=on 的单价显著更高。）
 STRATEGY_TABLE: dict[str, Strategy] = {
     "default": Strategy("default", False, ""),
-    "multi_turn_dialogue": Strategy("multi_turn_dialogue", True, ""),
+    "multi_turn_dialogue": Strategy("multi_turn_dialogue", False, ""),
     "deep_reasoning": Strategy("deep_reasoning", True, ""),
     "conflict_detection": Strategy("conflict_detection", True, ""),
-    "plan_generation": Strategy("plan_generation", True, ""),
+    "plan_generation": Strategy("plan_generation", False, ""),
     "causal_reasoning": Strategy("causal_reasoning", True, ""),
-    "cognitive_brief": Strategy("cognitive_brief", True, ""),
+    "cognitive_brief": Strategy("cognitive_brief", False, ""),
     "l1_mining": Strategy("l1_mining", True, ""),  # L1 模糊意图→定位判断（reasoning=on）
     "batch_extraction": Strategy("batch_extraction", False, ""),
     "topic_analysis": Strategy("topic_analysis", False, ""),

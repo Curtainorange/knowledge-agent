@@ -11,7 +11,9 @@ from app.llm.gateway import ModelGateway, strategy_for, Strategy
 def test_strategy_mapping():
     assert strategy_for("deep_reasoning").reasoning is True
     assert strategy_for("batch_extraction").reasoning is False
-    assert strategy_for("multi_turn_dialogue").reasoning is True
+    # 标准对话关思考（与设计文档 §3.1.2 一致；深度任务才开）
+    assert strategy_for("multi_turn_dialogue").reasoning is False
+    assert strategy_for("l1_mining").reasoning is True
     assert strategy_for("unknown_task") == strategy_for("default")
     assert strategy_for("unknown_task").reasoning is False
 
@@ -31,12 +33,12 @@ def test_gateway_chat_deterministic_and_billable(session):
         c2 = gw.chat(task_type="multi_turn_dialogue", messages=[{"role": "user", "content": "你好"}], session=session)
     # MockProvider 确定性：相同输入 → 相同输出与 token
     assert c1.text == c2.text
-    assert c1.reasoning is True
+    assert c1.reasoning is False
     assert c1.prompt_tokens > 0
 
     # 成本落库（以本测试 request_id 过滤，避免跨测试共享内存库污染）
     session.flush()
     rows = session.query(CostLog).filter(CostLog.request_id == "req-test-gateway").all()
     assert len(rows) == 2
-    assert all(r.reasoning is True for r in rows)
+    assert all(r.reasoning is False for r in rows)
     assert all(r.estimated_cost >= 0 for r in rows)
