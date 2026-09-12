@@ -37,3 +37,6 @@ data/
 
 # --- Claude Code 本地状态 ---
 .claude/
+
+# --- WorkBuddy 会话/记忆（本地辅助数据，不入库）---
+.workbuddy/
