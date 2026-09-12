@@ -71,14 +71,29 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 > `JWT_SECRET` 未配置时会在进程内随机生成并告警，服务重启后旧 token 全部失效——仅供本机开发；
 > 生产请在 `.env` 中显式配置（生成方式见 `.env.example`）。
 
-## 向量模型与降级
+## 向量模型（语义检索）
 
-检索依赖本地 BGE（`BAAI/bge-small-zh-v1.5`，512 维）。首次录入触发下载，之后走缓存
-（默认 `~/.cache/huggingface`）。
+检索依赖 BGE 中文模型（`BAAI/bge-small-zh-v1.5`，512 维）。三种后端：
 
-若模型缓存丢失且当前无法访问 HF（离线或网络受限），条目仍会正常入库，只是
-`embed_status=embed_failed`，检索自动**降级为关键词召回**，不阻断主链路。
-此时功能可用、语义精度下降；网络恢复后重新录入（或对已有条目触发一次文本更新）即可补齐向量。
+| backend | 说明 |
+|---|---|
+| `local`（默认，推荐） | 从 `EMBEDDING_LOCAL_DIR` 加载本地 ONNX，**完全离线** |
+| `bge` | 由 fastembed 自动从 HuggingFace 下载（需能访问 HF） |
+| `hash` | 确定性哈希，零依赖但语义弱，仅测试 / 应急 |
+
+首次使用先取模型（约 23MB，支持断点续传）：
+
+```bash
+python scripts/fetch_embedding_model.py
+```
+
+> **为什么要这一步**：部分网络环境下 `huggingface.co` / `hf-mirror.com` 不可达
+> ——DNS 能解析但 TCP 连接建立不起来，此时 fastembed 无法自动下载模型。
+> 该脚本从可达的 ModelScope 镜像拉取同一模型到本地，之后长期可用、不再联网。
+
+若模型缺失或加载失败，条目仍会正常入库，只是 `embed_status=embed_failed`，
+检索自动**降级为关键词召回**，不阻断主链路；补齐模型后重新录入（或对已有条目
+触发一次文本更新）即可补上向量。
 
 ## 测试
 

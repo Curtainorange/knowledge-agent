@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import numpy as np
+import pytest
 
 from app.core.config import settings
 from app.retrieval.embedding import EmbeddingModel, HashEmbedding, build_embedding
@@ -44,3 +45,32 @@ def test_dumps_loads_roundtrip():
 def test_factory():
     assert isinstance(build_embedding("hash"), HashEmbedding)
     assert isinstance(build_embedding(), HashEmbedding)  # conftest 强制 hash
+
+
+def test_factory_reuses_instance():
+    """同后端必须复用实例：模型的加载状态（尤其是失败冷却）挂在实例上，
+    每次新建会让冷却失效。"""
+    assert build_embedding("hash") is build_embedding("hash")
+
+
+def test_factory_rejects_unknown_backend():
+    with pytest.raises(ValueError):
+        build_embedding("no-such-backend")
+
+
+def test_local_backend_reports_missing_model_clearly(tmp_path):
+    """local 后端在模型缺失时，错误信息要能直接指导用户怎么补。"""
+    from app.retrieval.embedding import LocalOnnxEmbedding
+
+    model = LocalOnnxEmbedding(model_dir=str(tmp_path / "not-there"))
+    with pytest.raises(RuntimeError) as excinfo:
+        model.embed(["任意文本"])
+    assert "fetch_embedding_model" in str(excinfo.value)
+
+
+def test_local_backend_lazy_loads():
+    """构造时不应加载模型（延迟到首次 embed），否则服务启动就会被拖慢。"""
+    from app.retrieval.embedding import LocalOnnxEmbedding
+
+    model = LocalOnnxEmbedding(model_dir="definitely/not/a/real/dir")
+    assert model._session is None

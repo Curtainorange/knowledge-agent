@@ -28,10 +28,13 @@ class Settings(BaseSettings):
     deepseek_price_output_per_1m: float = 4.0
 
     # --- Embedding（语义检索；独立于 LLM，DeepSeek 无标准 embedding 接口）---
-    # backend: bge（本地真语义，默认）| hash（确定性零依赖，测试/离线）
-    embedding_backend: str = "bge"
+    # backend: local（本地 ONNX 目录，离线可用，推荐）| bge（fastembed 自动下载）
+    #          | hash（确定性零依赖，测试/离线兜底）
+    embedding_backend: str = "local"
     embedding_model: str = "BAAI/bge-small-zh-v1.5"
     embedding_dim: int = 512
+    # local 后端读取的模型目录，用 scripts/fetch_embedding_model.py 预取
+    embedding_local_dir: str = "models/bge-small-zh-v1.5"
 
     # --- Hugging Face 模型下载（国内走镜像，见 .env.example 说明）---
     hf_endpoint: str = ""            # 例 https://hf-mirror.com
