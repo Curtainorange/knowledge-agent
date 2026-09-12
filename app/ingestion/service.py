@@ -26,8 +26,16 @@ class IngestionService:
     ) -> KnowledgeItem:
         repo = KnowledgeRepository(self._session, user_id=user_id)
         item = repo.create(user_id=user_id, title=title, content=content, source=source, tags=tags)
+
+        # 先落库提交，再算向量。模型首次加载 / 下载可能耗时数十秒，若压在写事务里，
+        # SQLite 的写锁会被长期占用，其它请求会直接撞上 "database is locked"。
+        # 代价是顺序从「同事务写入」变为「先写事实来源、再补向量」——向量失败只影响
+        # 召回质量，不影响条目存在（可靠-4），这个取舍是划算的。
+        self._session.commit()
+
         if self._embedding is not None:
             self._try_embed(item)
+            self._session.commit()
         return item
 
     def update_knowledge(
@@ -51,8 +59,11 @@ class IngestionService:
         text_changed = repo.apply_update(
             item, title=title, content=content, tags=tags, read_progress=read_progress
         )
+        # 同 add_knowledge：先提交释放写锁，再补算向量
+        self._session.commit()
         if text_changed and self._embedding is not None:
             self._try_embed(item)
+            self._session.commit()
         return item
 
     def delete_knowledge(self, *, user_id: str, item_id: str) -> KnowledgeItem | None:

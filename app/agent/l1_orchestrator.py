@@ -46,13 +46,32 @@ class LocatedItem:
 
 
 @dataclass
+class CandidateItem:
+    """召回候选明细。
+
+    即使某条没被判定为命中，也让用户看到「还有哪些可能」——只给一条结果时，
+    用户无从判断模型是真定位到了，还是随便挑了一条。
+    """
+
+    item_id: str
+    title: str
+    snippet: str
+    score: float
+    channels: list[str] = field(default_factory=list)
+    read_progress: float = 0.0
+
+
+@dataclass
 class L1Result:
     state: Literal["located", "clarifying", "empty"]
     conversation_id: str = ""
     question: str = ""
     located_items: list[LocatedItem] = field(default_factory=list)
-    candidates: list[RetrievedItem] = field(default_factory=list)
+    candidates: list[CandidateItem] = field(default_factory=list)
     read_hint: str = ""
+    turn: int = 0          # 已进行的追问轮次
+    max_turns: int = 3     # 追问上限
+    reason: str = ""       # 模型给出的决策依据（便于排查与展示）
 
 
 _SYS = (
@@ -101,8 +120,38 @@ class L1Orchestrator:
         return repo.create(user_id)
 
     @staticmethod
-    def _question_count(conv) -> int:
-        return sum(1 for m in (conv.messages or []) if m.get("role") == "assistant")
+    def _l1_turn_count(conv) -> int:
+        """已进行的 L1 追问轮次。
+
+        只统计带 `source="l1"` 标记的 assistant 消息：同一会话若混用过通用对话，
+        那些回复不该计入 L1 的追问上限（旧实现数了所有 assistant 消息，会提前触发兜底）。
+        """
+        return sum(
+            1 for m in (conv.messages or [])
+            if m.get("role") == "assistant" and m.get("source") == "l1"
+        )
+
+    @staticmethod
+    def _candidate_details(
+        candidates: list[RetrievedItem], items: dict[str, KnowledgeItem]
+    ) -> list[CandidateItem]:
+        """把检索结果补全为可直接展示的候选明细（检索层只给 id/分数，不含文本）。"""
+        details: list[CandidateItem] = []
+        for candidate in candidates:
+            item = items.get(candidate.item_id)
+            if item is None:
+                continue
+            details.append(
+                CandidateItem(
+                    item_id=item.id,
+                    title=item.title,
+                    snippet=item.snippet,
+                    score=round(candidate.score, 4),
+                    channels=list(candidate.channels),
+                    read_progress=item.read_progress or 0.0,
+                )
+            )
+        return details
 
     @staticmethod
     def _candidate_block(candidates: list[RetrievedItem], items: dict[str, KnowledgeItem]) -> str:
@@ -139,7 +188,7 @@ class L1Orchestrator:
         conv = self._load_conversation(user_id, conversation_id)
         cid = conv.id
         repo = ConversationRepository(self._session, user_id=user_id)
-        repo.append_message(conv, "user", message)
+        repo.append_message(conv, "user", message, source="l1")
         self._session.flush()
 
         krepo = KnowledgeRepository(self._session, user_id=user_id)
@@ -147,30 +196,73 @@ class L1Orchestrator:
         if not items:
             repo.set_state(conv, "idle")
             self._session.commit()
-            return L1Result(state="empty", conversation_id=cid, question="知识库还是空的，先录入几条知识再来挖掘吧。")
+            return L1Result(
+                state="empty",
+                conversation_id=cid,
+                question="知识库还是空的，先录入几条知识再来挖掘吧。",
+                max_turns=self._max_turns,
+            )
 
+        turn = self._l1_turn_count(conv)
         candidates = self._retriever.retrieve(message, list(items.values()), top_k=5)
+        details = self._candidate_details(candidates, items)
 
-        # 超限兜底：直接定位首候选，结束追问
-        if self._question_count(conv) >= self._max_turns and candidates:
-            return self._finish_located(conv, repo, candidates[0].item_id, items)
+        # 追问超限：兜底定位最可能的候选，结束追问（宁可给一条，也不要无限问下去）
+        if turn >= self._max_turns and candidates:
+            return self._finish_located(
+                conv, repo, [candidates[0].item_id], items,
+                candidates=details, turn=turn, reason="追问已达上限，回退到最可能的候选",
+            )
 
         route = self._route(conv, message, candidates, items, user_id)
 
-        if route.decision == "located" and route.item_ids and route.item_ids[0] in items:
-            return self._finish_located(conv, repo, route.item_ids[0], items)
+        if route.decision == "located":
+            valid = [item_id for item_id in route.item_ids if item_id in items]
+            if valid:
+                return self._finish_located(
+                    conv, repo, valid, items,
+                    candidates=details, turn=turn, reason=route.reason,
+                )
+            logger.warning("l1 路由给出不存在的 item_ids，降级为追问：%s", route.item_ids)
 
-        # clarify：记一条 assistant 问题，续聊下轮
+        # clarify：记一条带来源标记的追问，续聊下一轮
         question = route.question or "线索还不够明确，请再多给一点上下文？"
-        repo.append_message(conv, "assistant", question)
+        repo.append_message(conv, "assistant", question, source="l1")
         repo.set_state(conv, "clarifying")
         self._session.commit()
-        return L1Result(state="clarifying", conversation_id=cid, question=question, candidates=candidates)
+        return L1Result(
+            state="clarifying",
+            conversation_id=cid,
+            question=question,
+            candidates=details,
+            turn=turn + 1,
+            max_turns=self._max_turns,
+            reason=route.reason,
+        )
 
-    def _finish_located(self, conv, repo, item_id: str, items: dict[str, KnowledgeItem]) -> L1Result:
+    def _finish_located(
+        self,
+        conv,
+        repo,
+        item_ids: list[str],
+        items: dict[str, KnowledgeItem],
+        *,
+        candidates: list[CandidateItem] | None = None,
+        turn: int = 0,
+        reason: str = "",
+        max_items: int = 3,
+    ) -> L1Result:
+        """交付命中条目（支持多条）。
+
+        去重、丢弃不存在的 id，并截断到 max_items：模型偶尔会返回重复 id 或一长串
+        候选，直接全量返回等于把整个知识库倒给用户。
+        """
         located: list[LocatedItem] = []
-        hint = ""
-        if item_id in items:
+        seen: set[str] = set()
+        for item_id in item_ids:
+            if item_id in seen or item_id not in items:
+                continue
+            seen.add(item_id)
             it = items[item_id]
             located.append(
                 LocatedItem(
@@ -181,10 +273,22 @@ class L1Orchestrator:
                     embed_status=it.embed_status,
                 )
             )
-            hint = _read_hint(it)
+            if len(located) >= max_items:
+                break
+
+        hint = _read_hint(items[located[0].item_id]) if located else ""
         repo.set_state(conv, "located")
         self._session.commit()
-        logger.info("l1 located items=%s hint=%r conv=%s", [l.item_id for l in located], hint, conv.id)
+        logger.info(
+            "l1 located items=%s hint=%r conv=%s", [l.item_id for l in located], hint, conv.id
+        )
         return L1Result(
-            state="located", conversation_id=conv.id, located_items=located, read_hint=hint
+            state="located",
+            conversation_id=conv.id,
+            located_items=located,
+            candidates=candidates or [],
+            read_hint=hint,
+            turn=turn,
+            max_turns=self._max_turns,
+            reason=reason,
         )

@@ -41,8 +41,20 @@ Base.metadata.create_all(_engine)
 _TestingSession = sessionmaker(bind=_engine, autoflush=False, expire_on_commit=False, future=True)
 
 
+def _reset_tables() -> None:
+    """清空所有表。
+
+    service 层现在会在内部 commit（先落库再补向量，避免长时间持有 SQLite 写锁），
+    因此数据不再随事务回滚消失。使用 session 夹具的用例必须显式重置，否则相互污染。
+    """
+    with _engine.begin() as conn:
+        for table in reversed(Base.metadata.sorted_tables):
+            conn.execute(table.delete())
+
+
 @pytest.fixture()
 def session():
+    _reset_tables()
     s = _TestingSession()
     try:
         yield s

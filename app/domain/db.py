@@ -10,6 +10,8 @@ from app.domain.models.base import Base
 _connect_args: dict = {}
 if settings.database_url.startswith("sqlite"):
     _connect_args["check_same_thread"] = False
+    # 并发写时先等待而不是立刻抛 "database is locked"（默认只等 5 秒）
+    _connect_args["timeout"] = 30.0
 
 engine = create_engine(settings.database_url, connect_args=_connect_args, future=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, expire_on_commit=False, future=True)

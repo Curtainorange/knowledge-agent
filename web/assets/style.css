@@ -1,0 +1,116 @@
+/* 认知副驾 · 共享样式（三个页面复用） */
+:root{
+  --bg:#f5f6f8; --card:#fff; --border:#e3e6ea; --text:#1f2328; --muted:#6b7280;
+  --accent:#2563eb; --accent-weak:#eff6ff;
+  --ok:#0f766e; --ok-weak:#e6f4f1; --warn:#b45309; --warn-weak:#fef3c7;
+  --danger:#b91c1c;
+}
+*{box-sizing:border-box}
+body{margin:0;font:14px/1.6 system-ui,-apple-system,"Segoe UI","Microsoft YaHei",sans-serif;
+  background:var(--bg);color:var(--text)}
+
+/* ---- 顶栏与导航 ---- */
+header.topbar{display:flex;align-items:center;gap:16px;flex-wrap:wrap;
+  padding:11px 20px;background:var(--card);border-bottom:1px solid var(--border);
+  position:sticky;top:0;z-index:5}
+.brand{font-size:15px;font-weight:600;white-space:nowrap}
+.brand .sub{font-weight:400;color:var(--muted);font-size:13px;margin-left:8px}
+.nav{display:flex;gap:4px;margin-left:8px}
+.nav a{color:var(--muted);text-decoration:none;padding:5px 12px;border-radius:8px;font-size:14px}
+.nav a:hover{background:var(--accent-weak);color:var(--accent)}
+.nav a.active{background:var(--accent-weak);color:var(--accent);font-weight:500}
+.who{display:flex;align-items:center;gap:8px;margin-left:auto}
+.who-name{font-size:13px;color:var(--muted);max-width:180px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+
+/* ---- 布局 ---- */
+main{display:grid;grid-template-columns:minmax(360px,440px) 1fr;gap:16px;padding:16px 20px;align-items:start}
+main.single{grid-template-columns:1fr}
+@media(max-width:960px){main{grid-template-columns:1fr}}
+.card{background:var(--card);border:1px solid var(--border);border-radius:12px;padding:14px;margin-bottom:16px}
+.card h2{margin:0 0 10px;font-size:14px;font-weight:600;display:flex;align-items:center;
+  justify-content:space-between;gap:8px}
+h3{margin:0 0 8px;font-size:13px;font-weight:600;color:var(--muted)}
+
+/* ---- 表单与按钮 ---- */
+input,textarea,select{width:100%;font:inherit;padding:8px 10px;border:1px solid var(--border);
+  border-radius:8px;background:#fff;color:var(--text)}
+input:focus,textarea:focus{outline:2px solid var(--accent-weak);border-color:var(--accent)}
+textarea{resize:vertical;min-height:70px}
+.field{margin-bottom:8px}
+button{font:inherit;border:1px solid var(--border);background:#fff;border-radius:8px;
+  padding:7px 14px;cursor:pointer;color:var(--text)}
+button:hover:not(:disabled){border-color:var(--accent);color:var(--accent)}
+button.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+button.primary:hover:not(:disabled){opacity:.9;color:#fff}
+button.danger{color:var(--danger);border-color:#f0d5d5}
+button.danger:hover:not(:disabled){background:#fef2f2;border-color:var(--danger)}
+button:disabled{opacity:.55;cursor:not-allowed}
+button.sm{padding:3px 9px;font-size:13px}
+button.link{border:none;background:none;color:var(--accent);padding:0;text-decoration:underline}
+
+/* ---- 知识库列表 ---- */
+.list{max-height:52vh;overflow:auto}
+.item{border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:8px;cursor:pointer}
+.item:hover{border-color:var(--accent)}
+.item.active{border-color:var(--accent);background:var(--accent-weak)}
+.row{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.snippet{color:var(--muted);font-size:13px;margin-top:4px}
+.meta{color:var(--muted);font-size:12px;margin-top:5px}
+.bar{height:5px;background:#eceff2;border-radius:999px;overflow:hidden;margin-top:7px}
+.bar>i{display:block;height:100%;background:var(--accent);transition:width .2s}
+.empty{color:var(--muted);font-size:13px;text-align:center;padding:18px 0}
+.badge{display:inline-block;font-size:12px;padding:1px 7px;border-radius:999px;
+  background:#eef2f6;color:var(--muted);white-space:nowrap}
+.badge.ok{background:var(--ok-weak);color:var(--ok)}
+.badge.warn{background:var(--warn-weak);color:var(--warn)}
+.detail{margin-top:10px;padding-top:10px;border-top:1px dashed var(--border);cursor:default}
+.full{max-height:200px;overflow:auto;white-space:pre-wrap;background:#fbfcfd;
+  border:1px solid var(--border);border-radius:8px;padding:9px;font-size:13px}
+.progress-row{display:flex;align-items:center;gap:10px;margin-top:10px}
+.progress-row input[type=range]{flex:1}
+.progress-row .val{font-variant-numeric:tabular-nums;min-width:44px;text-align:right;
+  color:var(--muted);font-size:13px}
+
+/* ---- L1 挖掘 ---- */
+.log{min-height:260px;max-height:56vh;overflow:auto;background:#fbfcfd;
+  border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px}
+.msg{margin-bottom:10px}
+.msg.user{text-align:right}
+.bubble{display:inline-block;max-width:84%;padding:8px 11px;border-radius:10px;
+  text-align:left;white-space:pre-wrap;word-break:break-word}
+.msg.user .bubble{background:var(--accent);color:#fff}
+.msg.bot .bubble{background:#eef1f4}
+.msg.sys .bubble{background:var(--warn-weak);color:var(--warn);font-size:13px}
+.hit{border:1px solid var(--ok);background:var(--ok-weak);border-radius:10px;padding:10px;margin-bottom:6px}
+.hit .hintline{margin-top:6px;font-size:13px;color:var(--warn)}
+.hit .actions{margin-top:8px;display:flex;gap:8px;align-items:center}
+.hit .actions a{color:var(--accent);font-size:13px;text-decoration:none}
+.hit .actions a:hover{text-decoration:underline}
+#mine-card{max-width:860px;margin:0 auto;width:100%}
+.candidates{margin-top:8px;border-top:1px dashed var(--border);padding-top:8px}
+.candidates summary{cursor:pointer;color:var(--muted);font-size:13px;user-select:none}
+.cand{display:flex;justify-content:space-between;gap:10px;padding:6px 0;
+  border-bottom:1px dashed var(--border);font-size:13px}
+.cand:last-child{border-bottom:none}
+.cand .cand-main{min-width:0}
+.cand .cand-title{font-weight:500}
+.cand .cand-snip{color:var(--muted);font-size:12px;overflow:hidden;
+  text-overflow:ellipsis;white-space:nowrap}
+.cand .cand-side{color:var(--muted);font-size:12px;white-space:nowrap;text-align:right}
+.turnbar{display:flex;align-items:center;gap:8px;color:var(--muted);font-size:12px;margin-bottom:8px}
+.composer{display:flex;gap:8px;align-items:flex-end}
+.composer textarea{flex:1;min-height:56px}
+
+/* ---- 登录页 ---- */
+.auth-wrap{display:flex;justify-content:center;padding:60px 20px}
+.auth-card{width:100%;max-width:360px}
+.auth-card h1{margin:0 0 4px;font-size:19px;font-weight:600}
+.auth-card .lead{margin:0 0 16px;color:var(--muted);font-size:13px}
+.auth-card button.primary{width:100%}
+#auth-hint{min-height:20px;font-size:13px;color:var(--danger)}
+
+/* ---- 提示条 ---- */
+#toast{position:fixed;left:50%;bottom:28px;transform:translateX(-50%);background:#1f2328;color:#fff;
+  padding:9px 16px;border-radius:8px;opacity:0;pointer-events:none;transition:opacity .2s;max-width:80vw;z-index:50}
+#toast.show{opacity:.95}

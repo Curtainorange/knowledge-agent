@@ -1,0 +1,248 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>知识库 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="knowledge">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">知识库</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main>
+  <section>
+    <div class="card">
+      <h2>录入知识</h2>
+      <div class="field"><input id="k-title" placeholder="标题，例如：数据库索引实践"></div>
+      <div class="field"><textarea id="k-content" placeholder="正文…录入时会同时计算语义向量"></textarea></div>
+      <div class="field"><input id="k-tags" placeholder="标签，逗号分隔（可选）"></div>
+      <button id="k-submit" class="primary">录入</button>
+      <div class="meta" id="k-hint"></div>
+    </div>
+
+    <div class="card">
+      <h2>概览</h2>
+      <div class="meta">共 <strong id="kb-count">0</strong> 条知识</div>
+      <div class="meta">向量化失败时会自动退回关键词召回，不影响录入与检索。</div>
+      <div class="meta">想按模糊线索找回某条笔记？去「L1 挖掘」。</div>
+    </div>
+  </section>
+
+  <section>
+    <div class="card">
+      <h2>知识列表 <button id="btn-reload" class="sm">刷新</button></h2>
+      <div class="list" id="kb-list"></div>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var state = { items: [], total: 0, detail: {}, selected: null };
+
+  function embedBadge(status) {
+    if (status === 'embedded') {
+      return '<span class="badge ok">已向量化</span>';
+    }
+    if (status === 'embed_failed') {
+      return '<span class="badge warn">向量失败·关键词兜底</span>';
+    }
+    return '<span class="badge">待向量化</span>';
+  }
+
+  function detailHtml(item, pct) {
+    var detail = state.detail[item.item_id];
+    if (!detail) {
+      return '<div class="detail"><div class="meta">加载中…</div></div>';
+    }
+    return '<div class="detail">' +
+      '<h3>全文</h3>' +
+      '<div class="full">' + esc(detail.content) + '</div>' +
+      '<div class="progress-row">' +
+        '<input type="range" min="0" max="100" step="5" value="' + pct + '"' +
+          ' data-act="progress" data-id="' + esc(item.item_id) + '">' +
+        '<span class="val">' + pct + '%</span>' +
+        '<button class="danger sm" data-act="del" data-id="' + esc(item.item_id) + '">删除</button>' +
+      '</div>' +
+      '<div class="meta">来源 ' + esc(detail.source) + ' · 拖动滑块记录阅读进度</div>' +
+    '</div>';
+  }
+
+  function renderItems() {
+    var box = $('#kb-list');
+    $('#kb-count').textContent = state.total;
+    if (!state.items.length) {
+      box.innerHTML = '<div class="empty">知识库还是空的，先在左侧录一条。</div>';
+      return;
+    }
+    box.innerHTML = state.items.map(function (item) {
+      var pct = Math.round((item.read_progress || 0) * 100);
+      var open = state.selected === item.item_id;
+      return '<div class="item ' + (open ? 'active' : '') + '" data-id="' + esc(item.item_id) + '">' +
+        '<div class="row"><strong>' + esc(item.title) + '</strong>' + embedBadge(item.embed_status) + '</div>' +
+        '<div class="snippet">' + esc(item.snippet) + '</div>' +
+        '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
+        '<div class="meta">已读 ' + pct + '% · ' + esc((item.tags || []).join('、') || '无标签') + '</div>' +
+        (open ? detailHtml(item, pct) : '') +
+      '</div>';
+    }).join('');
+  }
+
+  async function loadItems() {
+    var data = await CC.api('GET', '/api/v1/knowledge/items?limit=50&offset=0');
+    state.items = data.items;
+    state.total = data.total;
+    renderItems();
+  }
+
+  async function selectItem(itemId) {
+    state.selected = itemId;
+    if (!state.detail[itemId]) {
+      renderItems();
+      state.detail[itemId] = await CC.api('GET', '/api/v1/knowledge/items/' + itemId);
+    }
+    renderItems();
+    var node = document.querySelector('.item[data-id="' + itemId + '"]');
+    if (node && node.scrollIntoView) {
+      node.scrollIntoView({ block: 'nearest' });
+    }
+  }
+
+  $('#kb-list').addEventListener('click', async function (event) {
+    var itemNode = event.target.closest('.item');
+    if (!itemNode) {
+      return;
+    }
+    var itemId = itemNode.getAttribute('data-id');
+    var actNode = event.target.closest('[data-act]');
+
+    if (actNode && actNode.getAttribute('data-act') === 'del') {
+      if (!confirm('确定删除这条知识？（软删除，原文保留）')) {
+        return;
+      }
+      try {
+        await CC.api('DELETE', '/api/v1/knowledge/items/' + itemId);
+        state.selected = null;
+        delete state.detail[itemId];
+        await loadItems();
+        CC.toast('已删除');
+      } catch (err) {
+        CC.toast('删除失败：' + err.message);
+      }
+      return;
+    }
+    if (actNode) {
+      return;
+    }
+
+    if (state.selected === itemId) {
+      state.selected = null;
+      renderItems();
+      return;
+    }
+    try {
+      await selectItem(itemId);
+    } catch (err) {
+      state.selected = null;
+      renderItems();
+      CC.toast('读取详情失败：' + err.message);
+    }
+  });
+
+  $('#kb-list').addEventListener('change', async function (event) {
+    var el = event.target;
+    if (el.getAttribute('data-act') !== 'progress') {
+      return;
+    }
+    var itemId = el.getAttribute('data-id');
+    var value = Number(el.value) / 100;
+    try {
+      await CC.api('PATCH', '/api/v1/knowledge/items/' + itemId, { read_progress: value });
+      var item = state.items.find(function (x) { return x.item_id === itemId; });
+      if (item) {
+        item.read_progress = value;
+      }
+      if (state.detail[itemId]) {
+        state.detail[itemId].read_progress = value;
+      }
+      CC.toast('已记录：已读 ' + el.value + '%');
+      renderItems();
+    } catch (err) {
+      CC.toast('保存进度失败：' + err.message);
+    }
+  });
+
+  $('#k-submit').addEventListener('click', async function () {
+    var title = $('#k-title').value.trim();
+    var content = $('#k-content').value.trim();
+    if (!title || !content) {
+      CC.toast('标题和正文都要填');
+      return;
+    }
+    var tags = $('#k-tags').value.split(/[,，]/).map(function (s) { return s.trim(); })
+      .filter(function (s) { return s.length > 0; });
+    var hint = $('#k-hint');
+    hint.textContent = '录入中：首次调用会加载本地向量模型，可能需要几十秒…';
+    try {
+      var result = await CC.withLoading($('#k-submit'), function () {
+        return CC.api('POST', '/api/v1/knowledge/items', { title: title, content: content, tags: tags });
+      }, '录入中…');
+      $('#k-title').value = '';
+      $('#k-content').value = '';
+      $('#k-tags').value = '';
+      hint.textContent = result.embed_status === 'embedded'
+        ? '已录入并完成向量化'
+        : '已录入，但向量化失败（将退回关键词召回，网络恢复后更新正文即可重算）';
+      await loadItems();
+      CC.toast('录入成功');
+    } catch (err) {
+      hint.textContent = '录入失败：' + err.message;
+      CC.toast('录入失败：' + err.message);
+    }
+  });
+
+  $('#btn-reload').addEventListener('click', function () {
+    loadItems().catch(function (err) { CC.toast('刷新失败：' + err.message); });
+  });
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    try {
+      await loadItems();
+    } catch (err) {
+      CC.toast('加载知识库失败：' + err.message);
+      return;
+    }
+    // 支持从 L1 挖掘页跳转过来直接展开某条
+    var wanted = new URLSearchParams(location.search).get('item');
+    if (wanted) {
+      try {
+        await selectItem(wanted);
+      } catch (err) {
+        CC.toast('该条目可能已被删除');
+      }
+    }
+  })();
+})();
+</script>
+</body>
+</html>

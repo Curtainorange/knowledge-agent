@@ -24,9 +24,19 @@ class ConversationRepository(BaseRepository[Conversation]):
         self._guard(conv.user_id)  # 绑定用户时，禁止越权读取他人会话
         return conv
 
-    def append_message(self, conversation: Conversation, role: str, content: str) -> None:
+    def append_message(
+        self, conversation: Conversation, role: str, content: str, source: str | None = None
+    ) -> None:
+        """追加一条消息。
+
+        `source` 标记消息来源（如 "l1"）：同一会话可能既走通用对话又走 L1 澄清，
+        带上来源才能把「本轮 L1 追问次数」与其它消息区分开，避免相互污染计数。
+        """
         messages = list(conversation.messages or [])
-        messages.append({"role": role, "content": content})
+        message: dict = {"role": role, "content": content}
+        if source:
+            message["source"] = source
+        messages.append(message)
         conversation.messages = messages
 
     def set_state(self, conversation: Conversation, state: str) -> None:

@@ -6,6 +6,7 @@ from pathlib import Path
 
 from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 
 from app.api.endpoints import auth, chat, health, knowledge, l1
 from app.core import logging as core_logging
@@ -36,11 +37,31 @@ app.include_router(l1.router)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
+# 前端按功能拆成独立页面：登录 / 知识库 / L1 挖掘，共享 assets 下的样式与脚本。
+# 同源托管（无需 CORS，也避免用 file:// 打开时的跨域限制）。
+app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
+
+
+def _page(filename: str) -> FileResponse:
+    return FileResponse(WEB_DIR / filename)
+
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    """单页界面入口。
+    """入口给登录页；已有有效令牌时由页面脚本自行跳到知识库。"""
+    return _page("login.html")
 
-    与 API 同源托管（无需 CORS，也避免 file:// 打开时的跨域限制）。
-    """
-    return FileResponse(WEB_DIR / "index.html")
+
+@app.get("/login.html", include_in_schema=False)
+def login_page() -> FileResponse:
+    return _page("login.html")
+
+
+@app.get("/knowledge.html", include_in_schema=False)
+def knowledge_page() -> FileResponse:
+    return _page("knowledge.html")
+
+
+@app.get("/mine.html", include_in_schema=False)
+def mine_page() -> FileResponse:
+    return _page("mine.html")

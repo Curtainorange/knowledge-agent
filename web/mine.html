@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>L1 挖掘 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="mine">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">L1 认知挖掘</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card" id="mine-card">
+    <h2>按线索找回
+      <button id="btn-clear" class="sm">新会话</button>
+    </h2>
+    <div class="turnbar">
+      <span id="turn-text">尚未开始</span>
+      <span id="status-text"></span>
+    </div>
+    <div class="log" id="mine-log"></div>
+    <div class="composer">
+      <textarea id="mine-input" placeholder="用一句模糊的话描述你要找的东西，例如：之前存的那段讲查询优化的内容&#10;Ctrl + Enter 发送"></textarea>
+      <button id="mine-send" class="primary">挖掘</button>
+    </div>
+    <div class="meta">
+      线索不足时会自动追问（最多 3 轮）；命中后返回条目摘要、阅读提醒，并列出其他候选供你判断。
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var state = { convId: null, turn: 0, maxTurns: 3 };
+
+  function embedBadge(status) {
+    if (status === 'embedded') {
+      return '<span class="badge ok">已向量化</span>';
+    }
+    if (status === 'embed_failed') {
+      return '<span class="badge warn">关键词兜底</span>';
+    }
+    return '<span class="badge">待向量化</span>';
+  }
+
+  function scrollLog() {
+    var log = $('#mine-log');
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function append(kind, html) {
+    var log = $('#mine-log');
+    var div = document.createElement('div');
+    div.className = 'msg ' + kind;
+    div.innerHTML = '<div class="bubble">' + html + '</div>';
+    log.appendChild(div);
+    scrollLog();
+  }
+
+  function pushUser(text) {
+    append('user', esc(text));
+  }
+
+  function pushSys(text) {
+    append('sys', esc(text));
+  }
+
+  function setTurn(turn, maxTurns) {
+    state.turn = turn;
+    state.maxTurns = maxTurns || state.maxTurns;
+    var text = turn > 0 ? '已追问 ' + turn + ' / ' + state.maxTurns + ' 轮' : '尚未追问';
+    $('#turn-text').textContent = text;
+  }
+
+  function setStatus(text) {
+    $('#status-text').textContent = text || '';
+  }
+
+  /* 候选列表：把「模型没选中但排得靠前」的也摆出来，避免只给一条时用户无从判断 */
+  function candidatesHtml(candidates, excludeIds) {
+    var excluded = excludeIds || [];
+    var rest = (candidates || []).filter(function (c) {
+      return excluded.indexOf(c.item_id) === -1;
+    });
+    if (!rest.length) {
+      return '';
+    }
+    var rows = rest.map(function (c) {
+      var channels = (c.channels || []).join(' + ');
+      return '<div class="cand">' +
+        '<div class="cand-main">' +
+          '<div class="cand-title">' + esc(c.title) + '</div>' +
+          '<div class="cand-snip">' + esc(c.snippet) + '</div>' +
+        '</div>' +
+        '<div class="cand-side">相关度 ' + Number(c.score || 0).toFixed(2) + '<br>' + esc(channels) + '</div>' +
+      '</div>';
+    }).join('');
+    return '<details class="candidates"><summary>其他可能（' + rest.length + '）</summary>' + rows + '</details>';
+  }
+
+  function pushHit(result) {
+    var items = result.located_items || [];
+    var ids = items.map(function (i) { return i.item_id; });
+    var cards = items.map(function (item) {
+      var pct = Math.round((item.read_progress || 0) * 100);
+      return '<div class="hit">' +
+        '<div class="row"><strong>命中：' + esc(item.title) + '</strong>' + embedBadge(item.embed_status) + '</div>' +
+        '<div class="snippet">' + esc(item.snippet) + '</div>' +
+        '<div class="meta">已读 ' + pct + '%</div>' +
+        (result.read_hint ? '<div class="hintline">' + esc(result.read_hint) + '</div>' : '') +
+        '<div class="actions">' +
+          '<a href="/knowledge.html?item=' + esc(item.item_id) + '">查看全文</a>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+
+    var reason = result.reason ? '<div class="meta">判定依据：' + esc(result.reason) + '</div>' : '';
+    var body = cards + reason + candidatesHtml(result.candidates, ids);
+    append('bot', body);
+  }
+
+  function pushQuestion(result) {
+    var question = result.question || '（模型没有给出追问）';
+    var reason = result.reason ? '<div class="meta">为什么问这个：' + esc(result.reason) + '</div>' : '';
+    append('bot', esc(question) + reason + candidatesHtml(result.candidates, []));
+  }
+
+  async function send() {
+    var input = $('#mine-input');
+    var message = input.value.trim();
+    if (!message) {
+      return;
+    }
+    input.value = '';
+    pushUser(message);
+    setStatus('挖掘中…');
+    try {
+      var result = await CC.withLoading($('#mine-send'), function () {
+        return CC.api('POST', '/api/v1/l1/mine', {
+          message: message,
+          conversation_id: state.convId
+        });
+      }, '挖掘中…');
+
+      state.convId = result.conversation_id;
+
+      if (result.state === 'located') {
+        pushHit(result);
+        setTurn(result.turn || 0, result.max_turns);
+        setStatus('已定位，本轮结束（可继续用新线索提问）');
+        state.convId = null; // 命中即收束，下一条线索开新会话
+      } else if (result.state === 'clarifying') {
+        pushQuestion(result);
+        setTurn(result.turn || 0, result.max_turns);
+        setStatus('等待你的补充');
+      } else {
+        pushSys(result.question || '知识库还是空的，先去「知识库」录几条。');
+        setStatus('');
+        state.convId = null;
+      }
+    } catch (err) {
+      pushSys('出错了：' + err.message);
+      setStatus('');
+    }
+    input.focus();
+  }
+
+  $('#mine-send').addEventListener('click', send);
+  $('#mine-input').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      send();
+    }
+  });
+
+  $('#btn-clear').addEventListener('click', function () {
+    state.convId = null;
+    $('#mine-log').innerHTML = '';
+    setTurn(0, state.maxTurns);
+    setStatus('');
+    CC.toast('已开启新会话');
+    $('#mine-input').focus();
+  });
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    $('#mine-input').focus();
+  })();
+})();
+</script>
+</body>
+</html>

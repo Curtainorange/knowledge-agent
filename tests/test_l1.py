@@ -8,6 +8,7 @@ from __future__ import annotations
 import json
 
 from app.agent.l1_orchestrator import L1Orchestrator
+from app.domain.repositories.conversation_repository import ConversationRepository
 from app.ingestion.service import IngestionService
 from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
@@ -135,3 +136,78 @@ def test_read_hint_tracks_real_progress(session):
     item.read_progress = 1.0
     session.flush()
     assert _mine().read_hint == ""
+
+
+def test_candidates_are_exposed_with_detail(session):
+    """候选要给出标题/摘要/得分/通道，用户才能判断模型是真定位到还是随手挑了一条。"""
+    _ingest_one(session, title="数据库索引", content="B+树与哈希索引的适用场景")
+    _ingest_one(session, title="番茄炒蛋", content="三个番茄两个蛋")
+
+    orch = _orchestrator(session, [{"decision": "clarify", "question": "是哪一条？"}])
+    result = orch.mine(user_id="u1", conversation_id=None, message="索引")
+
+    assert result.state == "clarifying"
+    assert result.candidates, "应返回候选明细"
+    for candidate in result.candidates:
+        assert candidate.item_id and candidate.title
+        assert candidate.snippet
+        assert candidate.score >= 0
+    assert result.turn == 1
+    assert result.max_turns == 3
+
+
+def test_multiple_hits_are_all_delivered(session):
+    """模型一次给出多个 item_id 时应全部交付，而不是只取第一条。"""
+    first = _ingest_one(session, title="索引 A", content="B+树索引")
+    second = _ingest_one(session, title="索引 B", content="哈希索引")
+
+    orch = _orchestrator(session, [{"decision": "located", "item_ids": [first.id, second.id]}])
+    result = orch.mine(user_id="u1", conversation_id=None, message="索引")
+
+    assert result.state == "located"
+    assert {item.item_id for item in result.located_items} == {first.id, second.id}
+
+
+def test_located_dedupes_and_drops_unknown_ids(session):
+    """重复 id 去重、不存在的 id 忽略——否则会把整个知识库重复倒给用户。"""
+    item = _ingest_one(session)
+    orch = _orchestrator(
+        session,
+        [{"decision": "located", "item_ids": [item.id, item.id, "not-a-real-id"]}],
+    )
+    result = orch.mine(user_id="u1", conversation_id=None, message="线索")
+
+    assert result.state == "located"
+    assert len(result.located_items) == 1
+    assert result.located_items[0].item_id == item.id
+
+
+def test_turn_count_is_not_polluted_by_other_messages(session):
+    """同一会话里混入普通对话消息，不应把 L1 追问轮次顶到上限。
+
+    旧实现统计会话内所有 assistant 消息，这些闲聊会把计数推到 max_turns，
+    导致 L1 第一轮就跳过追问直接兜底。
+    """
+    _ingest_one(session)
+    repo = ConversationRepository(session, user_id="u1")
+    conversation = repo.create("u1")
+    for i in range(3):
+        repo.append_message(conversation, "user", f"闲聊 {i}")
+        repo.append_message(conversation, "assistant", f"回复 {i}")  # 无 l1 标记
+    session.flush()
+
+    orch = _orchestrator(session, [{"decision": "clarify", "question": "再具体一点？"}])
+    result = orch.mine(user_id="u1", conversation_id=conversation.id, message="索引")
+
+    assert result.state == "clarifying", "不应被无关消息顶到上限而直接兜底"
+    assert result.turn == 1
+
+
+def test_unresolvable_ids_fall_back_to_clarify(session):
+    """模型给出的 id 全部无效时，应降级为追问而不是返回空命中。"""
+    _ingest_one(session)
+    orch = _orchestrator(session, [{"decision": "located", "item_ids": ["ghost-1", "ghost-2"]}])
+    result = orch.mine(user_id="u1", conversation_id=None, message="线索")
+
+    assert result.state == "clarifying"
+    assert result.located_items == []

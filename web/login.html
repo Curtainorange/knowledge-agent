@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>登录 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="login">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">个人知识学习智能体</span></div>
+</header>
+
+<main class="single">
+  <div class="auth-wrap">
+    <div class="card auth-card">
+      <h1 id="auth-title">登录</h1>
+      <p class="lead">登录后进入你的知识库与 L1 认知挖掘</p>
+      <div class="field">
+        <input id="auth-username" placeholder="用户名（3-64 位，字母数字 _ . -）" autocomplete="username">
+      </div>
+      <div class="field">
+        <input id="auth-password" type="password" placeholder="密码（至少 8 位）" autocomplete="current-password">
+      </div>
+      <button id="auth-submit" class="primary">登录</button>
+      <div id="auth-hint"></div>
+      <div class="meta"><button id="auth-toggle" class="link">没有账号？去注册</button></div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var mode = 'login';
+
+  function setMode(next) {
+    mode = next;
+    var isRegister = mode === 'register';
+    $('#auth-title').textContent = isRegister ? '注册' : '登录';
+    $('#auth-submit').textContent = isRegister ? '注册并进入' : '登录';
+    $('#auth-toggle').textContent = isRegister ? '已有账号？去登录' : '没有账号？去注册';
+    $('#auth-password').setAttribute('autocomplete', isRegister ? 'new-password' : 'current-password');
+    $('#auth-hint').textContent = '';
+  }
+
+  async function submit() {
+    var username = $('#auth-username').value.trim();
+    var password = $('#auth-password').value;
+    var hint = $('#auth-hint');
+    if (!username || !password) {
+      hint.textContent = '用户名和密码都要填';
+      return;
+    }
+    hint.textContent = '';
+
+    var isRegister = mode === 'register';
+    try {
+      var body = await CC.withLoading($('#auth-submit'), function () {
+        return CC.api(
+          'POST',
+          isRegister ? '/api/v1/auth/register' : '/api/v1/auth/login',
+          { username: username, password: password }
+        );
+      }, isRegister ? '注册中…' : '登录中…');
+      CC.setSession(body);
+      location.replace('/knowledge.html');
+    } catch (err) {
+      hint.textContent = err.message;
+    }
+  }
+
+  $('#auth-submit').addEventListener('click', submit);
+  $('#auth-toggle').addEventListener('click', function () {
+    setMode(mode === 'register' ? 'login' : 'register');
+    $('#auth-username').focus();
+  });
+
+  function bindEnter(el) {
+    el.addEventListener('keydown', function (event) {
+      if (event.key === 'Enter') {
+        event.preventDefault();
+        submit();
+      }
+    });
+  }
+  bindEnter($('#auth-username'));
+  bindEnter($('#auth-password'));
+
+  (async function boot() {
+    var params = new URLSearchParams(location.search);
+    var msg = params.get('msg');
+    if (msg) {
+      CC.toast(msg);
+    }
+    // 已有有效令牌就直接进入，不必重复登录
+    if (CC.token()) {
+      try {
+        await CC.api('GET', '/api/v1/auth/me');
+        location.replace('/knowledge.html');
+        return;
+      } catch (err) {
+        CC.clearSession();
+      }
+    }
+    setMode('login');
+    $('#auth-username').focus();
+  })();
+})();
+</script>
+</body>
+</html>

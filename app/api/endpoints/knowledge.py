@@ -96,7 +96,7 @@ def create_item(
 ) -> KnowledgeCreateResponse:
     svc = _svc(session)
     item = svc.add_knowledge(user_id=user_id, title=body.title, content=body.content, tags=body.tags)
-    session.commit()  # 条目 + embedding 同事务持久化
+    session.commit()  # service 内部已分两段提交（先落库、后补向量），此处兜底
     return KnowledgeCreateResponse(
         item_id=item.id, embed_status=item.embed_status, request_id=trace.get_request_id() or ""
     )
