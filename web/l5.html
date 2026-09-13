@@ -1,0 +1,170 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>学习健康诊断 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="l5">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">L5 学习健康诊断</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+    <a href="/l4.html" data-nav="l4">路径修正</a>
+    <a href="/l5.html" data-nav="l5">健康诊断</a>
+    <a href="/notify.html" data-nav="notify">通知</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>学习健康诊断
+      <button id="diag-generate" class="primary sm">生成诊断</button>
+    </h2>
+    <div class="meta" id="diag-note">
+      先看行为统计（收藏完成比、活跃度、连续无活动天数、未处理冲突），再让模型推断「为什么」，
+      给一条能立刻执行的建议。行为数据太少时不作诊断，避免拿几条样本下结论。
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>诊断结论 <span class="badge" id="diag-pattern">—</span></h2>
+    <div id="diag-view">
+      <div class="empty">还没有诊断报告。点上方「生成诊断」开始。</div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>行为依据</h2>
+    <div class="meta">这些数字全部由本地统计得出，模型不参与算术。</div>
+    <div id="diag-metrics"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var state = { diagnosis: null };
+
+  function percent(value) {
+    return Math.round(Number(value || 0) * 100) + '%';
+  }
+
+  function metricsRows(metrics) {
+    if (!metrics) {
+      return '<div class="empty">暂无行为数据</div>';
+    }
+    var rows = [
+      ['知识条目', metrics.total_items + ' 条'],
+      ['已读完', metrics.completed_items + ' 条'],
+      ['收藏完成比', percent(metrics.completion_ratio)],
+      ['本周学习行为', metrics.study_events_week + ' 次'],
+      ['距上次学习', metrics.idle_days == null ? '窗口内无记录' : metrics.idle_days + ' 天'],
+      ['未处理冲突', metrics.unseen_conflicts + ' 处']
+    ];
+    return rows.map(function (r) {
+      return '<div class="topic-row"><span class="topic-name">' + esc(r[0]) +
+        '</span><span class="topic-levels">' + esc(String(r[1])) + '</span></div>';
+    }).join('');
+  }
+
+  function render(data) {
+    state.diagnosis = data.diagnosis_id ? data : null;
+    $('#diag-pattern').textContent = data.pattern || '—';
+
+    if (data.state !== 'ok') {
+      $('#diag-view').innerHTML = '<div class="empty">' + esc(data.note || '暂无诊断') + '</div>';
+      $('#diag-metrics').innerHTML = metricsRows(data.metrics);
+      return;
+    }
+
+    var view = '<div class="question-card">' +
+      '<div class="q-head">' + esc(data.pattern || '诊断') +
+      ' <span class="badge ok">置信度 ' + percent(data.confidence) + '</span></div>';
+    if (data.root_cause) {
+      view += '<div class="cf-block"><b>归因：</b>' + esc(data.root_cause) + '</div>';
+    }
+    if (data.suggested_action) {
+      view += '<div class="cf-block"><b>建议：</b>' + esc(data.suggested_action) + '</div>';
+    }
+    var chain = data.reasoning_chain || [];
+    if (chain.length) {
+      view += '<div class="cf-block"><b>推理链：</b></div>' + chain.map(function (step, i) {
+        return '<div class="pattern missing">' + (i + 1) + '. ' + esc(step) + '</div>';
+      }).join('');
+    }
+    view += '<div class="cf-actions">' +
+      '<button id="diag-accept" class="primary sm">采纳建议</button>' +
+      '<button id="diag-reject" class="sm">暂时不用</button>' +
+      '</div></div>';
+    $('#diag-view').innerHTML = view;
+
+    $('#diag-metrics').innerHTML = metricsRows(data.metrics);
+
+    $('#diag-accept').addEventListener('click', function () { decide(true); });
+    $('#diag-reject').addEventListener('click', function () { decide(false); });
+  }
+
+  async function decide(accepted) {
+    var id = state.diagnosis && state.diagnosis.diagnosis_id;
+    if (!id) {
+      return;
+    }
+    try {
+      var res = await CC.api('POST', '/api/v1/l5/diagnosis/' + id + '/decision', { accepted: accepted });
+      CC.toast(res.message);
+    } catch (err) {
+      CC.toast('操作失败：' + err.message);
+    }
+  }
+
+  async function loadLatest() {
+    try {
+      var data = await CC.api('GET', '/api/v1/l5/diagnosis/latest');
+      render(data);
+    } catch (err) {
+      $('#diag-view').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    }
+  }
+
+  async function generate() {
+    $('#diag-note').textContent = '诊断中…（先本地统计行为指标，再让模型归因，通常十几秒）';
+    try {
+      var data = await CC.withLoading($('#diag-generate'), function () {
+        return CC.api('POST', '/api/v1/l5/diagnosis');
+      }, '诊断中…');
+      render(data);
+      $('#diag-note').textContent = data.note || '诊断完成。结论基于上面的行为依据。';
+      CC.toast(data.state === 'ok' ? '诊断已生成' : '暂无足够行为数据');
+    } catch (err) {
+      $('#diag-note').textContent = '诊断失败：' + err.message;
+    }
+  }
+
+  $('#diag-generate').addEventListener('click', generate);
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    await loadLatest();
+  })();
+})();
+</script>
+</body>
+</html>

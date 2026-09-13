@@ -185,3 +185,13 @@ def brief_page() -> FileResponse:
 @app.get("/l4.html", include_in_schema=False)
 def l4_page() -> FileResponse:
     return _page("l4.html")
+
+
+@app.get("/l5.html", include_in_schema=False)
+def l5_page() -> FileResponse:
+    return _page("l5.html")
+
+
+@app.get("/notify.html", include_in_schema=False)
+def notify_page() -> FileResponse:
+    return _page("notify.html")

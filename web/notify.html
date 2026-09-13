@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>通知与偏好 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="notify">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">通知与推送偏好</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+    <a href="/l4.html" data-nav="l4">路径修正</a>
+    <a href="/l5.html" data-nav="l5">健康诊断</a>
+    <a href="/notify.html" data-nav="notify">通知</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>推送频率</h2>
+    <div class="meta">决定「主动打扰你」的节奏。免打扰下仍会收到学习健康诊断这类重大提醒。</div>
+    <form class="inline-form" id="pref-form">
+      <select id="pref-frequency">
+        <option value="weekly">每周一次（认知简报）</option>
+        <option value="daily">每日轻推</option>
+        <option value="quiet">免打扰</option>
+      </select>
+      <button type="submit" class="primary sm">保存</button>
+    </form>
+    <div class="meta" id="pref-hint"></div>
+  </div>
+
+  <div class="card">
+    <h2>通知 <span class="badge" id="notify-count">0</span>
+      <button id="btn-reload" class="sm">刷新</button>
+    </h2>
+    <div class="meta" id="notify-note">这里显示系统为你准备的提醒。看过之后可以标记为已读。</div>
+    <div id="notify-list"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+
+  var TYPE_LABEL = {
+    conflict: '观点冲突',
+    question: '深度追问',
+    brief: '认知简报',
+    diagnosis: '健康诊断'
+  };
+
+  function typeBadge(type) {
+    var label = TYPE_LABEL[type] || type || '通知';
+    var cls = type === 'diagnosis' ? 'badge ok' : 'badge';
+    return '<span class="' + cls + '">' + esc(label) + '</span>';
+  }
+
+  function renderList(items) {
+    $('#notify-count').textContent = String(items.length);
+    if (!items.length) {
+      $('#notify-list').innerHTML = '<div class="empty">暂无通知。</div>';
+      return;
+    }
+    $('#notify-list').innerHTML = items.map(function (item) {
+      return '<div class="question-card">' +
+        '<div class="q-head">' + esc(item.title || '通知') + ' ' + typeBadge(item.push_type) + '</div>' +
+        '<div class="cf-block">' + esc(item.body || '') + '</div>' +
+        '<div class="meta">' + esc(item.created_at ? item.created_at.slice(0, 16).replace('T', ' ') : '') + '</div>' +
+        '<div class="cf-actions">' +
+          '<button class="sm" data-read="' + esc(item.job_id) + '">标记已读</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  async function loadJobs() {
+    try {
+      var data = await CC.api('GET', '/api/v1/push/jobs');
+      renderList(data.items || []);
+    } catch (err) {
+      $('#notify-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    }
+  }
+
+  async function loadPrefs() {
+    try {
+      var data = await CC.api('GET', '/api/v1/preferences');
+      $('#pref-frequency').value = data.push_frequency || 'weekly';
+    } catch (err) {
+      $('#pref-hint').textContent = '偏好加载失败：' + err.message;
+    }
+  }
+
+  async function markRead(jobId) {
+    try {
+      await CC.api('POST', '/api/v1/push/jobs/' + encodeURIComponent(jobId) + '/delivered');
+      CC.toast('已标记为已读');
+      await loadJobs();
+    } catch (err) {
+      CC.toast('操作失败：' + err.message);
+    }
+  }
+
+  $('#pref-form').addEventListener('submit', async function (event) {
+    event.preventDefault();
+    var value = $('#pref-frequency').value;
+    try {
+      await CC.api('PUT', '/api/v1/preferences', { push_frequency: value });
+      $('#pref-hint').textContent = '已保存。';
+      CC.toast('推送偏好已更新');
+    } catch (err) {
+      $('#pref-hint').textContent = '保存失败：' + err.message;
+    }
+  });
+
+  $('#btn-reload').addEventListener('click', loadJobs);
+  $('#notify-list').addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-read]');
+    if (btn) {
+      markRead(btn.getAttribute('data-read'));
+    }
+  });
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    await loadPrefs();
+    await loadJobs();
+  })();
+})();
+</script>
+</body>
+</html>

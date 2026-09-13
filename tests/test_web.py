@@ -3,7 +3,10 @@ from __future__ import annotations
 
 from tests.helpers import auth_headers
 
-PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html", "/brief.html", "/l4.html")
+PAGES = (
+    "/", "/index.html", "/login.html", "/knowledge.html", "/mine.html",
+    "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
+)
 
 
 def test_all_pages_served(client):
@@ -106,6 +109,39 @@ def test_l4_page_is_isolated(client):
 def test_nav_links_to_l4_everywhere(client):
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):
         assert "/l4.html" in client.get(path).text, path
+
+
+def test_l5_page_is_isolated(client):
+    """L5 健康诊断页只做诊断：不含录入 / 登录 / 挖掘 / 冲突 / 简报 / 计划表单。"""
+    body = client.get("/l5.html").text
+    assert "diag-generate" in body
+    assert "diag-view" in body
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "mine-send" not in body
+    assert "btn-scan" not in body
+    assert "brief-generate" not in body
+    assert "goal-form" not in body
+
+
+def test_notify_page_is_isolated(client):
+    """通知页只做推送通知与偏好：不含其它能力的表单。"""
+    body = client.get("/notify.html").text
+    assert "pref-form" in body
+    assert "notify-list" in body
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "mine-send" not in body
+    assert "brief-generate" not in body
+    assert "goal-form" not in body
+
+
+def test_nav_links_to_l5_and_notify_everywhere(client):
+    """L5 与通知的后端早已就绪，导航入口必须有落点（缺入口等于没有）。"""
+    for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):
+        body = client.get(path).text
+        assert "/l5.html" in body, path
+        assert "/notify.html" in body, path
 
 
 def test_api_routes_unaffected(client):
