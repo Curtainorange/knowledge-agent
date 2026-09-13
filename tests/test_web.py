@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from tests.helpers import auth_headers
 
-PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html", "/brief.html")
+PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html", "/brief.html", "/l4.html")
 
 
 def test_all_pages_served(client):
@@ -87,6 +87,23 @@ def test_brief_page_is_isolated(client):
 def test_nav_links_to_brief_everywhere(client):
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html"):
         assert "/brief.html" in client.get(path).text, path
+
+
+def test_l4_page_is_isolated(client):
+    """L4 路径修正页只做目标/计划/偏离：不含录入 / 登录 / 挖掘 / 冲突 / 简报表单。"""
+    body = client.get("/l4.html").text
+    assert "goal-form" in body
+    assert "dev-check" in body
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "mine-send" not in body
+    assert "btn-scan" not in body
+    assert "brief-generate" not in body
+
+
+def test_nav_links_to_l4_everywhere(client):
+    for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):
+        assert "/l4.html" in client.get(path).text, path
 
 
 def test_api_routes_unaffected(client):

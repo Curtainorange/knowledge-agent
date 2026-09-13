@@ -15,6 +15,9 @@ from app.domain.models.learning_plan import LearningPlan
 from app.domain.models.plan_task import PlanTask
 from app.domain.models.task_run import TaskRun
 from app.domain.models.cost_log import CostLog
+from app.domain.models.push_job import PushJob
+from app.domain.models.push_log import PushLog
+from app.domain.models.cognitive_diagnosis import CognitiveDiagnosis
 
 __all__ = [
     "Base",
@@ -30,4 +33,7 @@ __all__ = [
     "PlanTask",
     "TaskRun",
     "CostLog",
+    "PushJob",
+    "PushLog",
+    "CognitiveDiagnosis",
 ]

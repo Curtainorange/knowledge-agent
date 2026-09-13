@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.endpoints import auth, books, chat, events, health, knowledge, l1, l2, l3, l4
+from app.api.endpoints import auth, books, chat, events, health, knowledge, l1, l2, l3, l4, l5, preferences, push
 from app.core import logging as core_logging
 from app.core import trace
 from app.domain import db
@@ -48,6 +48,9 @@ app.include_router(l1.router)
 app.include_router(l2.router)
 app.include_router(l3.router)
 app.include_router(l4.router)
+app.include_router(l5.router)
+app.include_router(preferences.router)
+app.include_router(push.router)
 app.include_router(events.router)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
@@ -100,3 +103,8 @@ def conflicts_page() -> FileResponse:
 @app.get("/brief.html", include_in_schema=False)
 def brief_page() -> FileResponse:
     return _page("brief.html")
+
+
+@app.get("/l4.html", include_in_schema=False)
+def l4_page() -> FileResponse:
+    return _page("l4.html")

@@ -26,6 +26,7 @@ from app.agent.l1_orchestrator import L1Route
 from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult
 from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
+from app.agent.l5_orchestrator import DiagnosisDraft
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
 from app.llm.structure import parse_structured
 
@@ -85,6 +86,7 @@ def _validator_for(name: str):
         "l3_item": lambda d: BriefDraft(**d),
         "l4_plan": lambda d: GeneratedPlan(**d),
         "l4_deviate": lambda d: DeviationAnalysis(**d),
+        "l5_diagnose": lambda d: DiagnosisDraft(**d),
     }[name]
 
 
@@ -107,6 +109,9 @@ def _check(name: str, parsed) -> None:
         assert parsed.tasks, "计划至少应有一个任务"
     elif name == "l4_deviate":
         assert parsed.root_cause and parsed.adjustment
+    elif name == "l5_diagnose":
+        assert parsed.root_cause and parsed.suggested_action
+        assert isinstance(parsed.reasoning_chain, list)
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

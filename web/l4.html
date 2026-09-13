@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>路径修正 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="l4">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">L4 路径修正</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+    <a href="/l4.html" data-nav="l4">路径修正</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>设定学习目标</h2>
+    <div class="meta">定一个目标，系统按周拆成可执行计划；执行中若行为偏离，会提示你调整。</div>
+    <form id="goal-form" class="inline-form">
+      <input id="goal-desc" type="text" placeholder="例如：三周掌握数据库索引" required>
+      <select id="goal-priority">
+        <option value="high">高优先级</option>
+        <option value="medium" selected>中优先级</option>
+        <option value="low">低优先级</option>
+      </select>
+      <button type="submit" class="primary">创建目标</button>
+    </form>
+  </div>
+
+  <div class="card">
+    <h2>目标列表 <span class="badge" id="goal-count">0</span></h2>
+    <div id="goal-list"></div>
+  </div>
+
+  <div class="card">
+    <h2>当前计划</h2>
+    <div class="meta" id="plan-note">还没有计划。在目标列表里点「生成计划」，或先创建目标。</div>
+    <div id="plan-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>行为偏离检测
+      <button id="dev-check" class="primary sm">检测</button>
+    </h2>
+    <div class="meta" id="dev-note">基于学习行为本地统计（连续无活动 / 活动量突变 / 主题脱节）。无偏离时不调用模型。</div>
+    <div id="dev-view"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+
+  function goalRows(goals) {
+    if (!goals.length) {
+      return '<div class="empty">还没有目标，先在上方创建。</div>';
+    }
+    return goals.map(function (g) {
+      var deadline = g.deadline ? (' · 截止 ' + esc(String(g.deadline).slice(0, 10))) : '';
+      return '<div class="topic-row">' +
+        '<div class="topic-name">' + esc(g.description) + '</div>' +
+        '<div class="topic-levels">' +
+          '<span class="badge">' + esc(g.priority) + '</span>' + deadline +
+          '<button class="sm" data-gen="' + esc(g.goal_id) + '">生成计划</button>' +
+        '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function taskRows(tasks, progress) {
+    if (!tasks || !tasks.length) {
+      return '<div class="empty">暂无任务。</div>';
+    }
+    var rows = tasks.map(function (t) {
+      var status = t.status === 'done' ? '<span class="badge ok">已完成</span>' : '<span class="badge">待开始</span>';
+      return '<div class="topic-row">' +
+        '<div class="topic-name">第 ' + t.week_index + ' 周 · ' + esc(t.subject) + '</div>' +
+        '<div class="topic-levels">' + status + '</div>' +
+      '</div>';
+    }).join('');
+    var p = progress || {};
+    var bar = (p.total ? Math.round((p.done || 0) / p.total * 100) : 0) + '%';
+    return '<div class="meta">完成度：' + (p.done || 0) + '/' + (p.total || 0) + '（' + bar + '）</div>' + rows;
+  }
+
+  function renderPlan(result) {
+    if (!result || result.state === 'empty' || !result.plan_id) {
+      $('#plan-note').textContent = (result && result.note) || '还没有计划，先在目标列表生成。';
+      $('#plan-view').innerHTML = '';
+      return;
+    }
+    $('#plan-note').textContent = '目标：' + (result.goal_description || '') +
+      ' · 版本 v' + result.version + (result.note ? (' · ' + result.note) : '');
+    var rationale = result.rationale ? ('<div class="meta">排法理由：' + esc(result.rationale) + '</div>') : '';
+    $('#plan-view').innerHTML = rationale + taskRows(result.tasks, result.progress);
+  }
+
+  function renderDeviation(result) {
+    var el = $('#dev-view');
+    if (result.state === 'no_plan') {
+      el.innerHTML = '<div class="empty">' + esc(result.note) + '</div>';
+      return;
+    }
+    if (result.state === 'no_deviation') {
+      el.innerHTML = '<div class="pattern abundant">执行正常，暂无需干预。</div>';
+      return;
+    }
+    var sig = result.signals || {};
+    var reasons = (sig.reasons || []).map(function (r) {
+      return '<div class="pattern missing">' + esc(r) + '</div>';
+    }).join('');
+    var body = reasons;
+    if (result.root_cause) {
+      body += '<div class="cf-block"><b>归因：</b>' + esc(result.root_cause) + '</div>';
+    }
+    if (result.adjustment) {
+      body += '<div class="cf-block"><b>建议：</b>' + esc(result.adjustment) + '</div>';
+    }
+    if (result.expected_gain) {
+      body += '<div class="cf-block"><b>预期改善：</b>' + esc(result.expected_gain) + '</div>';
+    }
+    if (result.plan_id) {
+      body += '<div class="inline-form" style="margin-top:12px">' +
+        '<button id="dev-accept" class="primary sm">采纳调整</button>' +
+        '<button id="dev-reject" class="sm">保持原计划</button>' +
+      '</div>';
+    }
+    el.innerHTML = body;
+    var accept = $('#dev-accept');
+    var reject = $('#dev-reject');
+    if (accept && reject && result.plan_id) {
+      accept.addEventListener('click', function () { decide(result.plan_id, true); });
+      reject.addEventListener('click', function () { decide(result.plan_id, false); });
+    }
+  }
+
+  async function decide(planId, accepted) {
+    try {
+      var res = await CC.api('POST', '/api/v1/l4/deviation/' + planId + '/decision', { accepted: accepted });
+      CC.toast(res.message);
+      if (accepted && res.plan) {
+        renderPlan(res.plan);
+      }
+    } catch (err) {
+      CC.toast('操作失败：' + err.message);
+    }
+  }
+
+  async function loadGoals() {
+    try {
+      var res = await CC.api('GET', '/api/v1/l4/goals');
+      $('#goal-count').textContent = res.total;
+      $('#goal-list').innerHTML = goalRows(res.items || []);
+      var buttons = document.querySelectorAll('#goal-list [data-gen]');
+      for (var i = 0; i < buttons.length; i++) {
+        (function (btn) {
+          btn.addEventListener('click', function () { generatePlan(btn.getAttribute('data-gen')); });
+        })(buttons[i]);
+      }
+    } catch (err) {
+      $('#goal-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    }
+  }
+
+  async function loadPlan() {
+    try {
+      var res = await CC.api('GET', '/api/v1/l4/plan');
+      renderPlan(res);
+    } catch (err) {
+      $('#plan-note').textContent = '加载失败：' + err.message;
+    }
+  }
+
+  async function generatePlan(goalId) {
+    try {
+      var res = await CC.api('POST', '/api/v1/l4/goals/' + goalId + '/plan');
+      renderPlan(res);
+      CC.toast(res.state === 'ok' ? '计划已生成' : '生成失败：' + res.note);
+    } catch (err) {
+      CC.toast('生成计划失败：' + err.message);
+    }
+  }
+
+  async function checkDeviation() {
+    $('#dev-note').textContent = '检测中…（本地统计行为，若有偏离才调用模型归因）';
+    try {
+      var res = await CC.withLoading($('#dev-check'), function () {
+        return CC.api('POST', '/api/v1/l4/deviation/check');
+      }, '检测中…');
+      renderDeviation(res);
+      $('#dev-note').textContent = res.note || '检测完成。';
+    } catch (err) {
+      $('#dev-note').textContent = '检测失败：' + err.message;
+    }
+  }
+
+  $('#goal-form').addEventListener('submit', async function (e) {
+    e.preventDefault();
+    var desc = $('#goal-desc').value.trim();
+    if (!desc) {
+      return;
+    }
+    try {
+      await CC.api('POST', '/api/v1/l4/goals', {
+        description: desc,
+        priority: $('#goal-priority').value
+      });
+      $('#goal-desc').value = '';
+      CC.toast('目标已创建');
+      await loadGoals();
+    } catch (err) {
+      CC.toast('创建失败：' + err.message);
+    }
+  });
+  $('#dev-check').addEventListener('click', checkDeviation);
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    await loadGoals();
+    await loadPlan();
+  })();
+})();
+</script>
+</body>
+</html>

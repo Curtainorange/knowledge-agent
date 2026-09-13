@@ -50,3 +50,8 @@ class UserRepository(BaseRepository[User]):
         """软删账号：置注销时间戳，数据保留（审计与保留期）。"""
         user.deleted_at = when or datetime.now(timezone.utc).replace(tzinfo=None)
         self._session.flush()
+
+    def set_push_frequency(self, user: User, frequency: str) -> None:
+        """更新推送频率偏好（weekly / daily / quiet，见系统设计 §7.1）。"""
+        user.push_frequency = frequency
+        self._session.flush()

@@ -39,6 +39,13 @@ L4_GOAL_CREATED = "l4.goal.created"
 L4_PLAN_GENERATED = "l4.plan.generated"
 L4_DEVIATION_CHECKED = "l4.deviation.checked"
 L4_ADJUSTMENT_DECIDED = "l4.adjustment.decided"
+# L5 归因诊断
+L5_DIAGNOSIS_CREATED = "l5.diagnosis.created"
+L5_DIAGNOSIS_DECIDED = "l5.diagnosis.decided"
+# 推送（ADR-14）
+PUSH_SUPPRESSED = "push.suppressed"
+PUSH_SENT = "push.sent"
+PUSH_FEEDBACK = "push.feedback"
 # 认证（L5 需要区分「活跃但无产出」与「根本不活跃」）
 AUTH_LOGIN = "auth.login"
 

@@ -147,6 +147,25 @@ L4_DEVIATE = PromptSpec(
 )
 
 
+# ---- L5 归因诊断 -----------------------------------------------------------
+
+L5_DIAGNOSE = PromptSpec(
+    name="l5_diagnose",
+    version="v1",
+    text=(
+        "你是学习偏误归因诊断师。给定用户的行为统计（本地计算的事实），推断他学习行为"
+        "背后最可能的认知病根，并给出可执行方案。输出严格 JSON："
+        '{"pattern":"行为模式(2-8字)","root_cause":"归因诊断","suggested_action":"可执行方案",'
+        '"confidence":0..1,"reasoning_chain":["step1","step2"]}。'
+        "要求："
+        "1) root_cause 必须引用给定统计中的真实数字，不得编造；"
+        "2) pattern 是 2-8 字的模式名（如 高收藏低完成 / 启动困难 / 主题漂移）；"
+        "3) suggested_action 是具体可执行的动作，不是「要坚持」这类空话；"
+        "4) reasoning_chain 是 2-4 步的简要推理链，每步一句话，增强可信度。"
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     L1_ROUTE,
@@ -157,6 +176,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     L3_ITEM,
     L4_PLAN,
     L4_DEVIATE,
+    L5_DIAGNOSE,
 ]
 
 
@@ -178,4 +198,5 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "cognitive_brief": L3_BRIEF.version,  # 默认简报；衔接追问用 L3_ITEM 覆盖
     "plan_generation": L4_PLAN.version,
     "deep_reasoning": L4_DEVIATE.version,
+    "causal_reasoning": L5_DIAGNOSE.version,
 }

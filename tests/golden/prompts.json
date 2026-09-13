@@ -30,5 +30,9 @@
   "l4_deviate": {
     "version": "v1",
     "sha256": "5f0ac432d8ac1cc5550f478e01f78e9e06cc200aaa2a294c959370afbff4e100"
+  },
+  "l5_diagnose": {
+    "version": "v1",
+    "sha256": "70d36ccf5534f4fd84a9838dd93589e31b5e6a4fe987966e8d9be69c48eeda31"
   }
 }
