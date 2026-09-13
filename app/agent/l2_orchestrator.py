@@ -33,6 +33,7 @@ from app.domain.repositories.claim_repository import ClaimRepository
 from app.domain.repositories.conflict_repository import ConflictRepository, make_pair_key
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.llm.gateway import ModelGateway
+from app.llm.prompts import L2_EXTRACT, L2_JUDGE
 from app.llm.structure import JsonParseError, parse_structured
 from app.retrieval.embedding import EmbeddingModel, build_embedding
 from app.retrieval.vector_store import cos_sim
@@ -77,24 +78,9 @@ class ConflictJudgment(BaseModel):
 
 # ---- 提示词 ----------------------------------------------------------------
 
-_EXTRACT_SYS = (
-    "你是主张提取器。从知识条目中提取核心主张：可独立比对、不含上下文也能读懂的原子观点。"
-    "输出严格 JSON："
-    '{"claims":[{"statement":"...","topic":"2-6字主题标签","polarity":-1|0|1,'
-    '"strength":0..1,"confidence":0..1}]}。'
-    "statement 用陈述句归一化表述；只提取观点性内容，事实性背景不提；"
-    "没有可提取主张时输出 {\"claims\":[]}。"
-)
-
-_JUDGE_SYS = (
-    "你是观点冲突判定器。判断两条主张的关系，输出严格 JSON："
-    '{"relation":"矛盾|互补|断层|无关","conflict_type":"","detail":"","suggestion":"","confidence":0..1}。'
-    "relation 定义：矛盾=对同一问题的立场不可兼容；互补=视角不同但可并存；"
-    "断层=话题相邻但关注点错开；无关=仅主题词相近。"
-    "relation=矛盾 时必须给 conflict_type（2-6 字，如：立场对立/前提冲突/结论互斥/方法冲突）"
-    "并在 detail 中引用双方原句作为证据；suggestion 给一个可执行的动作建议。"
-    "宁可判互补/断层也不要把分歧夸大成矛盾。"
-)
+# 提示词统一在 app/llm/prompts.py 声明（版本化 + golden set 校验），此处仅取别名
+_EXTRACT_SYS = L2_EXTRACT.text
+_JUDGE_SYS = L2_JUDGE.text
 
 
 # ---- 结果结构 --------------------------------------------------------------
@@ -260,7 +246,8 @@ class L2Orchestrator:
         ]
         try:
             completion = self._gateway.chat(
-                task_type="batch_extraction", messages=messages, user_id=user_id, session=self._session
+                task_type="batch_extraction", messages=messages, user_id=user_id, session=self._session,
+                prompt_version=L2_EXTRACT.version,
             )
             data = parse_structured(completion.text, validator=lambda d: ExtractionResult(**d))
         except JsonParseError as exc:
@@ -355,7 +342,8 @@ class L2Orchestrator:
         ]
         try:
             completion = self._gateway.chat(
-                task_type="conflict_detection", messages=messages, user_id=user_id, session=self._session
+                task_type="conflict_detection", messages=messages, user_id=user_id, session=self._session,
+                prompt_version=L2_JUDGE.version,
             )
             return parse_structured(completion.text, validator=lambda d: ConflictJudgment(**d))
         except JsonParseError as exc:

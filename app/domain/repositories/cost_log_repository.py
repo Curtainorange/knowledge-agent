@@ -25,12 +25,14 @@ class CostLogRepository(BaseRepository[CostLog]):
         completion_tokens: int,
         estimated_cost: float,
         cached_tokens: int = 0,
+        prompt_version: str = "",
     ) -> CostLog:
         log = CostLog(
             user_id=user_id,
             task_type=task_type,
             model=model,
             reasoning=reasoning,
+            prompt_version=prompt_version,
             request_id=request_id,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,

@@ -73,6 +73,7 @@ def record_cost(
     model: str,
     reasoning: bool,
     completion: Completion,
+    prompt_version: str = "",
 ) -> float:
     """记录一次模型调用的 token 与估算费用。无 session 时仅记日志（回退）。"""
     cost = _estimate_cost(
@@ -85,6 +86,7 @@ def record_cost(
             task_type=task_type,
             model=model,
             reasoning=reasoning,
+            prompt_version=prompt_version,
             request_id=rid,
             prompt_tokens=completion.prompt_tokens,
             completion_tokens=completion.completion_tokens,
@@ -93,8 +95,8 @@ def record_cost(
         )
     else:
         logger.info(
-            "model cost (no db) task=%s model=%s reasoning=%s in=%d cached=%d out=%d cost=%.6f req=%s",
-            task_type, model, reasoning, completion.prompt_tokens,
+            "model cost (no db) task=%s model=%s reasoning=%s prompt_ver=%s in=%d cached=%d out=%d cost=%.6f req=%s",
+            task_type, model, reasoning, prompt_version, completion.prompt_tokens,
             completion.cached_tokens, completion.completion_tokens, cost, rid,
         )
     return cost

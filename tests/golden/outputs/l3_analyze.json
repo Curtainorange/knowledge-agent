@@ -1,0 +1,10 @@
+[
+  {
+    "name": "正常归类（含未分类兜底）",
+    "text": "{\"assignments\":[{\"item_id\":\"i1\",\"topic\":\"数据库索引\",\"level\":\"入门\"},{\"item_id\":\"i2\",\"topic\":\"数据库索引\",\"level\":\"实战\"},{\"item_id\":\"i3\",\"topic\":\"缓存\",\"level\":\"未分类\"}],\"overview\":\"集中在数据库性能，但缺进阶原理\"}"
+  },
+  {
+    "name": "overview 带裸换行",
+    "text": "{\"assignments\":[{\"item_id\":\"i1\",\"topic\":\"写作\",\"level\":\"入门\"}],\"overview\":\"目前以入门方法为主\n缺少原理与实战\"}"
+  }
+]

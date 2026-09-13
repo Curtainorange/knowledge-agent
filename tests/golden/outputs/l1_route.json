@@ -1,0 +1,10 @@
+[
+  {
+    "name": "located 正常输出",
+    "text": "{\"decision\":\"located\",\"item_ids\":[\"k1\",\"k2\"],\"question\":\"\",\"reason\":\"线索唯一对应某条\"}"
+  },
+  {
+    "name": "clarify 带 markdown 围栏",
+    "text": "```json\n{\"decision\":\"clarify\",\"item_ids\":[],\"question\":\"你能再说得具体一点吗？\",\"reason\":\"线索不足\"}\n```"
+  }
+]

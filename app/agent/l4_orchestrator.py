@@ -42,6 +42,7 @@ from app.domain.repositories.learning_plan_repository import (
 )
 from app.feedback import events
 from app.llm.gateway import ModelGateway
+from app.llm.prompts import L4_DEVIATE, L4_PLAN
 from app.llm.structure import JsonParseError, parse_structured
 
 logger = logging.getLogger(__name__)
@@ -74,29 +75,9 @@ class DeviationAnalysis(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
-_PLAN_SYS = (
-    "你是学习计划拆解器。给定学习目标与该用户的知识结构，拆成**周维度**任务。"
-    "输出严格 JSON："
-    '{"tasks":[{"week_index":1,"subject":"...","focus":"...","related_item_ids":[]}],'
-    '"rationale":"为什么这样排"}。'
-    "要求："
-    "1) 周数从 1 连续编号，总周数按目标期限与内容体量判断，最多 12 周；"
-    "2) subject 是可执行的一件事（如「读完 X 并写出三条判断标准」），不是空泛的「学习 X」；"
-    "3) 优先安排能补上知识结构里**薄弱/缺失**的部分，而不是重复他已有的入门内容；"
-    "4) related_item_ids 只能引用给定清单里真实存在的 id，没有就留空。"
-)
-
-_DEVIATE_SYS = (
-    "你是学习路径纠偏分析师。给定计划执行情况与学习行为统计，判断偏离原因并给出调整建议。"
-    "输出严格 JSON："
-    '{"root_cause":"...","adjustment":"...","expected_gain":"...","confidence":0..1}。'
-    "要求："
-    "1) root_cause 必须引用给定统计中的事实（如「7 天仅有 1 次学习行为」），不得编造；"
-    "2) 区分「动力问题」与「计划本身不合理」——若新内容与计划主题长期无关，"
-    "更可能是目标已转移，应提议调整目标或重排顺序，而不是责怪用户不努力；"
-    "3) adjustment 是具体的路径调整（换顺序/换切分/降低单次门槛），不是「要坚持」这类空话；"
-    "4) expected_gain 写明预期改善（如「单周可完成率从 1/4 提升到 2/4」），允许是估计但要说明依据。"
-)
+# 提示词统一在 app/llm/prompts.py 声明（版本化 + golden set 校验），此处仅取别名
+_PLAN_SYS = L4_PLAN.text
+_DEVIATE_SYS = L4_DEVIATE.text
 
 
 @dataclass
@@ -369,6 +350,7 @@ class L4Orchestrator:
                           {"role": "user", "content": prompt}],
                 user_id=user_id,
                 session=self._session,
+                prompt_version=L4_PLAN.version,
             )
             return parse_structured(completion.text, validator=lambda d: GeneratedPlan(**d))
         except JsonParseError as exc:
@@ -397,6 +379,7 @@ class L4Orchestrator:
                           {"role": "user", "content": prompt}],
                 user_id=user_id,
                 session=self._session,
+                prompt_version=L4_DEVIATE.version,
             )
             return parse_structured(completion.text, validator=lambda d: DeviationAnalysis(**d))
         except JsonParseError as exc:

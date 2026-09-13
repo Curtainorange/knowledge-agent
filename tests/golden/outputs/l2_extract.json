@@ -1,0 +1,14 @@
+[
+  {
+    "name": "正常提取单条主张",
+    "text": "{\"claims\":[{\"statement\":\"数据库索引能显著加速等值查询\",\"topic\":\"数据库索引\",\"polarity\":1,\"strength\":0.8,\"confidence\":0.9}]}"
+  },
+  {
+    "name": "statement 字符串值带裸换行（真实踩坑形态）",
+    "text": "{\"claims\":[{\"statement\":\"索引会\n拖慢写入吞吐\",\"topic\":\"数据库索引\",\"polarity\":-1,\"strength\":0.6,\"confidence\":0.8}]}"
+  },
+  {
+    "name": "空主张",
+    "text": "{\"claims\":[]}"
+  }
+]

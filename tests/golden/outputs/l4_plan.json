@@ -1,0 +1,6 @@
+[
+  {
+    "name": "正常计划拆解（周维度任务）",
+    "text": "{\"tasks\":[{\"week_index\":1,\"subject\":\"读完《数据库索引》并写出三条判断标准\",\"focus\":\"补原理\",\"related_item_ids\":[\"i1\"]},{\"week_index\":2,\"subject\":\"用真实查询验证索引选择性\",\"focus\":\"落地\",\"related_item_ids\":[]}],\"rationale\":\"先补原理再实战\"}"
+  }
+]

@@ -1,0 +1,14 @@
+[
+  {
+    "name": "矛盾判定（带细分类型）",
+    "text": "{\"relation\":\"矛盾\",\"conflict_type\":\"立场对立\",\"detail\":\"A 主张索引必要，B 主张索引无用\",\"suggestion\":\"先统一两者讨论的查询场景再下结论\",\"confidence\":0.85}"
+  },
+  {
+    "name": "互补判定（前后夹带解释文字）",
+    "text": "好的，以下是判定结果：{\"relation\":\"互补\",\"conflict_type\":\"\",\"detail\":\"两者视角不同但可并存\",\"suggestion\":\"合并为一条完整结论\",\"confidence\":0.62} 希望有帮助。"
+  },
+  {
+    "name": "无关判定",
+    "text": "{\"relation\":\"无关\",\"conflict_type\":\"\",\"detail\":\"仅主题词相近\",\"suggestion\":\"\",\"confidence\":0.4}"
+  }
+]

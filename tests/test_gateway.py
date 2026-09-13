@@ -42,3 +42,25 @@ def test_gateway_chat_deterministic_and_billable(session):
     assert len(rows) == 2
     assert all(r.reasoning is False for r in rows)
     assert all(r.estimated_cost >= 0 for r in rows)
+
+
+def test_prompt_version_recorded_in_cost_log(session):
+    """提示词版本落库：默认走策略表反查，显式传参覆盖（一个 task_type 多提示词场景）。"""
+    from app.llm.prompts import PROMPT_VERSION_BY_TASK_TYPE
+
+    gw = ModelGateway()
+    with trace.request_id("req-prompt-ver"):
+        # 策略表默认版本（l1_mining → 对应 L1_ROUTE 版本）
+        gw.chat(task_type="l1_mining", messages=[{"role": "user", "content": "x"}], session=session)
+        # 显式覆盖（cognitive_brief 默认 l3_brief，此处模拟衔接追问传 l3_item 版本）
+        gw.chat(
+            task_type="cognitive_brief",
+            messages=[{"role": "user", "content": "x"}],
+            session=session,
+            prompt_version="v2-custom",
+        )
+    session.flush()
+    rows = session.query(CostLog).filter(CostLog.request_id == "req-prompt-ver").order_by(CostLog.id).all()
+    assert len(rows) == 2
+    assert rows[0].prompt_version == PROMPT_VERSION_BY_TASK_TYPE["l1_mining"]
+    assert rows[1].prompt_version == "v2-custom"

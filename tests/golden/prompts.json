@@ -1,0 +1,34 @@
+{
+  "l1_route": {
+    "version": "v1",
+    "sha256": "2b09fed2c97cd139b974cfe87f683bd8f81f3bb43b3ba13898bb983ed8ed0ef0"
+  },
+  "l2_extract": {
+    "version": "v1",
+    "sha256": "74a3cfb1ac3b40a3947831d3ab3f5c74c968e8c9c4b15378d196ae9b9bb39706"
+  },
+  "l2_judge": {
+    "version": "v1",
+    "sha256": "79bc2e01b84da634f02f41d6ab0983201d1d68c65320ed4fae0fa09ed7a923bb"
+  },
+  "l3_analyze": {
+    "version": "v1",
+    "sha256": "34260d096bb2f8bd6160d6326bf0aff2b32c5c930a171272261f995baa3eee43"
+  },
+  "l3_brief": {
+    "version": "v1",
+    "sha256": "4d52208d7f3314dae714acdac226392a09eaf41db3d6ba7b139f6d2c18827485"
+  },
+  "l3_item": {
+    "version": "v1",
+    "sha256": "bbb757d6fd4d24752285fe77c59bbba6a70a1077b5419293e52cb54f03be487f"
+  },
+  "l4_plan": {
+    "version": "v1",
+    "sha256": "68a2ebaee8373a26eec2f099c8fcc4917168e518d488b24067028325dcf6d91d"
+  },
+  "l4_deviate": {
+    "version": "v1",
+    "sha256": "5f0ac432d8ac1cc5550f478e01f78e9e06cc200aaa2a294c959370afbff4e100"
+  }
+}

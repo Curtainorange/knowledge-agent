@@ -21,6 +21,7 @@ from app.domain.repositories.conversation_repository import ConversationReposito
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.feedback import events
 from app.llm.gateway import ModelGateway
+from app.llm.prompts import L1_ROUTE
 from app.llm.structure import JsonParseError, parse_structured
 from app.retrieval.embedding import build_embedding
 from app.retrieval.retriever import RetrievedItem, Retriever
@@ -75,12 +76,8 @@ class L1Result:
     reason: str = ""       # 模型给出的决策依据（便于排查与展示）
 
 
-_SYS = (
-    "你是「认知副驾」的 L1 认知挖掘器。用户给出一条模糊线索，你要从候选知识条目里"
-    "判断能否精准定位。可定位（证据充分、线索唯一对应某条）→ located，给出 item_ids；"
-    "否则 → clarify，提出 1 个最有效、不多问的澄清问题帮助收敛。输出严格 JSON："
-    '{"decision":"located|clarify","item_ids":[],"question":"","reason":""}。'
-)
+# 提示词统一在 app/llm/prompts.py 声明（版本化 + golden set 校验），此处仅取别名
+_SYS = L1_ROUTE.text
 
 
 def _read_hint(item: KnowledgeItem) -> str:
@@ -181,7 +178,8 @@ class L1Orchestrator:
     def _route(self, conv, message, candidates, items, user_id: str) -> L1Route:
         messages = self._prompt(conv, message, candidates, items)
         completion = self._gateway.chat(
-            task_type="l1_mining", messages=messages, user_id=user_id, session=self._session
+            task_type="l1_mining", messages=messages, user_id=user_id, session=self._session,
+            prompt_version=L1_ROUTE.version,
         )
         try:
             return parse_structured(completion.text, validator=lambda d: L1Route(**d))

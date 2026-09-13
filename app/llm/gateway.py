@@ -16,6 +16,7 @@ from app.core.config import settings
 from app.llm import cost as cost_service
 from app.llm.completion import Completion
 from app.llm.exceptions import RetryableLLMError
+from app.llm.prompts import PROMPT_VERSION_BY_TASK_TYPE
 from app.llm.provider import LLMProvider
 from app.llm.retry import with_retry
 
@@ -27,6 +28,7 @@ class Strategy:
     task_type: str
     reasoning: bool
     model: str  # 空 → 运行时回落 settings.deepseek_model
+    prompt_version: str = ""  # 提示词版本（E 组），成本落库追溯用
 
 
 # 静态映射（配表驱动，可热更新；缺省为"默认对话 reasoning=off"）
@@ -69,7 +71,12 @@ class ModelGateway:
 
     def route(self, task_type: str = "default") -> Strategy:
         s = strategy_for(task_type)
-        return Strategy(s.task_type, s.reasoning, s.model or settings.deepseek_model)
+        return Strategy(
+            s.task_type,
+            s.reasoning,
+            s.model or settings.deepseek_model,
+            prompt_version=PROMPT_VERSION_BY_TASK_TYPE.get(s.task_type, ""),
+        )
 
     def chat(
         self,
@@ -80,8 +87,13 @@ class ModelGateway:
         session: Session | None = None,
         tools: list | None = None,
         response_format: dict | None = None,
+        prompt_version: str = "",
     ) -> Completion:
-        """发起一次模型调用：路由 → 重试 → 成本埋点。"""
+        """发起一次模型调用：路由 → 重试 → 成本埋点。
+
+        prompt_version 显式传入时覆盖策略表默认值（一个 task_type 对应多个提示词的
+        场景——如 cognitive_brief 同时服务简报与衔接追问——由调用方区分版本）。
+        """
         strat = self.route(task_type)
         completion = self._call_with_retry(strat, messages, tools, response_format)
         cost_service.record_cost(
@@ -91,6 +103,7 @@ class ModelGateway:
             model=strat.model,
             reasoning=strat.reasoning,
             completion=completion,
+            prompt_version=prompt_version or strat.prompt_version,
         )
         return completion
 

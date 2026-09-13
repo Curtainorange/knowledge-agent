@@ -38,6 +38,7 @@ from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.conflict_repository import ConflictRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.llm.gateway import ModelGateway
+from app.llm.prompts import L3_ANALYZE, L3_BRIEF, L3_ITEM
 from app.llm.structure import JsonParseError, parse_structured
 
 logger = logging.getLogger(__name__)
@@ -69,37 +70,10 @@ class BriefDraft(BaseModel):
     overview: str = ""
 
 
-_ANALYZE_SYS = (
-    "你是知识结构分析器。给定编号的知识条目，为每条判定一个**主题标签**（2-6 字）"
-    "与**认知深度层级**（入门=介绍/入门方法；进阶=原理/对比/机制；实战=案例/踩坑/落地）。"
-    "输出严格 JSON："
-    '{"assignments":[{"item_id":"...","topic":"...","level":"入门|进阶|实战|未分类"}],'
-    '"overview":"一句话概括知识结构"}。'
-    "同一条目标签要尽量复用已有主题词，不要为相似内容造新词；判不准就标 未分类。"
-)
-
-_BRIEF_SYS = (
-    "你是认知助产士。用户的知识库统计如下，请指出他「该问但没问」的问题。"
-    "输出严格 JSON："
-    '{"patterns":["大量存在：...","完全缺失：..."],'
-    '"questions":[{"question":"...","why":"...","evidence":"...","next_step":"..."}],'
-    '"overview":"..."}。'
-    "硬性要求："
-    "1) 每条 evidence 必须引用给定统计中的真实数字（如「12 篇里有 9 篇停在入门层」），"
-    "不得编造；"
-    "2) 只问 2-3 个问题，宁少勿滥，每个都要指向统计里能看到的缺口或失衡；"
-    "3) question 是启发式提问（引导用户思考），不是待办清单；"
-    "4) patterns 必须区分「大量存在」与「完全缺失」两类，没有的类别不要硬凑。"
-)
-
-_ITEM_SYS = (
-    "你是认知助产士。用户刚录入一条内容，请生成 1 个与之衔接的深度追问，"
-    "帮他把这条内容接到已有知识结构的缺口上。输出严格 JSON："
-    '{"patterns":[],"questions":[{"question":"...","why":"...","evidence":"...","next_step":"..."}],'
-    '"overview":""}。'
-    "要求：evidence 只能引用给定信息（新条目标题/长度、近期条目标题、主题分布），不得编造数字；"
-    "question 要与其刚录入的内容直接相关，不要泛泛而谈。"
-)
+# 提示词统一在 app/llm/prompts.py 声明（版本化 + golden set 校验），此处仅取别名
+_ANALYZE_SYS = L3_ANALYZE.text
+_BRIEF_SYS = L3_BRIEF.text
+_ITEM_SYS = L3_ITEM.text
 
 
 @dataclass
@@ -191,6 +165,7 @@ class L3Orchestrator:
                           {"role": "user", "content": context}],
                 user_id=user_id,
                 session=self._session,
+                prompt_version=L3_ITEM.version,
             )
             draft = parse_structured(completion.text, validator=lambda d: BriefDraft(**d))
         except JsonParseError as exc:
@@ -218,7 +193,8 @@ class L3Orchestrator:
         ]
         try:
             completion = self._gateway.chat(
-                task_type="topic_analysis", messages=messages, user_id=user_id, session=self._session
+                task_type="topic_analysis", messages=messages, user_id=user_id, session=self._session,
+                prompt_version=L3_ANALYZE.version,
             )
             result = parse_structured(completion.text, validator=lambda d: TopicAnalysisResult(**d))
         except JsonParseError as exc:
@@ -287,6 +263,7 @@ class L3Orchestrator:
                           {"role": "user", "content": context}],
                 user_id=user_id,
                 session=self._session,
+                prompt_version=L3_BRIEF.version,
             )
             return parse_structured(completion.text, validator=lambda d: BriefDraft(**d))
         except JsonParseError as exc:
