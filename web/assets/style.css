@@ -157,3 +157,24 @@ mark.flash{outline:2px solid var(--accent);outline-offset:1px}
   padding:12px;z-index:65;box-shadow:0 -2px 12px rgba(0,0,0,.08)}
 .thought-drawer .quote{font-size:12px;color:var(--muted);margin-bottom:8px;max-height:38px;overflow:hidden}
 .thought-drawer .row-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:8px}
+
+/* ---- L2 冲突检测 ---- */
+.tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.tabs button.sm.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent)}
+.conflict{border:1px solid var(--border);border-left:3px solid var(--warn);border-radius:10px;
+  padding:11px;margin-bottom:10px}
+.conflict.done{border-left-color:var(--ok);opacity:.75}
+.conflict .cf-head{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-bottom:8px}
+.conflict .cf-type{background:var(--warn-weak);color:var(--warn);border-radius:999px;
+  padding:1px 8px;font-size:12px;white-space:nowrap}
+.conflict .cf-pair{font-weight:600}
+.cf-claims{display:grid;grid-template-columns:1fr auto 1fr;gap:8px;align-items:center;margin:8px 0}
+.cf-side{background:#fbfcfd;border:1px solid var(--border);border-radius:8px;padding:8px;font-size:13px}
+.cf-side .cf-who{font-size:12px;color:var(--muted);margin-bottom:4px}
+.cf-side .cf-who a{color:var(--accent);text-decoration:none}
+.cf-side .cf-who a:hover{text-decoration:underline}
+.cf-vs{color:var(--muted);font-size:12px}
+.cf-block{margin-top:6px;font-size:13px}
+.cf-block b{font-weight:600}
+.cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
+@media(max-width:700px){.cf-claims{grid-template-columns:1fr}.cf-vs{text-align:center}}

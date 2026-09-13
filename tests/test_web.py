@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from tests.helpers import auth_headers
 
-PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html")
+PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html")
 
 
 def test_all_pages_served(client):
@@ -48,6 +48,22 @@ def test_shared_assets_served(client):
     js = client.get("/assets/app.js")
     assert js.status_code == 200
     assert "javascript" in js.headers["content-type"]
+
+
+def test_conflicts_page_is_isolated(client):
+    """L2 冲突检测页只做冲突处理：不含录入 / 登录 / 挖掘表单。"""
+    body = client.get("/conflicts.html").text
+    assert "btn-scan" in body
+    assert "cf-list" in body
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "mine-send" not in body
+
+
+def test_nav_links_to_conflicts_everywhere(client):
+    """业务页导航都要能进冲突检测页（否则新能力不可达）。"""
+    for path in ("/knowledge.html", "/mine.html", "/books.html"):
+        assert "/conflicts.html" in client.get(path).text, path
 
 
 def test_api_routes_unaffected(client):

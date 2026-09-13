@@ -1,0 +1,211 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>冲突检测 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="conflicts">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">L2 冲突检测</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>观点冲突
+      <button id="btn-scan" class="primary sm">立即扫描</button>
+      <button id="btn-reload" class="sm">刷新</button>
+    </h2>
+    <div class="meta" id="scan-hint">
+      扫描会提取知识库里的核心主张，并比对出立场不可兼容的冲突。新录入的内容会自动排一次扫描。
+    </div>
+    <div class="meta" id="scan-result"></div>
+  </div>
+
+  <div class="card">
+    <h2>冲突列表 <span class="badge" id="cf-count">0</span></h2>
+    <div class="tabs" id="cf-tabs">
+      <button class="sm on" data-state="unseen">待处理</button>
+      <button class="sm" data-state="accepted">已采纳</button>
+      <button class="sm" data-state="ignored">已忽略</button>
+      <button class="sm" data-state="">全部</button>
+    </div>
+    <div class="list" id="cf-list"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var state = { filter: 'unseen' };
+
+  var STATE_LABEL = { unseen: '待处理', accepted: '已采纳', ignored: '已忽略' };
+
+  function confidenceBadge(value) {
+    var pct = Math.round(Number(value || 0) * 100);
+    var cls = pct >= 80 ? 'ok' : 'warn';
+    return '<span class="badge ' + cls + '">置信度 ' + pct + '%</span>';
+  }
+
+  function stateBadge(value) {
+    var cls = value === 'accepted' ? 'ok' : (value === 'ignored' ? 'warn' : '');
+    return '<span class="badge ' + cls + '">' + esc(STATE_LABEL[value] || value) + '</span>';
+  }
+
+  function sideHtml(title, itemId, claim) {
+    return '<div class="cf-side">' +
+      '<div class="cf-who"><a href="/knowledge.html?item=' + esc(itemId) + '">' + esc(title) + '</a></div>' +
+      '<div>' + esc(claim || '（该条主张已不存在）') + '</div>' +
+    '</div>';
+  }
+
+  function cardHtml(c) {
+    var done = c.user_state !== 'unseen';
+    var body = '';
+    body += '<div class="cf-head">' +
+      '<span class="cf-type">' + esc(c.conflict_type || '冲突') + '</span>' +
+      '<span class="cf-pair">' + esc(c.title_a) + ' ↔ ' + esc(c.title_b) + '</span>' +
+      confidenceBadge(c.confidence) +
+      stateBadge(c.user_state) +
+    '</div>';
+    body += '<div class="cf-claims">' +
+      sideHtml(c.title_a, c.item_a_id, c.claim_a) +
+      '<div class="cf-vs">↔</div>' +
+      sideHtml(c.title_b, c.item_b_id, c.claim_b) +
+    '</div>';
+    if (c.detail) {
+      body += '<div class="cf-block"><b>依据：</b>' + esc(c.detail) + '</div>';
+    }
+    if (c.suggestion) {
+      body += '<div class="cf-block"><b>建议：</b>' + esc(c.suggestion) + '</div>';
+    }
+    body += '<div class="cf-actions" data-id="' + esc(c.conflict_id) + '">';
+    if (c.user_state !== 'accepted') {
+      body += '<button class="sm" data-act="accepted">采纳</button>';
+    }
+    if (c.user_state !== 'ignored') {
+      body += '<button class="sm" data-act="ignored">忽略</button>';
+    }
+    if (done) {
+      body += '<button class="sm" data-act="unseen">标回待处理</button>';
+    }
+    body += '</div>';
+    return '<div class="conflict' + (done ? ' done' : '') + '">' + body + '</div>';
+  }
+
+  function render(items) {
+    $('#cf-count').textContent = items.length;
+    if (!items.length) {
+      $('#cf-list').innerHTML = '<div class="empty">' +
+        (state.filter === 'unseen'
+          ? '还没有待处理的冲突。先录入几条观点鲜明的知识，再点「立即扫描」。'
+          : '这个筛选下没有记录。') +
+      '</div>';
+      return;
+    }
+    $('#cf-list').innerHTML = items.map(cardHtml).join('');
+  }
+
+  async function load() {
+    var query = state.filter ? ('?state=' + encodeURIComponent(state.filter)) : '';
+    try {
+      var data = await CC.api('GET', '/api/v1/l2/conflicts' + query);
+      render(data.items || []);
+    } catch (err) {
+      $('#cf-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    }
+  }
+
+  function syncTabs() {
+    var buttons = $('#cf-tabs').querySelectorAll('button');
+    for (var i = 0; i < buttons.length; i++) {
+      var on = buttons[i].getAttribute('data-state') === state.filter;
+      if (on) {
+        buttons[i].classList.add('on');
+      } else {
+        buttons[i].classList.remove('on');
+      }
+    }
+  }
+
+  async function scan() {
+    var button = $('#btn-scan');
+    $('#scan-result').textContent = '扫描中…（真实模型逐条判定，条目多时可能需要几分钟）';
+    try {
+      var result = await CC.withLoading(button, function () {
+        return CC.api('POST', '/api/v1/l2/scan');
+      }, '扫描中…');
+      $('#scan-result').textContent =
+        '本轮：扫描条目 ' + result.scanned_items +
+        ' · 提取主张 ' + result.claims_extracted +
+        ' · 判定 ' + result.pairs_judged + ' 对' +
+        ' · 发现冲突 ' + result.conflicts_found +
+        (result.conflicts_suppressed ? ' · 抑制 ' + result.conflicts_suppressed : '') +
+        (result.extraction_failures ? ' · 提取失败 ' + result.extraction_failures + '（下次自动重试）' : '');
+      CC.toast(result.conflicts_found ? ('发现 ' + result.conflicts_found + ' 处冲突') : '本轮没有新冲突');
+      await load();
+    } catch (err) {
+      $('#scan-result').textContent = '扫描失败：' + err.message;
+    }
+  }
+
+  async function setState(conflictId, next) {
+    try {
+      await CC.api('PATCH', '/api/v1/l2/conflicts/' + encodeURIComponent(conflictId) + '/state', { state: next });
+      CC.toast('已标记为「' + (STATE_LABEL[next] || next) + '」');
+      await load();
+    } catch (err) {
+      CC.toast('操作失败：' + err.message);
+    }
+  }
+
+  $('#cf-tabs').addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-state]');
+    if (!button) {
+      return;
+    }
+    state.filter = button.getAttribute('data-state');
+    syncTabs();
+    load();
+  });
+
+  $('#cf-list').addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-act]');
+    if (!button) {
+      return;
+    }
+    var box = button.closest('.cf-actions');
+    setState(box.getAttribute('data-id'), button.getAttribute('data-act'));
+  });
+
+  $('#btn-scan').addEventListener('click', scan);
+  $('#btn-reload').addEventListener('click', load);
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    syncTabs();
+    await load();
+  })();
+})();
+</script>
+</body>
+</html>
