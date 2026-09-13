@@ -6,7 +6,8 @@ from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.endpoints import auth, books, chat, events, health, knowledge, l1, l2, l3, l4, l5, preferences, push
@@ -37,6 +38,77 @@ async def request_id_middleware(request: Request, call_next):
         response = await call_next(request)
     response.headers["X-Request-Id"] = rid
     return response
+
+
+# 参数校验失败的提示要能直接给人看：FastAPI 默认把 pydantic 的原始错误数组透出
+# （`[{"type":"string_too_short","loc":["body","username"],"msg":"String should have
+# at least 3 characters",...}]`），前端把它 JSON.stringify 后就是一整串英文 JSON，
+# 直接怼在登录/注册的输入框下面。这里统一翻译成中文短句。
+_FIELD_LABELS = {
+    "username": "用户名",
+    "password": "密码",
+    "nickname": "昵称",
+    "title": "标题",
+    "content": "内容",
+    "raw_content": "正文",
+    "description": "描述",
+    "priority": "优先级",
+    "state": "状态",
+    "accepted": "是否采纳",
+    "push_frequency": "推送频率",
+    "event_type": "事件类型",
+    "item_id": "条目 ID",
+    "conflict_id": "冲突 ID",
+    "diagnosis_id": "诊断 ID",
+    "goal_id": "目标 ID",
+    "plan_id": "计划 ID",
+    "job_id": "推送任务 ID",
+    "page": "页码",
+    "page_size": "每页条数",
+    "limit": "条数上限",
+}
+
+
+def _validation_message(errors: list[dict]) -> str:
+    """把 pydantic 校验错误数组翻译成中文短句（多条用「；」连接）。"""
+    parts: list[str] = []
+    for err in errors:
+        loc = err.get("loc") or []
+        # loc 形如 ("body", "username")，取最后一个业务字段名
+        field = str(loc[-1]) if loc else "请求参数"
+        label = _FIELD_LABELS.get(field, field)
+        etype = str(err.get("type", ""))
+        ctx = err.get("ctx") or {}
+        if etype == "string_too_short":
+            text = f"{label}至少 {ctx.get('min_length', 1)} 个字符"
+        elif etype == "string_too_long":
+            text = f"{label}最多 {ctx.get('max_length', 255)} 个字符"
+        elif etype == "string_pattern_mismatch":
+            text = f"{label}格式不正确（只允许字母、数字、_ . -）"
+        elif etype == "missing":
+            text = f"缺少{label}"
+        elif etype.startswith("int_") or etype.startswith("float_"):
+            text = f"{label}必须是数字"
+        elif etype == "greater_than_equal":
+            text = f"{label}不能小于 {ctx.get('ge', 0)}"
+        elif etype == "less_than_equal":
+            text = f"{label}不能大于 {ctx.get('le', 0)}"
+        else:
+            text = f"{label}填写不正确"
+        if text not in parts:  # 同一字段的重复错误只提示一次
+            parts.append(text)
+    return "；".join(parts) or "请求参数不合法"
+
+
+@app.exception_handler(RequestValidationError)
+async def validation_exception_handler(request: Request, exc: RequestValidationError):
+    return JSONResponse(
+        status_code=422,
+        content={
+            "detail": _validation_message(exc.errors()),
+            "request_id": trace.get_request_id() or "",
+        },
+    )
 
 
 app.include_router(health.router)

@@ -63,6 +63,37 @@ window.CC = (function () {
     location.replace(url);
   }
 
+  /* 把错误响应转成能直接显示给人看的短句。
+     后端已把 422 校验错误翻译成中文，这里再兜一层：万一拿到的是对象/数组
+     （pydantic 原始格式），也只取可读的 msg，绝不整串 JSON 怼到界面上。 */
+  function errorText(data, res) {
+    var detail = data && data.detail;
+    if (typeof detail === 'string' && detail) {
+      return detail;
+    }
+    if (Array.isArray(detail)) {
+      var msgs = [];
+      for (var i = 0; i < detail.length; i++) {
+        var item = detail[i] || {};
+        if (item.msg || item.message) {
+          msgs.push(item.msg || item.message);
+        }
+      }
+      if (msgs.length) {
+        return msgs.join('；');
+      }
+    }
+    if (detail && typeof detail === 'object') {
+      if (detail.msg) {
+        return detail.msg;
+      }
+      if (detail.message) {
+        return detail.message;
+      }
+    }
+    return 'HTTP ' + res.status;
+  }
+
   async function api(method, path, body) {
     var t = token();
     var headers = { 'Content-Type': 'application/json' };
@@ -88,9 +119,7 @@ window.CC = (function () {
       data = {};
     }
     if (!res.ok) {
-      var detail = data.detail;
-      var text = typeof detail === 'string' ? detail : (detail ? JSON.stringify(detail) : 'HTTP ' + res.status);
-      throw new Error(text);
+      throw new Error(errorText(data, res));
     }
     return data;
   }

@@ -47,6 +47,27 @@ def test_register_rejects_weak_or_malformed_input(client):
     assert bad_name.status_code == 422
 
 
+def test_validation_errors_are_human_readable_chinese(client):
+    """422 的提示必须能直接显示给人看。
+
+    FastAPI 默认把 pydantic 原始错误数组透出（英文 + loc/ctx），前端整串
+    JSON.stringify 后就是一坨英文怼在输入框下面——登录注册界面最常撞见。
+    """
+    resp = client.post(
+        "/api/v1/auth/register", json={"username": "ab", "password": "123"}
+    )
+    assert resp.status_code == 422
+    detail = resp.json()["detail"]
+    assert isinstance(detail, str), "detail 必须是字符串，不能是原始错误数组"
+    assert "用户名至少 3 个字符" in detail
+    assert "密码至少 8 个字符" in detail
+
+    bad_pattern = client.post(
+        "/api/v1/auth/register", json={"username": "bad name!", "password": DEFAULT_PASSWORD}
+    )
+    assert "格式不正确" in bad_pattern.json()["detail"]
+
+
 def test_username_is_case_insensitive(client):
     client.post(
         "/api/v1/auth/register", json={"username": "Auth_Case", "password": DEFAULT_PASSWORD}
