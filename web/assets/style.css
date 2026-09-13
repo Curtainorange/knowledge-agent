@@ -178,3 +178,18 @@ mark.flash{outline:2px solid var(--accent);outline-offset:1px}
 .cf-block b{font-weight:600}
 .cf-actions{display:flex;gap:8px;flex-wrap:wrap;margin-top:9px}
 @media(max-width:700px){.cf-claims{grid-template-columns:1fr}.cf-vs{text-align:center}}
+
+/* ---- L3 认知简报 ---- */
+.topic-row{display:flex;align-items:center;justify-content:space-between;gap:10px;
+  padding:7px 0;border-bottom:1px dashed var(--border);font-size:13px}
+.topic-row:last-child{border-bottom:none}
+.topic-row .topic-name{font-weight:500}
+.topic-row .topic-levels{color:var(--muted);white-space:nowrap}
+.badge.level{background:#eef1f4;color:var(--muted)}
+.patterns{margin-top:10px;padding-top:8px;border-top:1px dashed var(--border)}
+.pattern{font-size:13px;padding:4px 8px;border-radius:8px;margin-top:5px}
+.pattern.abundant{background:var(--warn-weak);color:var(--warn)}
+.pattern.missing{background:var(--accent-weak);color:var(--accent)}
+.question-card{border:1px solid var(--border);border-left:3px solid var(--accent);
+  border-radius:10px;padding:11px;margin-bottom:10px}
+.question-card .q-head{font-weight:600;font-size:14px;margin-bottom:4px}

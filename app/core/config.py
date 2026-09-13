@@ -81,6 +81,11 @@ class Settings(BaseSettings):
     l2_pair_sim_lo: float = 0.35
     l2_pair_sim_hi: float = 0.95
 
+    # --- L3 认知助产（主题分布 → 「该问但没问」的追问）---
+    l3_max_items_per_analysis: int = 60  # 单次分析送入模型的条目上限（成本与上下文闸门）
+    l3_recent_titles: int = 20           # UC-L3-02 衔接追问时携带的近期条目标题数
+    l3_question_count: int = 3           # 简报产出的追问上限（需求：2-3 个，宁少勿滥）
+
     # --- 异步任务框架（幂等 + 重试 + 死信；单进程内轮询，不依赖 Redis/Celery）---
     worker_enabled: bool = True          # 测试里关闭，避免后台线程干扰
     worker_poll_seconds: float = 15.0    # 轮询间隔

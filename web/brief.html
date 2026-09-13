@@ -1,0 +1,151 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>认知简报 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="brief">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">L3 认知助产</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>认知简报
+      <button id="brief-generate" class="primary sm">生成</button>
+    </h2>
+    <div class="meta" id="brief-note">
+      分析你的知识结构（主题分布 + 认知深度），指出「该问但没问」的问题。
+      每条追问都会附上它在数据里的依据，便于你判断值不值得想。
+    </div>
+    <div class="meta" id="brief-stats"></div>
+  </div>
+
+  <div class="card">
+    <h2>主题分布 <span class="badge" id="brief-count">0</span></h2>
+    <div id="brief-topics"></div>
+    <div id="brief-patterns"></div>
+    <div class="meta" id="brief-overview"></div>
+  </div>
+
+  <div class="card">
+    <h2>值得想一想</h2>
+    <div id="brief-questions"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var LEVELS = ['入门', '进阶', '实战', '未分类'];
+
+  function topicRows(topics) {
+    if (!topics.length) {
+      return '<div class="empty">暂无主题分布</div>';
+    }
+    var rows = topics.map(function (t) {
+      var levels = LEVELS.filter(function (lv) {
+        return (t.levels || {})[lv];
+      }).map(function (lv) {
+        return '<span class="badge level">' + esc(lv) + ' ' + t.levels[lv] + '</span>';
+      }).join(' ');
+      return '<div class="topic-row">' +
+        '<div class="topic-name">' + esc(t.topic) + '</div>' +
+        '<div class="topic-levels"><span class="badge ok">' + t.count + ' 篇</span> ' + levels + '</div>' +
+      '</div>';
+    }).join('');
+    return rows;
+  }
+
+  function patternList(patterns) {
+    if (!patterns.length) {
+      return '';
+    }
+    var rows = patterns.map(function (p) {
+      var kind = p.indexOf('完全缺失') === 0 ? 'missing' : 'abundant';
+      return '<div class="pattern ' + kind + '">' + esc(p) + '</div>';
+    }).join('');
+    return '<div class="patterns"><div class="meta">结构信号</div>' + rows + '</div>';
+  }
+
+  function questionCards(questions) {
+    if (!questions.length) {
+      return '<div class="empty">还没有追问。知识库内容太少时，先多录几条再来。</div>';
+    }
+    return questions.map(function (q) {
+      var body = '<div class="q-head">' + esc(q.question) + '</div>';
+      if (q.why) {
+        body += '<div class="cf-block"><b>为什么问：</b>' + esc(q.why) + '</div>';
+      }
+      if (q.evidence) {
+        body += '<div class="cf-block"><b>数据依据：</b>' + esc(q.evidence) + '</div>';
+      }
+      if (q.next_step) {
+        body += '<div class="cf-block"><b>可以做什么：</b>' + esc(q.next_step) + '</div>';
+      }
+      return '<div class="question-card">' + body + '</div>';
+    }).join('');
+  }
+
+  function render(result) {
+    var topics = result.topics || [];
+    $('#brief-count').textContent = topics.length;
+    $('#brief-topics').innerHTML = topicRows(topics);
+    $('#brief-patterns').innerHTML = patternList(result.patterns || []);
+    $('#brief-overview').textContent = result.overview || '';
+    $('#brief-questions').innerHTML = questionCards(result.questions || []);
+
+    var stats = result.conflict_stats || {};
+    if (stats.this_week !== undefined) {
+      var delta = stats.delta || 0;
+      var arrow = delta > 0 ? ('↑' + delta) : (delta < 0 ? ('↓' + Math.abs(delta)) : '持平');
+      $('#brief-stats').textContent =
+        '本周新增冲突 ' + stats.this_week + ' 处（上周 ' + stats.last_week + '，' + arrow + '）' +
+        ' · 本次分析条目 ' + result.analyzed_items + ' 条';
+    }
+    $('#brief-note').textContent = result.note || '分析完成。追问的依据来自上面的主题分布与冲突统计。';
+  }
+
+  async function generate() {
+    $('#brief-note').textContent = '分析中…（读取标题与摘要做归类，再生成追问，通常十几秒）';
+    try {
+      var result = await CC.withLoading($('#brief-generate'), function () {
+        return CC.api('POST', '/api/v1/l3/brief');
+      }, '分析中…');
+      render(result);
+      CC.toast(result.state === 'ok' ? '简报已生成' : '分析已完成（部分降级）');
+    } catch (err) {
+      $('#brief-note').textContent = '生成失败：' + err.message;
+    }
+  }
+
+  $('#brief-generate').addEventListener('click', generate);
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+  })();
+})();
+</script>
+</body>
+</html>

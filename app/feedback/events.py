@@ -32,6 +32,8 @@ NOTE_CREATED = "note.created"
 L1_MINE = "l1.mine"
 L2_SCAN = "l2.scan"
 L2_CONFLICT_FEEDBACK = "l2.conflict.feedback"
+L3_BRIEF = "l3.brief"
+L3_QUESTION = "l3.question"
 # 认证（L5 需要区分「活跃但无产出」与「根本不活跃」）
 AUTH_LOGIN = "auth.login"
 

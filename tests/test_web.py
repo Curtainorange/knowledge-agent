@@ -3,7 +3,7 @@ from __future__ import annotations
 
 from tests.helpers import auth_headers
 
-PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html")
+PAGES = ("/", "/login.html", "/knowledge.html", "/mine.html", "/conflicts.html", "/brief.html")
 
 
 def test_all_pages_served(client):
@@ -71,6 +71,22 @@ def test_account_settings_present(client):
     body = client.get("/knowledge.html").text
     assert "pw-submit" in body
     assert "del-submit" in body
+
+
+def test_brief_page_is_isolated(client):
+    """L3 认知简报页只做简报：不含录入 / 登录 / 挖掘 / 冲突表单。"""
+    body = client.get("/brief.html").text
+    assert "brief-generate" in body
+    assert "brief-questions" in body
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "mine-send" not in body
+    assert "btn-scan" not in body
+
+
+def test_nav_links_to_brief_everywhere(client):
+    for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html"):
+        assert "/brief.html" in client.get(path).text, path
 
 
 def test_api_routes_unaffected(client):
