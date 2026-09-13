@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from datetime import datetime, timezone
+
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -37,4 +39,14 @@ class UserRepository(BaseRepository[User]):
 
     def set_password_hash(self, user: User, password_hash: str) -> None:
         user.password_hash = password_hash
+        self._session.flush()
+
+    def bump_token_version(self, user: User) -> None:
+        """令牌版本 +1：所有已签发令牌立即失效（改密 / 注销用）。"""
+        user.token_version = int(user.token_version or 0) + 1
+        self._session.flush()
+
+    def mark_deleted(self, user: User, when: datetime | None = None) -> None:
+        """软删账号：置注销时间戳，数据保留（审计与保留期）。"""
+        user.deleted_at = when or datetime.now(timezone.utc).replace(tzinfo=None)
         self._session.flush()

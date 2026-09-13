@@ -1,12 +1,18 @@
-"""认证端点：注册 / 登录 / 刷新令牌 / 当前用户（见系统设计 9.3.1）。
+"""认证端点：注册 / 登录 / 刷新令牌 / 修改密码 / 注销账号 / 当前用户（见系统设计 9.3.1）。
 
 设计要点：
 - 登录失败**不区分**「用户不存在」与「密码错误」，且用户不存在时仍走一次哈希校验，
   避免通过响应内容或耗时差异枚举账号。
 - refresh token 只能用于换发 access token，不能直接访问业务接口（decode 时校验 typ）。
 - 密码明文只在请求体内短暂存在，不落库、不入日志。
+- 改密 / 注销都会把 `token_version` +1：JWT 无状态，靠版本号实现吊销，旧令牌立即失效。
+- 注册按来源 IP 限流：每次注册都要跑一次 PBKDF2，是可被利用的 CPU 消耗点；
+  这里统计**全部注册尝试**（而非仅失败），否则成功注册即可把计数清零，
+  批量注册小号依旧畅通。
 """
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
 from pydantic import BaseModel, Field
@@ -40,6 +46,7 @@ def _dummy_hash() -> str:
 
 _account_throttle: FailureThrottle | None = None
 _source_throttle: FailureThrottle | None = None
+_register_throttle: FailureThrottle | None = None
 
 
 def _throttles() -> tuple[FailureThrottle, FailureThrottle]:
@@ -59,16 +66,31 @@ def _throttles() -> tuple[FailureThrottle, FailureThrottle]:
     return _account_throttle, _source_throttle
 
 
+def _register_limiter() -> FailureThrottle:
+    global _register_throttle
+    if _register_throttle is None:
+        _register_throttle = FailureThrottle(
+            max_attempts=settings.register_max_attempts_per_ip,
+            window_seconds=settings.login_window_seconds,
+            lock_seconds=settings.login_lock_seconds,
+        )
+    return _register_throttle
+
+
 def reset_login_throttle() -> None:
     """重建限流器并清空计数（仅供测试在改动阈值后调用）。"""
-    global _account_throttle, _source_throttle
+    global _account_throttle, _source_throttle, _register_throttle
     _account_throttle = None
     _source_throttle = None
+    _register_throttle = None
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
 
 
 def _login_keys(request: Request, username: str) -> tuple[str, str]:
-    ip = request.client.host if request.client else "unknown"
-    return f"user:{username}", f"ip:{ip}"
+    return f"user:{username}", f"ip:{_client_ip(request)}"
 
 
 def _ensure_not_throttled(request: Request, username: str) -> None:
@@ -118,6 +140,23 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
 
 
+class PasswordChangeRequest(BaseModel):
+    current_password: str = Field(min_length=1, max_length=128)
+    new_password: str = Field(min_length=MIN_PASSWORD_LEN, max_length=128)
+
+
+class AccountDeleteRequest(BaseModel):
+    """注销要重输密码：避免令牌泄漏后被人一键清号。"""
+
+    password: str = Field(min_length=1, max_length=128)
+
+
+class AccountDeleteResponse(BaseModel):
+    username: str
+    deleted: bool
+    request_id: str
+
+
 class TokenResponse(BaseModel):
     access_token: str
     refresh_token: str
@@ -144,8 +183,8 @@ class MeResponse(BaseModel):
 
 def _token_response(user: User) -> TokenResponse:
     return TokenResponse(
-        access_token=security.create_access_token(user.id),
-        refresh_token=security.create_refresh_token(user.id),
+        access_token=security.create_access_token(user.id, user.token_version),
+        refresh_token=security.create_refresh_token(user.id, user.token_version),
         expires_in=security.access_token_ttl_seconds(),
         user_id=user.id,
         username=user.username,
@@ -156,9 +195,22 @@ def _token_response(user: User) -> TokenResponse:
 @router.post("/register", response_model=TokenResponse, status_code=status.HTTP_201_CREATED)
 def register(
     body: RegisterRequest,
+    request: Request,
     session: Session = Depends(get_session),
 ) -> TokenResponse:
     """注册并直接返回令牌（省一次登录往返）。用户名统一小写，避免 Admin/admin 混淆。"""
+    ip_key = f"ip:{_client_ip(request)}"
+    if settings.login_throttle_enabled:
+        wait = _register_limiter().retry_after(ip_key)
+        if wait > 0:
+            raise HTTPException(
+                status_code=status.HTTP_429_TOO_MANY_REQUESTS,
+                detail=f"注册过于频繁，请 {wait} 秒后再试",
+                headers={"Retry-After": str(wait)},
+            )
+        # 统计全部注册尝试（含成功）：成功即清零的话，批量注册小号依旧畅通
+        _register_limiter().record_failure(ip_key)
+
     username = body.username.strip().lower()
     repo = UserRepository(session)
     if repo.get_by_username(username) is not None:
@@ -193,7 +245,8 @@ def login(
 
     repo = UserRepository(session)
     user = repo.get_by_username(username)
-    if user is None:
+    if user is None or user.is_deleted:
+        # 已注销账号与不存在的账号返回一致：否则「是否已注销」会成为账号存在性的旁路
         security.verify_password(body.password, _dummy_hash())  # 拉平耗时，缩小账号枚举的时序差
         _record_login_failure(request, username)
         raise _invalid_credentials()
@@ -206,10 +259,10 @@ def login(
 
 
 @router.post("/refresh", response_model=AccessTokenResponse)
-def refresh(body: RefreshRequest) -> AccessTokenResponse:
+def refresh(body: RefreshRequest, session: Session = Depends(get_session)) -> AccessTokenResponse:
     """用 refresh token 换发新的 access token（refresh 自身不续期，到期需重新登录）。"""
     try:
-        user_id = security.decode_token(body.refresh_token, expected_type="refresh")
+        claims = security.decode_token_claims(body.refresh_token, expected_type="refresh")
     except security.TokenExpiredError as exc:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token 已过期，请重新登录"
@@ -219,10 +272,62 @@ def refresh(body: RefreshRequest) -> AccessTokenResponse:
             status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token 无效"
         ) from exc
 
+    # 换发前校验账号状态与令牌版本：否则改密 / 注销后，长期凭证仍能源源不断换出新 access
+    user = UserRepository(session).get(str(claims["sub"]))
+    if user is None or user.is_deleted:
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="账号不存在或已注销")
+    if int(claims.get("ver", 0)) != int(user.token_version):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="refresh token 已失效，请重新登录")
+
     return AccessTokenResponse(
-        access_token=security.create_access_token(user_id),
+        access_token=security.create_access_token(user.id, user.token_version),
         expires_in=security.access_token_ttl_seconds(),
         request_id=trace.get_request_id() or "",
+    )
+
+
+@router.post("/password", response_model=TokenResponse)
+def change_password(
+    body: PasswordChangeRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> TokenResponse:
+    """修改密码：校验原密码 → 换哈希 → 版本 +1（吊销所有旧令牌）→ 直接下发新令牌。
+
+    版本 +1 会让包括本机在内的所有旧令牌失效；同时返回新令牌是为了让**当前设备**
+    免于被迫重新登录（否则用户改完密码立刻被踢出，体验莫名其妙）。
+    """
+    if not security.verify_password(body.current_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="原密码不正确")
+    if security.verify_password(body.new_password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail="新密码不能与原密码相同")
+
+    repo = UserRepository(session, user_id=user.id)
+    repo.set_password_hash(user, security.hash_password(body.new_password))
+    repo.bump_token_version(user)
+    session.commit()
+    return _token_response(user)
+
+
+@router.delete("/account", response_model=AccountDeleteResponse)
+def delete_account(
+    body: AccountDeleteRequest,
+    user: User = Depends(get_current_user),
+    session: Session = Depends(get_session),
+) -> AccountDeleteResponse:
+    """注销账号（软删）：置 deleted_at + 版本 +1，数据保留以备审计与保留期。
+
+    需要重输密码：令牌泄漏时不应让人一键清号。
+    """
+    if not security.verify_password(body.password, user.password_hash):
+        raise HTTPException(status_code=status.HTTP_401_UNAUTHORIZED, detail="密码不正确")
+
+    repo = UserRepository(session, user_id=user.id)
+    repo.mark_deleted(user)
+    repo.bump_token_version(user)
+    session.commit()
+    return AccountDeleteResponse(
+        username=user.username, deleted=True, request_id=trace.get_request_id() or ""
     )
 
 

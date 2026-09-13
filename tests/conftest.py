@@ -32,6 +32,9 @@ settings.login_max_attempts = 3
 settings.login_ip_max_attempts = 100000
 settings.login_window_seconds = 300
 settings.login_lock_seconds = 300
+# 注册限流：测试里会有大量注册（helpers.sign_in 每个用例都注册），阈值放大；
+# 专门验证限流的用例用 monkeypatch 调小并重置限流器
+settings.register_max_attempts_per_ip = 100000
 
 # 后台 worker：测试里不起轮询线程（避免后台写库干扰断言），改为用例显式调 run_once；
 # 重试退避设为 0，便于在一个用例内验证「失败 → 重试 → 成功 / 死信」
@@ -59,6 +62,20 @@ def _reset_tables() -> None:
     with _engine.begin() as conn:
         for table in reversed(Base.metadata.sorted_tables):
             conn.execute(table.delete())
+
+
+@pytest.fixture(autouse=True)
+def _reset_throttles():
+    """每个用例前后都重建限流器。
+
+    限流器是模块级惰性单例：某个用例把阈值改小（monkeypatch）后，重建出来的实例
+    会带着小阈值继续影响后续用例——表现为"单独跑过、一起跑就挂"。这里统一隔离。
+    """
+    from app.api.endpoints import auth as auth_module
+
+    auth_module.reset_login_throttle()
+    yield
+    auth_module.reset_login_throttle()
 
 
 @pytest.fixture()

@@ -6,7 +6,8 @@ from datetime import datetime, timedelta, timezone
 import jwt
 
 from app.core.config import settings
-from tests.helpers import DEFAULT_PASSWORD, auth_headers
+from app.domain.repositories.user_repository import UserRepository
+from tests.helpers import DEFAULT_PASSWORD, auth_headers, sign_in
 
 
 def test_register_returns_token_and_me_works(client):
@@ -219,3 +220,167 @@ def test_throttle_can_be_disabled_by_config(client, monkeypatch):
     assert client.post(
         "/api/v1/auth/login", json={"username": "no_throttle_user", "password": DEFAULT_PASSWORD}
     ).status_code == 200
+
+
+# ---------- 注册限流 ----------
+
+
+def test_register_is_rate_limited_per_ip(client, monkeypatch):
+    """注册要跑 PBKDF2，是可被利用的 CPU 消耗点，因此按 IP 限流。"""
+    from app.api.endpoints import auth as auth_module
+
+    monkeypatch.setattr(settings, "register_max_attempts_per_ip", 3)
+    auth_module.reset_login_throttle()
+
+    for i in range(3):
+        resp = client.post(
+            "/api/v1/auth/register",
+            json={"username": f"reg_rl_{i}", "password": DEFAULT_PASSWORD},
+        )
+        assert resp.status_code == 201, resp.text
+
+    blocked = client.post(
+        "/api/v1/auth/register", json={"username": "reg_rl_x", "password": DEFAULT_PASSWORD}
+    )
+    assert blocked.status_code == 429
+    assert int(blocked.headers["Retry-After"]) > 0
+
+
+def test_register_limit_is_not_reset_by_success(client, monkeypatch):
+    """成功注册不清零计数——否则批量注册小号时每次成功都把窗口清零。"""
+    from app.api.endpoints import auth as auth_module
+
+    monkeypatch.setattr(settings, "register_max_attempts_per_ip", 2)
+    auth_module.reset_login_throttle()
+
+    assert client.post(
+        "/api/v1/auth/register", json={"username": "reg_nr_1", "password": DEFAULT_PASSWORD}
+    ).status_code == 201
+    assert client.post(
+        "/api/v1/auth/register", json={"username": "reg_nr_2", "password": DEFAULT_PASSWORD}
+    ).status_code == 201
+    assert client.post(
+        "/api/v1/auth/register", json={"username": "reg_nr_3", "password": DEFAULT_PASSWORD}
+    ).status_code == 429
+
+
+# ---------- 修改密码与令牌吊销 ----------
+
+
+def test_change_password_issues_new_tokens_and_revokes_old(client):
+    reg = client.post(
+        "/api/v1/auth/register", json={"username": "pw_change", "password": DEFAULT_PASSWORD}
+    ).json()
+    old_access = reg["access_token"]
+    old_refresh = reg["refresh_token"]
+
+    resp = client.post(
+        "/api/v1/auth/password",
+        json={"current_password": DEFAULT_PASSWORD, "new_password": "brand-new-password"},
+        headers={"Authorization": f"Bearer {old_access}"},
+    )
+    assert resp.status_code == 200, resp.text
+    new_access = resp.json()["access_token"]
+
+    # 当前设备拿着新令牌继续用（不应被自己的改密踢出）
+    assert client.get(
+        "/api/v1/auth/me", headers={"Authorization": f"Bearer {new_access}"}
+    ).status_code == 200
+    # 旧令牌（access 与 refresh）全部失效
+    old = client.get("/api/v1/auth/me", headers={"Authorization": f"Bearer {old_access}"})
+    assert old.status_code == 401
+    assert "失效" in old.json()["detail"]
+    assert client.post("/api/v1/auth/refresh", json={"refresh_token": old_refresh}).status_code == 401
+
+    # 新密码可登录，旧密码不行
+    assert client.post(
+        "/api/v1/auth/login", json={"username": "pw_change", "password": "brand-new-password"}
+    ).status_code == 200
+    assert client.post(
+        "/api/v1/auth/login", json={"username": "pw_change", "password": DEFAULT_PASSWORD}
+    ).status_code == 401
+
+
+def test_change_password_requires_correct_current_and_distinct_new(client):
+    headers = auth_headers(client, "pw_guard")
+
+    wrong = client.post(
+        "/api/v1/auth/password",
+        json={"current_password": "not-my-password", "new_password": "another-password"},
+        headers=headers,
+    )
+    assert wrong.status_code == 401
+
+    same = client.post(
+        "/api/v1/auth/password",
+        json={"current_password": DEFAULT_PASSWORD, "new_password": DEFAULT_PASSWORD},
+        headers=headers,
+    )
+    assert same.status_code == 400
+
+
+def test_change_password_rejects_short_new_password(client):
+    headers = auth_headers(client, "pw_short")
+    resp = client.post(
+        "/api/v1/auth/password",
+        json={"current_password": DEFAULT_PASSWORD, "new_password": "short"},
+        headers=headers,
+    )
+    assert resp.status_code == 422
+
+
+# ---------- 注销账号 ----------
+
+
+def test_delete_account_blocks_login_and_revokes_tokens(client, session):
+    from app.domain.models.user import User
+
+    authed = sign_in(client, "acct_delete")
+
+    wrong = client.request(
+        "DELETE", "/api/v1/auth/account",
+        json={"password": "not-my-password"}, headers=authed.headers,
+    )
+    assert wrong.status_code == 401  # 令牌泄漏时不应能一键清号
+
+    resp = client.request(
+        "DELETE", "/api/v1/auth/account",
+        json={"password": DEFAULT_PASSWORD}, headers=authed.headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["deleted"] is True
+
+    # 旧令牌立即失效
+    assert client.get("/api/v1/auth/me", headers=authed.headers).status_code == 401
+    assert client.post(
+        "/api/v1/auth/refresh", json={"refresh_token": authed.refresh_token}
+    ).status_code == 401
+
+    # 注销后无法登录，且与「账号不存在」的响应一致（避免旁路探测）
+    deleted = client.post(
+        "/api/v1/auth/login", json={"username": "acct_delete", "password": DEFAULT_PASSWORD}
+    )
+    ghost = client.post(
+        "/api/v1/auth/login", json={"username": "acct_ghost_x", "password": DEFAULT_PASSWORD}
+    )
+    assert deleted.status_code == ghost.status_code == 401
+    assert deleted.json()["detail"] == ghost.json()["detail"]
+
+    # 数据保留（软删）：行还在，仅置了注销时间戳
+    user = UserRepository(session).get_by_username("acct_delete")
+    assert user is not None
+    assert user.deleted_at is not None
+
+
+def test_deleted_account_cannot_register_same_name_again(client):
+    """软删保留用户名占用：否则同名重建会让旧数据归属变得含糊。"""
+    sign_in(client, "acct_keepname")
+    client.request(
+        "DELETE", "/api/v1/auth/account",
+        json={"password": DEFAULT_PASSWORD},
+        headers=auth_headers(client, "acct_keepname"),
+    )
+    again = client.post(
+        "/api/v1/auth/register", json={"username": "acct_keepname", "password": DEFAULT_PASSWORD}
+    )
+    assert again.status_code == 409

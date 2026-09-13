@@ -100,11 +100,13 @@ def verify_password(password: str, stored: str) -> bool:
 # ---- JWT ------------------------------------------------------------------
 
 
-def _encode(user_id: str, token_type: str, lifetime: timedelta) -> str:
+def _encode(user_id: str, token_type: str, lifetime: timedelta, token_version: int = 0) -> str:
     now = datetime.now(timezone.utc)
     payload = {
         "sub": user_id,
         "typ": token_type,
+        # 令牌版本：改密 / 注销时用户表上的版本 +1，旧令牌立刻失效（无状态吊销）
+        "ver": int(token_version),
         "iat": int(now.timestamp()),
         "exp": int((now + lifetime).timestamp()),
         "jti": uuid4().hex,
@@ -112,16 +114,16 @@ def _encode(user_id: str, token_type: str, lifetime: timedelta) -> str:
     return jwt.encode(payload, _secret(), algorithm=settings.jwt_algorithm)
 
 
-def create_access_token(user_id: str) -> str:
-    return _encode(user_id, "access", timedelta(minutes=settings.access_token_minutes))
+def create_access_token(user_id: str, token_version: int = 0) -> str:
+    return _encode(user_id, "access", timedelta(minutes=settings.access_token_minutes), token_version)
 
 
-def create_refresh_token(user_id: str) -> str:
-    return _encode(user_id, "refresh", timedelta(days=settings.refresh_token_days))
+def create_refresh_token(user_id: str, token_version: int = 0) -> str:
+    return _encode(user_id, "refresh", timedelta(days=settings.refresh_token_days), token_version)
 
 
-def decode_token(token: str, expected_type: str = "access") -> str:
-    """校验令牌并返回 user_id。
+def decode_token_claims(token: str, expected_type: str = "access") -> dict:
+    """校验令牌并返回完整 payload（含 `ver`，供吊销校验）。
 
     expected_type 用于区分 access / refresh：refresh 不能当 access 用，
     否则「拿长期凭证直接访问业务接口」会绕过短期过期策略。
@@ -135,10 +137,14 @@ def decode_token(token: str, expected_type: str = "access") -> str:
 
     if payload.get("typ") != expected_type:
         raise InvalidTokenError(f"令牌类型不符，期望 {expected_type}")
-    user_id = payload.get("sub")
-    if not user_id:
+    if not payload.get("sub"):
         raise InvalidTokenError("令牌缺少 subject")
-    return str(user_id)
+    return payload
+
+
+def decode_token(token: str, expected_type: str = "access") -> str:
+    """只取 user_id 的便捷封装（需要 ver 时用 decode_token_claims）。"""
+    return str(decode_token_claims(token, expected_type)["sub"])
 
 
 def access_token_ttl_seconds() -> int:

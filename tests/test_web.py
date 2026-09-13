@@ -66,6 +66,13 @@ def test_nav_links_to_conflicts_everywhere(client):
         assert "/conflicts.html" in client.get(path).text, path
 
 
+def test_account_settings_present(client):
+    """改密 / 注销的入口要在界面上有落点（后端已就绪，缺入口等于没有）。"""
+    body = client.get("/knowledge.html").text
+    assert "pw-submit" in body
+    assert "del-submit" in body
+
+
 def test_api_routes_unaffected(client):
     assert client.get("/health").status_code == 200
     headers = auth_headers(client, "web_user")

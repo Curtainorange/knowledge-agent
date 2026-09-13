@@ -47,6 +47,21 @@
       <div class="list" id="kb-list"></div>
     </div>
   </section>
+
+  <section>
+    <div class="card">
+      <h2>账号设置</h2>
+      <div class="field"><input id="pw-current" type="password" placeholder="当前密码" autocomplete="current-password"></div>
+      <div class="field"><input id="pw-new" type="password" placeholder="新密码（至少 8 位）" autocomplete="new-password"></div>
+      <div class="meta" id="pw-hint">修改密码后，其它设备上的登录会立即失效。</div>
+      <button id="pw-submit" class="primary sm">修改密码</button>
+      <div class="detail">
+        <div class="meta">注销后账号无法登录，数据保留以备审计；此操作不可自助撤销。</div>
+        <div class="field"><input id="del-password" type="password" placeholder="输入密码以确认注销" autocomplete="current-password"></div>
+        <button id="del-submit" class="danger sm">注销账号</button>
+      </div>
+    </div>
+  </section>
 </main>
 
 <div id="toast"></div>
@@ -222,6 +237,53 @@
 
   $('#btn-reload').addEventListener('click', function () {
     loadItems().catch(function (err) { CC.toast('刷新失败：' + err.message); });
+  });
+
+  /* 修改密码：后端换哈希并把令牌版本 +1（其它设备立即失效），
+     同时回送新令牌，本机不用重新登录 */
+  $('#pw-submit').addEventListener('click', async function () {
+    var current = $('#pw-current').value;
+    var next = $('#pw-new').value;
+    if (!current || !next) {
+      CC.toast('请填写当前密码与新密码');
+      return;
+    }
+    try {
+      var result = await CC.withLoading($('#pw-submit'), function () {
+        return CC.api('POST', '/api/v1/auth/password', {
+          current_password: current,
+          new_password: next
+        });
+      }, '提交中…');
+      CC.setSession(result);
+      $('#pw-current').value = '';
+      $('#pw-new').value = '';
+      $('#pw-hint').textContent = '密码已更新；其它设备上的登录已失效，本机保持登录。';
+      CC.toast('密码已更新');
+    } catch (err) {
+      $('#pw-hint').textContent = '修改失败：' + err.message;
+    }
+  });
+
+  $('#del-submit').addEventListener('click', async function () {
+    var password = $('#del-password').value;
+    if (!password) {
+      CC.toast('请输入密码以确认注销');
+      return;
+    }
+    if (!confirm('确定注销账号吗？注销后无法登录，数据将保留但不再可用。')) {
+      return;
+    }
+    try {
+      await CC.withLoading($('#del-submit'), function () {
+        return CC.api('DELETE', '/api/v1/auth/account', { password: password });
+      }, '注销中…');
+      CC.clearSession();
+      CC.toast('账号已注销');
+      location.replace('/login.html');
+    } catch (err) {
+      CC.toast('注销失败：' + err.message);
+    }
   });
 
   (async function boot() {

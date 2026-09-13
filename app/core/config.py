@@ -58,6 +58,9 @@ class Settings(BaseSettings):
     login_ip_max_attempts: int = 20    # 按来源 IP：阈值放宽，避免 NAT 后的正常用户被连带
     login_window_seconds: int = 300    # 失败计数滑动窗口
     login_lock_seconds: int = 300      # 触发上限后的锁定时长
+    # 注册按来源 IP 限流：每次注册都要跑 PBKDF2，是可被利用的 CPU 消耗点；
+    # 统计全部注册尝试（含成功），因此阈值按「正常用户不会在窗口内注册这么多次」设
+    register_max_attempts_per_ip: int = 10
 
     # --- L2 冲突检测（漏斗参数，初值按架构设计 §7.2，实测后校准）---
     l2_max_claims_per_item: int = 5      # 每条目最多提取的主张数
