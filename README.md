@@ -5,7 +5,7 @@
 ## 技术栈
 
 - Python 3.12 · FastAPI · SQLAlchemy 2.0 · pydantic-settings
-- LLM：DeepSeek（OpenAI 兼容协议，单一模型 `deepseek-v4-flash`，每请求 `reasoning` 开关切换思考模式）
+- LLM：DeepSeek（OpenAI 兼容协议，单一模型 `deepseek-flash`，每请求 `reasoning` 开关切换思考模式；旧名 `deepseek-v4-flash` 仍可调用，会重定向到同一模型）
 - 无 `DEEPSEEK_API_KEY` 时网关自动路由到 **MockProvider**（确定性、零成本，测试与本地演示）
 
 ## 快速开始

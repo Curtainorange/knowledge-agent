@@ -20,12 +20,21 @@ class Settings(BaseSettings):
     # 未配置 DEEPSEEK_API_KEY → 网关路由到 MockProvider（确定性、零成本）
     deepseek_api_key: str = ""
     deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_model: str = "deepseek-v4-flash"
+    # 官方模型名（2026-09 起）；旧名 deepseek-v4-flash 仍可调用，会重定向到同一模型
+    deepseek_model: str = "deepseek-flash"
     deepseek_timeout_seconds: float = 60.0
 
-    # 单价（每百万 token，人民币）；接入实测后回填 .env
-    deepseek_price_input_per_1m: float = 1.0
-    deepseek_price_output_per_1m: float = 4.0
+    # 单价（每百万 token，人民币）—— DeepSeek 官方价，2026-09-13 核对
+    # 计费分时段：高峰 = 北京时间周一至周五 9:00-12:00、14:00-18:00；其余为空闲（价格减半）。
+    # 下表取**空闲时段**价，高峰由 deepseek_peak_multiplier 放大，避免把单价写死成单一值。
+    deepseek_price_input_per_1m: float = 1.0        # 空闲 · 输入（缓存未命中）
+    deepseek_price_output_per_1m: float = 4.0       # 空闲 · 输出
+    # 缓存命中输入价：仅为未命中的五十分之一。L1/L2 的 system 提示词前缀稳定，
+    # 命中率不低；忽略这一项会把成本估高一个量级
+    deepseek_price_cache_hit_per_1m: float = 0.02   # 空闲 · 输入（缓存命中）
+    deepseek_peak_multiplier: float = 2.0           # 高峰时段倍率
+    # 高峰时段（北京时间，周一至周五），格式 "9-12,14-18"
+    deepseek_peak_hours: str = "9-12,14-18"
 
     # --- Embedding（语义检索；独立于 LLM，DeepSeek 无标准 embedding 接口）---
     # backend: local（本地 ONNX 目录，离线可用，推荐）| bge（fastembed 自动下载）

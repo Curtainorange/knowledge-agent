@@ -24,5 +24,7 @@ class CostLog(Base):
     request_id: Mapped[str] = mapped_column(String(64), index=True)
     prompt_tokens: Mapped[int] = mapped_column(Integer, default=0)
     completion_tokens: Mapped[int] = mapped_column(Integer, default=0)
+    # 命中自动缓存的输入 token（单价约为未命中的 1/50，必须单独记账）
+    cached_tokens: Mapped[int] = mapped_column(Integer, default=0)
     estimated_cost: Mapped[float] = mapped_column(Float, default=0.0)  # 估算费用（人民币）
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), nullable=False)

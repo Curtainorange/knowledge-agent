@@ -73,14 +73,32 @@ class DeepSeekProvider(LLMProvider):
             )
             text = f"[tool_request] {calls}"
 
+        usage = resp.usage
         return Completion(
             text=text,
-            prompt_tokens=resp.usage.prompt_tokens if resp.usage else 0,
-            completion_tokens=resp.usage.completion_tokens if resp.usage else 0,
+            prompt_tokens=usage.prompt_tokens if usage else 0,
+            completion_tokens=usage.completion_tokens if usage else 0,
+            cached_tokens=self._cached_tokens(usage),
             finish_reason=choice.finish_reason if choice else "stop",
             model=model,
             reasoning=reasoning,
         )
+
+    @staticmethod
+    def _cached_tokens(usage) -> int:
+        """取「命中自动上下文缓存」的输入 token 数。
+
+        OpenAI 兼容字段是 `prompt_tokens_details.cached_tokens`，DeepSeek 另在
+        `usage.prompt_cache_hit_tokens` 上暴露同一信息；两个都试，取到即止
+        （取不到按 0 计，宁可少算优惠也不虚报）。
+        """
+        if usage is None:
+            return 0
+        details = getattr(usage, "prompt_tokens_details", None)
+        cached = int(getattr(details, "cached_tokens", 0) or 0) if details else 0
+        if cached:
+            return cached
+        return int(getattr(usage, "prompt_cache_hit_tokens", 0) or 0)
 
     @staticmethod
     def _decode_status(exc: openai.APIStatusError) -> LLMError:

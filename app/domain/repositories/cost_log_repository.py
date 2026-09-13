@@ -24,6 +24,7 @@ class CostLogRepository(BaseRepository[CostLog]):
         prompt_tokens: int,
         completion_tokens: int,
         estimated_cost: float,
+        cached_tokens: int = 0,
     ) -> CostLog:
         log = CostLog(
             user_id=user_id,
@@ -33,6 +34,7 @@ class CostLogRepository(BaseRepository[CostLog]):
             request_id=request_id,
             prompt_tokens=prompt_tokens,
             completion_tokens=completion_tokens,
+            cached_tokens=cached_tokens,
             estimated_cost=round(estimated_cost, 6),
             created_at=datetime.now(timezone.utc),
         )
