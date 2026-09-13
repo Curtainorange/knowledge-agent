@@ -69,6 +69,16 @@ class Settings(BaseSettings):
     l2_pair_sim_lo: float = 0.35
     l2_pair_sim_hi: float = 0.95
 
+    # --- 异步任务框架（幂等 + 重试 + 死信；单进程内轮询，不依赖 Redis/Celery）---
+    worker_enabled: bool = True          # 测试里关闭，避免后台线程干扰
+    worker_poll_seconds: float = 15.0    # 轮询间隔
+    task_max_attempts: int = 3           # 重试上限，超出转死信
+    task_retry_backoff_seconds: float = 1.0  # 重试退避基数（2^(n-1) 倍，测试设 0 即时重试）
+
+    # --- L2 触发链路 ---
+    l2_realtime_trigger_enabled: bool = True  # 录入/划词后按小时桶合并触发扫描
+    l2_weekly_scan_enabled: bool = True       # 每周自动扫描（幂等键按 ISO 周去重）
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

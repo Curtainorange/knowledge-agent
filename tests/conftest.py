@@ -33,6 +33,11 @@ settings.login_ip_max_attempts = 100000
 settings.login_window_seconds = 300
 settings.login_lock_seconds = 300
 
+# 后台 worker：测试里不起轮询线程（避免后台写库干扰断言），改为用例显式调 run_once；
+# 重试退避设为 0，便于在一个用例内验证「失败 → 重试 → 成功 / 死信」
+settings.worker_enabled = False
+settings.task_retry_backoff_seconds = 0.0
+
 # 覆盖 DATABASE_URL，使用内存 SQLite（StaticPool 共享同一连接）
 settings.database_url = "sqlite://"
 _engine = create_engine(

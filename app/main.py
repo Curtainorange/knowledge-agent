@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import uuid
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 from fastapi import FastAPI, Request
@@ -12,11 +13,20 @@ from app.api.endpoints import auth, books, chat, health, knowledge, l1, l2
 from app.core import logging as core_logging
 from app.core import trace
 from app.domain import db
+from app.workers import runner
 
 core_logging.setup_logging()
 db.init_db()
 
-app = FastAPI(title="认知副驾 Cognitive Copilot", version="0.1.0")
+
+@asynccontextmanager
+async def lifespan(_app: FastAPI):
+    """启动后台任务 worker（幂等/重试/死信；可用 worker_enabled 关闭）。"""
+    runner.start_worker()
+    yield
+
+
+app = FastAPI(title="认知副驾 Cognitive Copilot", version="0.1.0", lifespan=lifespan)
 
 
 @app.middleware("http")
@@ -77,3 +87,8 @@ def books_page() -> FileResponse:
 @app.get("/reader.html", include_in_schema=False)
 def reader_page() -> FileResponse:
     return _page("reader.html")
+
+
+@app.get("/conflicts.html", include_in_schema=False)
+def conflicts_page() -> FileResponse:
+    return _page("conflicts.html")

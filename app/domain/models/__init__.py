@@ -13,6 +13,7 @@ from app.domain.models.conversation import Conversation
 from app.domain.models.learning_goal import LearningGoal
 from app.domain.models.learning_plan import LearningPlan
 from app.domain.models.plan_task import PlanTask
+from app.domain.models.task_run import TaskRun
 from app.domain.models.cost_log import CostLog
 
 __all__ = [
@@ -27,5 +28,6 @@ __all__ = [
     "LearningGoal",
     "LearningPlan",
     "PlanTask",
+    "TaskRun",
     "CostLog",
 ]

@@ -31,6 +31,10 @@ class UserRepository(BaseRepository[User]):
         self._guard(user_id)
         return self._session.get(User, user_id)
 
+    def list_ids(self) -> list[str]:
+        """全部用户 id（周期性任务需要遍历用户，如 L2 周扫）。"""
+        return list(self._session.scalars(select(User.id)))
+
     def set_password_hash(self, user: User, password_hash: str) -> None:
         user.password_hash = password_hash
         self._session.flush()

@@ -36,6 +36,12 @@ class IngestionService:
         if self._embedding is not None:
             self._try_embed(item)
             self._session.commit()
+
+        # 主链路（录入）已完成，再排一次 L2 实时扫描——按小时桶合并，
+        # 连续录入不会各触发一次；入队失败只记日志，不影响录入结果（见 triggers）。
+        from app.workers.triggers import trigger_after_ingest
+
+        trigger_after_ingest(self._session, user_id=user_id)
         return item
 
     def update_knowledge(
