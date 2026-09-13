@@ -19,6 +19,7 @@ from sqlalchemy.orm import Session
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
+from app.feedback import events
 from app.llm.gateway import ModelGateway
 from app.llm.structure import JsonParseError, parse_structured
 from app.retrieval.embedding import build_embedding
@@ -109,6 +110,12 @@ class L1Orchestrator:
         self._retriever = retriever or Retriever(build_embedding())
         self._max_turns = max_turns
 
+    def _emit(self, event_type: str, user_id: str, payload: dict) -> None:
+        """行为埋点（旁路，失败不影响挖掘主链路）。"""
+        from app.feedback import events
+
+        events.record(self._session, user_id=user_id, event_type=event_type, payload=payload)
+
     # ---- 内部工具 ------------------------------------------------------
 
     def _load_conversation(self, user_id: str, conversation_id: str | None):
@@ -196,6 +203,7 @@ class L1Orchestrator:
         if not items:
             repo.set_state(conv, "idle")
             self._session.commit()
+            self._emit(events.L1_MINE, user_id, {"state": "empty", "turn": 0, "hits": 0})
             return L1Result(
                 state="empty",
                 conversation_id=cid,
@@ -230,6 +238,9 @@ class L1Orchestrator:
         repo.append_message(conv, "assistant", question, source="l1")
         repo.set_state(conv, "clarifying")
         self._session.commit()
+        self._emit(events.L1_MINE, user_id, {
+            "state": "clarifying", "turn": turn + 1, "candidates": len(details),
+        })
         return L1Result(
             state="clarifying",
             conversation_id=cid,
@@ -279,6 +290,10 @@ class L1Orchestrator:
         hint = _read_hint(items[located[0].item_id]) if located else ""
         repo.set_state(conv, "located")
         self._session.commit()
+        # 记录「收敛轮数」：需求验收口径是 L1 收敛轮数中位数 ≤2，靠这条事件统计
+        self._emit(events.L1_MINE, conv.user_id, {
+            "state": "located", "turn": turn, "hits": len(located), "reason": reason[:120],
+        })
         logger.info(
             "l1 located items=%s hint=%r conv=%s", [l.item_id for l in located], hint, conv.id
         )

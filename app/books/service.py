@@ -58,6 +58,16 @@ class BookService:
             total_chars=len(parsed.full_text),
         )
         self._session.commit()
+
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.BOOK_UPLOADED,
+            payload={
+                "book_id": book.id, "format": book_format,
+                "total_chars": book.total_chars, "chapter_count": len(parsed.chapters),
+            },
+        )
         return book
 
     def update_progress(
@@ -69,6 +79,17 @@ class BookService:
             return None
         repo.update_progress(book, current_char=current_char, read_progress=read_progress)
         self._session.commit()
+
+        from app.feedback import events
+
+        # 阅读行为是 L4 偏离检测与 L5 归因的核心信号，务必逐次记录
+        events.record(
+            self._session, user_id=user_id, event_type=events.BOOK_PROGRESS,
+            payload={
+                "book_id": book_id, "current_char": book.current_char,
+                "read_progress": book.read_progress,
+            },
+        )
         return book
 
     def delete(self, *, user_id: str, book_id: str) -> Book | None:
@@ -129,6 +150,17 @@ class BookService:
                 "char_end": int(char_end),
             }
         self._session.commit()
+
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.NOTE_CREATED,
+            payload={
+                "item_id": item.id, "book_id": book_id,
+                "chapter_index": chapter_index, "has_thought": bool(thought),
+                "excerpt_len": len(excerpt),
+            },
+        )
         return item
 
     def list_notes(self, *, user_id: str, book_id: str) -> list[KnowledgeItem]:

@@ -42,6 +42,18 @@ class IngestionService:
         from app.workers.triggers import trigger_after_ingest
 
         trigger_after_ingest(self._session, user_id=user_id)
+
+        # 行为埋点（L4/L5 的原材料）：只记元数据，正文不入事件表
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.KNOWLEDGE_CREATED,
+            payload={
+                "item_id": item.id, "source": item.source,
+                "title_len": len(item.title or ""), "content_len": len(item.raw_content or ""),
+                "embed_status": item.embed_status,
+            },
+        )
         return item
 
     def update_knowledge(
@@ -70,12 +82,31 @@ class IngestionService:
         if text_changed and self._embedding is not None:
             self._try_embed(item)
             self._session.commit()
+
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.KNOWLEDGE_UPDATED,
+            payload={
+                "item_id": item.id,
+                "text_changed": text_changed,  # 是否触发重算向量（也是 L2 重扫的触发条件）
+                "read_progress": item.read_progress,
+            },
+        )
         return item
 
     def delete_knowledge(self, *, user_id: str, item_id: str) -> KnowledgeItem | None:
         """软删条目（保留原文，仅置 is_deleted）。不存在返回 None。"""
         repo = KnowledgeRepository(self._session, user_id=user_id)
-        return repo.soft_delete(item_id)
+        item = repo.soft_delete(item_id)
+
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.KNOWLEDGE_DELETED,
+            payload={"item_id": item_id, "found": item is not None},
+        )
+        return item
 
     def _try_embed(self, item: KnowledgeItem) -> None:
         try:

@@ -255,6 +255,10 @@ def login(
         raise _invalid_credentials()
 
     _reset_login_failures(request, username)
+
+    from app.feedback import events
+
+    events.record(session, user_id=user.id, event_type=events.AUTH_LOGIN, payload={"username": user.username})
     return _token_response(user)
 
 

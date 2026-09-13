@@ -220,6 +220,20 @@ class L2Orchestrator:
                 judgment.conflict_type, judgment.confidence, pair_key,
             )
 
+        # 行为埋点：扫描产出的规模指标，供 L4/L5 与成本分析使用（不记冲突正文）
+        from app.feedback import events
+
+        events.record(
+            self._session, user_id=user_id, event_type=events.L2_SCAN,
+            payload={
+                "scanned_items": result.scanned_items,
+                "claims_extracted": result.claims_extracted,
+                "pairs_judged": result.pairs_judged,
+                "conflicts_found": result.conflicts_found,
+                "conflicts_suppressed": result.conflicts_suppressed,
+                "extraction_failures": result.extraction_failures,
+            },
+        )
         return result
 
     # ---- L2-1 主张提取 ---------------------------------------------------

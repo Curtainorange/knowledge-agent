@@ -148,8 +148,23 @@ def set_conflict_state(
     if conflict is None:
         raise HTTPException(status_code=404, detail="冲突不存在")
 
+    previous_state = conflict.user_state
     xrepo.set_state(conflict, body.state)
     session.commit()
+
+    from app.feedback import events
+
+    # 反馈是误报抑制的输入（同类型被忽略 ≥N 次即收敛），也是 L5 判断"用户是否采纳建议"的信号
+    events.record(
+        session, user_id=user_id, event_type=events.L2_CONFLICT_FEEDBACK,
+        payload={
+            "conflict_id": conflict.id,
+            "from_state": previous_state,
+            "to_state": body.state,
+            "conflict_type": conflict.conflict_type,
+            "confidence": conflict.confidence,
+        },
+    )
     return ConflictStateResponse(
         conflict_id=conflict.id,
         user_state=conflict.user_state,
