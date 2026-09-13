@@ -47,7 +47,16 @@ class BookService:
             else parser.parse_txt(dest, title=Path(filename).stem)
         )
 
+        # 插图落盘：存到 <books_dir>/<user>/<book_id>/images/<name>，
+        # 阅读器按 full_text 里的 [[IMG:name]] 占位符回填显示
+        if parsed.images:
+            images_dir = _user_dir(user_id) / book_id / "images"
+            images_dir.mkdir(parents=True, exist_ok=True)
+            for img in parsed.images:
+                (images_dir / img["name"]).write_bytes(img["data"])
+
         book = repo.create(
+            book_id=book_id,
             user_id=user_id,
             title=parsed.title or Path(filename).stem,
             author=parsed.author,

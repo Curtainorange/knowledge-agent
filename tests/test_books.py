@@ -96,6 +96,74 @@ def test_parse_epub_extracts_title_chapters(tmp_path):
     assert "第一段内容" in parsed.full_text
 
 
+_PNG_BYTES = b"\x89PNG\r\n\x1a\n" + b"\x00" * 32  # 假 PNG（测试只验证提取与访问，不校验图片内容）
+
+
+def _make_epub_with_image(tmp_path):
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    opf = (
+        '<?xml version="1.0"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">插图本</dc:title></metadata>'
+        '<manifest>'
+        '<item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>'
+        '<item id="img1" href="images/pic.png" media-type="image/png"/>'
+        '</manifest>'
+        '<spine><itemref idref="c1"/></spine></package>'
+    )
+    c1 = "<html><body><h1>第一章</h1><p>图前文字</p><img src=\"images/pic.png\"/><p>图后文字</p></body></html>"
+    path = tmp_path / "book_img.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("OEBPS/content.opf", opf)
+        zf.writestr("OEBPS/c1.xhtml", c1)
+        zf.writestr("OEBPS/images/pic.png", _PNG_BYTES)
+    return path
+
+
+def test_parse_epub_extracts_images(tmp_path):
+    """epub 里的 <img> 应被提取，并在正文位置留下 [[IMG:name]] 占位符。"""
+    from app.books.parser import parse_epub
+
+    parsed = parse_epub(_make_epub_with_image(tmp_path))
+    assert len(parsed.images) == 1
+    assert parsed.images[0]["name"] == "img_0000.png"
+    assert parsed.images[0]["mime"] == "image/png"
+    assert "[[IMG:img_0000.png]]" in parsed.full_text
+    assert "图前文字" in parsed.full_text and "图后文字" in parsed.full_text
+
+
+def test_book_image_endpoint(client, tmp_path):
+    """上传带图 epub 后，章节含占位符，图片可通过端点访问。"""
+    headers = auth_headers(client, "book_img_api")
+    epub = _make_epub_with_image(tmp_path).read_bytes()
+    book = _upload(client, headers, "插图.epub", epub).json()
+    assert book["format"] == "epub"
+
+    ch = client.get(f"/api/v1/books/{book['book_id']}/chapter/1", headers=headers).json()
+    assert "[[IMG:img_0000.png]]" in ch["content"]
+
+    img = client.get(f"/api/v1/books/{book['book_id']}/images/img_0000.png", headers=headers)
+    assert img.status_code == 200
+    assert img.content.startswith(b"\x89PNG")
+
+
+def test_book_image_endpoint_blocks_path_traversal(client, tmp_path):
+    """图片名必须匹配 img_0000.ext，防路径穿越。"""
+    headers = auth_headers(client, "book_img_sec")
+    epub = _make_epub_with_image(tmp_path).read_bytes()
+    book = _upload(client, headers, "插图.epub", epub).json()
+    bad = client.get(
+        f"/api/v1/books/{book['book_id']}/images/..%2F..%2Fdev.db", headers=headers
+    )
+    assert bad.status_code == 404
+
+
 # ---------- 接口 ----------
 
 def test_upload_txt_returns_book(client):

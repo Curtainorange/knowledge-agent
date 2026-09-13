@@ -1,0 +1,120 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>认知副驾 · 个人知识学习智能体</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="home">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">个人知识学习智能体</span></div>
+  <div class="who" id="top-action"></div>
+</header>
+
+<main class="single home">
+  <section class="hero">
+    <h1>把散落的知识，连成你的认知网络</h1>
+    <p class="lead">录入、阅读、挖掘、辨冲突、问自己该问的问题——一个围绕「你」的知识学习智能体。</p>
+    <div class="hero-actions">
+      <button class="primary lg" id="btn-start">开始使用</button>
+      <a class="ghost" href="#features">看看能做什么</a>
+    </div>
+  </section>
+
+  <section id="features" class="feature-grid">
+    <div class="feature" data-path="/knowledge.html" data-icon="知">
+      <div class="feature-icon"></div>
+      <h3>知识库</h3>
+      <p>录入与管理你的知识条目，自动向量化、关键词兜底检索。</p>
+    </div>
+    <div class="feature" data-path="/books.html" data-icon="书">
+      <div class="feature-icon"></div>
+      <h3>书籍阅读</h3>
+      <p>上传电子书，边读边划词存知识，插图随正文展示。</p>
+    </div>
+    <div class="feature" data-path="/mine.html" data-icon="寻">
+      <div class="feature-icon"></div>
+      <h3>L1 挖掘</h3>
+      <p>给一条模糊线索，从知识库里精准定位你要找的那条。</p>
+    </div>
+    <div class="feature" data-path="/conflicts.html" data-icon="辨">
+      <div class="feature-icon"></div>
+      <h3>冲突检测</h3>
+      <p>自动比对观点，找出你知识里立场不可兼容的地方。</p>
+    </div>
+    <div class="feature" data-path="/brief.html" data-icon="思">
+      <div class="feature-icon"></div>
+      <h3>认知简报</h3>
+      <p>指出你「该问但没问」的问题，每条都带数据依据。</p>
+    </div>
+    <div class="feature" data-path="/l4.html" data-icon="径">
+      <div class="feature-icon"></div>
+      <h3>路径修正</h3>
+      <p>拆目标为周计划，行为偏离时归因并给出调整。</p>
+    </div>
+  </section>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+
+  function hasToken() {
+    return !!CC.token();
+  }
+
+  function goFeature(path) {
+    if (hasToken()) {
+      location.href = path;
+    } else {
+      location.href = '/login.html?next=' + encodeURIComponent(path);
+    }
+  }
+
+  function renderTopAction() {
+    var box = $('#top-action');
+    if (hasToken()) {
+      box.innerHTML = '<span class="who-name">' + esc(CC.username()) + '</span>' +
+        '<button id="btn-enter" class="primary sm">进入工作台</button>' +
+        '<button id="btn-logout" class="sm">退出</button>';
+      $('#btn-enter').addEventListener('click', function () { location.href = '/knowledge.html'; });
+      $('#btn-logout').addEventListener('click', function () { CC.clearSession(); location.reload(); });
+    } else {
+      box.innerHTML = '<a href="/login.html" class="login-link">登录</a>' +
+        '<button id="btn-register" class="primary sm">免费注册</button>';
+      $('#btn-register').addEventListener('click', function () {
+        location.href = '/login.html?mode=register&next=' + encodeURIComponent('/knowledge.html');
+      });
+    }
+  }
+
+  // 给 feature 卡片注入图标首字
+  var cards = document.querySelectorAll('.feature');
+  for (var i = 0; i < cards.length; i++) {
+    var icon = cards[i].querySelector('.feature-icon');
+    icon.textContent = cards[i].getAttribute('data-icon');
+    cards[i].addEventListener('click', function () {
+      goFeature(this.getAttribute('data-path'));
+    });
+  }
+
+  $('#btn-start').addEventListener('click', function () {
+    if (hasToken()) {
+      location.href = '/knowledge.html';
+    } else {
+      location.href = '/login.html?mode=register&next=' + encodeURIComponent('/knowledge.html');
+    }
+  });
+
+  renderTopAction();
+})();
+</script>
+</body>
+</html>

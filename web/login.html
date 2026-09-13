@@ -38,6 +38,9 @@
 
   var $ = CC.$;
   var mode = 'login';
+  var params = new URLSearchParams(location.search);
+  var next = params.get('next') || '/knowledge.html';           // 登录成功后回跳的目标页
+  var initMode = params.get('mode') === 'register' ? 'register' : 'login';
 
   function setMode(next) {
     mode = next;
@@ -69,7 +72,7 @@
         );
       }, isRegister ? '注册中…' : '登录中…');
       CC.setSession(body);
-      location.replace('/knowledge.html');
+      location.replace(next);
     } catch (err) {
       hint.textContent = err.message;
     }
@@ -102,13 +105,13 @@
     if (CC.token()) {
       try {
         await CC.api('GET', '/api/v1/auth/me');
-        location.replace('/knowledge.html');
+        location.replace(next);
         return;
       } catch (err) {
         CC.clearSession();
       }
     }
-    setMode('login');
+    setMode(initMode);
     $('#auth-username').focus();
   })();
 })();

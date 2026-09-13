@@ -138,8 +138,13 @@ def _page(filename: str) -> FileResponse:
 
 @app.get("/", include_in_schema=False)
 def index() -> FileResponse:
-    """入口给登录页；已有有效令牌时由页面脚本自行跳到知识库。"""
-    return _page("login.html")
+    """入口为公开首页：可先浏览功能，点击使用再跳登录。"""
+    return _page("index.html")
+
+
+@app.get("/index.html", include_in_schema=False)
+def index_page() -> FileResponse:
+    return _page("index.html")
 
 
 @app.get("/login.html", include_in_schema=False)

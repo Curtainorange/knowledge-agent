@@ -14,11 +14,13 @@ def test_all_pages_served(client):
         assert "认知副驾" in resp.text, path
 
 
-def test_entry_is_public_login_page(client):
-    """入口即登录页，且必须免鉴权——否则用户无法进入登录流程。"""
+def test_entry_is_public_landing_page(client):
+    """入口是公开首页（可先浏览、点功能才登录），不是登录墙。"""
     resp = client.get("/")
-    assert "auth-submit" in resp.text
+    assert "feature-grid" in resp.text
+    assert "开始使用" in resp.text
     assert "/assets/app.js" in resp.text
+    assert "auth-submit" not in resp.text  # 登录表单不应出现在首页
 
 
 def test_login_and_knowledge_are_separate_pages(client):

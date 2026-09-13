@@ -94,9 +94,9 @@
     localStorage.setItem('reader_font', String(state.font));
   }
 
-  /* 把已录入的区间渲染成高亮标记：绿色=带想法，黄色=纯摘录 */
-  function renderContent(text, chapter) {
-    var marks = (state.notes || [])
+  /* 计算已录入区间的高亮标记：绿色=带想法，黄色=纯摘录（偏移基于 full_text 字符） */
+  function computeMarks(text, chapter) {
+    return (state.notes || [])
       .filter(function (n) { return n.char_start != null && n.char_end != null; })
       .map(function (n) {
         return {
@@ -108,23 +108,63 @@
       })
       .filter(function (m) { return m.end > 0 && m.end > m.start; })
       .sort(function (a, b) { return a.start - b.start; });
+  }
 
-    if (!marks.length) {
-      return esc(text);
+  /* 输出 [start, end) 的文本段，应用落在该区间内的高亮 */
+  function renderTextRange(text, start, end, marks) {
+    if (start >= end) {
+      return '';
     }
+    var seg = text.slice(start, end);
+    var inner = marks
+      .map(function (m) {
+        return {
+          itemId: m.itemId,
+          hasNote: m.hasNote,
+          start: Math.max(start, m.start) - start,
+          end: Math.min(end, m.end) - start
+        };
+      })
+      .filter(function (m) { return m.end > 0 && m.end > m.start; })
+      .sort(function (a, b) { return a.start - b.start; });
 
+    if (!inner.length) {
+      return esc(seg);
+    }
     var html = '';
     var cursor = 0;
-    marks.forEach(function (m) {
+    inner.forEach(function (m) {
       if (m.start < cursor) {
         return; // 区间重叠时跳过后者，避免标签错位
       }
-      html += esc(text.slice(cursor, m.start));
+      html += esc(seg.slice(cursor, m.start));
       html += '<mark class="' + (m.hasNote ? 'mark-note' : 'mark-excerpt') +
-        '" data-item="' + esc(m.itemId) + '">' + esc(text.slice(m.start, m.end)) + '</mark>';
+        '" data-item="' + esc(m.itemId) + '">' + esc(seg.slice(m.start, m.end)) + '</mark>';
       cursor = m.end;
     });
-    html += esc(text.slice(cursor));
+    html += esc(seg.slice(cursor));
+    return html;
+  }
+
+  /* 渲染正文：文本 + 插图占位符 [[IMG:name]] → <img>。
+     插图后紧跟一个隐藏的占位 span，保留原始字符，保证划词/高亮的字符偏移不错位。 */
+  function renderContent(text, chapter) {
+    var marks = computeMarks(text, chapter);
+    var regex = /\[\[IMG:([^\]]+)\]\]/g;
+    var html = '';
+    var cursor = 0;
+    var match;
+    while ((match = regex.exec(text)) !== null) {
+      var imgStart = match.index;
+      html += renderTextRange(text, cursor, imgStart, marks);
+      var name = match[1];
+      html += '<figure class="reader-figure">' +
+        '<img src="/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) + '" alt="插图" loading="lazy">' +
+        '<span class="img-pos">[[IMG:' + esc(name) + ']]</span>' +
+      '</figure>';
+      cursor = imgStart + match[0].length;
+    }
+    html += renderTextRange(text, cursor, text.length, marks);
     return html;
   }
 

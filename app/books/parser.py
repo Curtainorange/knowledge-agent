@@ -9,7 +9,7 @@ from __future__ import annotations
 
 import re
 import zipfile
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
@@ -24,6 +24,16 @@ _CHAPTER_PATTERNS = [
 
 _CHAPTER_TITLE_MAX = 80
 
+# 图片扩展名 → MIME（epub 内插图常见格式）
+_IMG_MIME = {
+    ".jpg": "image/jpeg", ".jpeg": "image/jpeg", ".png": "image/png",
+    ".gif": "image/gif", ".svg": "image/svg+xml", ".webp": "image/webp",
+    ".bmp": "image/bmp",
+}
+
+# 全文里图片的占位标记：阅读器据此把图片插回正文对应位置
+_IMG_PLACEHOLDER = "[[IMG:{name}]]"
+
 
 @dataclass
 class ParsedBook:
@@ -31,6 +41,7 @@ class ParsedBook:
     author: str
     chapters: list[dict]  # [{index, title, char_start, char_end}]
     full_text: str
+    images: list[dict] = field(default_factory=list)  # [{name, data, mime}]
 
 
 def _read_with_encoding(path: Path) -> str:
@@ -103,6 +114,37 @@ def _resolve_href(opf_dir: str, href: str) -> str:
     return joined
 
 
+def _extract_images(soup, zf, *, xhtml_dir: str, opf_dir: str, images: list, counter: list) -> None:
+    """把 soup 里的 <img> 替换为正文占位符，图片二进制收集进 images。
+
+    img 的 src 可能相对「当前 xhtml 所在目录」或「OPF 目录」，两者都尝试读取；
+    读不到（外链图 / 文件缺失）就丢弃该 img，不阻断正文解析。
+    """
+    for img in soup.find_all("img"):
+        src = (img.get("src") or "").strip()
+        href = src.split("#", 1)[0].split("?", 1)[0]
+        if not href:
+            img.decompose()
+            continue
+        data = None
+        for base in (xhtml_dir, opf_dir):
+            try:
+                data = zf.read(_resolve_href(base, href))
+                break
+            except KeyError:
+                continue
+        if data is None:
+            img.decompose()
+            continue
+        ext = Path(href).suffix.lower()
+        if ext not in _IMG_MIME:
+            ext = ".jpg"
+        name = f"img_{counter[0]:04d}{ext}"
+        counter[0] += 1
+        images.append({"name": name, "data": data, "mime": _IMG_MIME.get(ext, "image/jpeg")})
+        img.replace_with(_IMG_PLACEHOLDER.format(name=name))
+
+
 def parse_epub(path: Path) -> ParsedBook:
     with zipfile.ZipFile(path) as zf:
         # 1) container.xml → OPF 路径
@@ -130,6 +172,8 @@ def parse_epub(path: Path) -> ParsedBook:
         # 3) 按 spine 顺序抽取每个文档的标题与正文
         parts: list[str] = []
         headings: list[str] = []
+        images: list[dict] = []
+        img_counter = [0]
         for idref in spine:
             href = manifest.get(idref)
             if not href:
@@ -140,6 +184,11 @@ def parse_epub(path: Path) -> ParsedBook:
             except KeyError:
                 continue
             soup = BeautifulSoup(raw, "html.parser")
+            _extract_images(
+                soup, zf,
+                xhtml_dir=str(Path(full).parent).replace("\\", "/"),
+                opf_dir=opf_dir, images=images, counter=img_counter,
+            )
             heading = soup.find(["h1", "h2", "h3"])
             headings.append(heading.get_text(strip=True) if heading else "")
             parts.append(soup.get_text("\n", strip=True) or "")
@@ -153,6 +202,11 @@ def parse_epub(path: Path) -> ParsedBook:
             )
             for name in html_files:
                 soup = BeautifulSoup(zf.read(name), "html.parser")
+                _extract_images(
+                    soup, zf,
+                    xhtml_dir=str(Path(name).parent).replace("\\", "/"),
+                    opf_dir=opf_dir, images=images, counter=img_counter,
+                )
                 heading = soup.find(["h1", "h2", "h3"])
                 headings.append(heading.get_text(strip=True) if heading else "")
                 parts.append(soup.get_text("\n", strip=True) or "")
@@ -180,4 +234,7 @@ def parse_epub(path: Path) -> ParsedBook:
     if not chapters:
         chapters = [{"index": 1, "title": "全文", "char_start": 0, "char_end": 0}]
 
-    return ParsedBook(title=title or path.stem, author=author, chapters=chapters, full_text=full_text)
+    return ParsedBook(
+        title=title or path.stem, author=author, chapters=chapters,
+        full_text=full_text, images=images,
+    )

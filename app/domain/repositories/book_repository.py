@@ -23,8 +23,10 @@ class BookRepository(BaseRepository[Book]):
         chapters: list,
         full_text: str,
         total_chars: int,
+        book_id: str | None = None,
     ) -> Book:
         book = Book(
+            id=book_id,
             user_id=user_id,
             title=title,
             author=author,

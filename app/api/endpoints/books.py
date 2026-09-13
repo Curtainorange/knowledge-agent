@@ -5,11 +5,14 @@
 """
 from __future__ import annotations
 
+import mimetypes
+import re
 from datetime import datetime
 from pathlib import Path
 from urllib.parse import unquote
 
 from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -195,6 +198,29 @@ def get_book(
         current_char=book.current_char or 0,
         request_id=trace.get_request_id() or "",
     )
+
+
+@router.get("/{book_id}/images/{name}", include_in_schema=False)
+def get_book_image(
+    book_id: str,
+    name: str,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> FileResponse:
+    """返回书籍插图。name 形如 img_0001.jpg，严格校验防路径穿越。"""
+    try:
+        book = _repo(user_id, session).get(book_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="无权访问该书籍") from exc
+    if book is None or book.is_deleted:
+        raise HTTPException(status_code=404, detail="书籍不存在")
+    if not re.fullmatch(r"img_\d{4}\.[A-Za-z0-9]{1,8}", name):
+        raise HTTPException(status_code=404, detail="图片不存在")
+    image_path = Path(book.file_path).parent / book_id / "images" / name
+    if not image_path.is_file():
+        raise HTTPException(status_code=404, detail="图片不存在")
+    media_type = mimetypes.guess_type(name)[0] or "image/jpeg"
+    return FileResponse(image_path, media_type=media_type)
 
 
 @router.get("/{book_id}/chapter/{index}", response_model=ChapterContentResponse)
