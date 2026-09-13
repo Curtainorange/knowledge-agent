@@ -9,7 +9,7 @@ from fastapi import FastAPI, Request
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
-from app.api.endpoints import auth, books, chat, events, health, knowledge, l1, l2, l3
+from app.api.endpoints import auth, books, chat, events, health, knowledge, l1, l2, l3, l4
 from app.core import logging as core_logging
 from app.core import trace
 from app.domain import db
@@ -47,6 +47,7 @@ app.include_router(books.router)
 app.include_router(l1.router)
 app.include_router(l2.router)
 app.include_router(l3.router)
+app.include_router(l4.router)
 app.include_router(events.router)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"

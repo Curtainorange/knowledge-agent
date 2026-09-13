@@ -86,6 +86,12 @@ class Settings(BaseSettings):
     l3_recent_titles: int = 20           # UC-L3-02 衔接追问时携带的近期条目标题数
     l3_question_count: int = 3           # 简报产出的追问上限（需求：2-3 个，宁少勿滥）
 
+    # --- L4 路径修正（计划生成 + 行为偏离检测）---
+    l4_idle_days_threshold: int = 3    # 连续多少天无学习行为即视为偏离（需求默认 3）
+    l4_window_days: int = 7            # 行为统计窗口（本窗口 / 上一窗口对比）
+    l4_spike_factor: float = 3.0       # 新增内容突增倍数（上一窗口 ≥1 条时才判）
+    l4_max_tasks: int = 12             # 计划任务数上限（需求：最多 12 周）
+
     # --- 异步任务框架（幂等 + 重试 + 死信；单进程内轮询，不依赖 Redis/Celery）---
     worker_enabled: bool = True          # 测试里关闭，避免后台线程干扰
     worker_poll_seconds: float = 15.0    # 轮询间隔
