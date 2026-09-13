@@ -102,6 +102,9 @@ class Settings(BaseSettings):
     l2_realtime_trigger_enabled: bool = True  # 录入/划词后按小时桶合并触发扫描
     l2_weekly_scan_enabled: bool = True       # 每周自动扫描（幂等键按 ISO 周去重）
 
+    # --- 主动推送调度（ADR-14）---
+    push_schedule_enabled: bool = True        # 每周简报 / 每月健康报告定时推送（幂等键按 ISO 周/月去重）
+
     @property
     def model_provider(self) -> str:
         """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""

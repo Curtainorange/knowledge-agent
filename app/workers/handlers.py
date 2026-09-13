@@ -30,3 +30,48 @@ def l2_scan(payload: dict, session: Session) -> None:
         user_id, payload.get("reason", "-"), result.scanned_items, result.claims_extracted,
         result.pairs_judged, result.conflicts_found, result.conflicts_suppressed,
     )
+
+
+@register("push_weekly_digest")
+def push_weekly_digest(payload: dict, session: Session) -> None:
+    """周简报推送：组装本周冲突/新增/活跃度，有内容才推（无内容不打扰）。"""
+    from app.agent.push_service import PushService
+
+    user_id = str(payload.get("user_id") or "")
+    if not user_id:
+        raise ValueError("push_weekly_digest 缺少 user_id")
+
+    svc = PushService(session)
+    digest = svc.build_weekly_digest(user_id=user_id)
+    if digest.conflict_total == 0 and digest.new_items == 0:
+        logger.info("push weekly skipped user=%s (本周无冲突且无新知识)", user_id)
+        return
+    outcome = svc.enqueue(
+        user_id=user_id, push_type="brief",
+        title=digest.title, body=digest.body, subject=digest.week_label,
+    )
+    logger.info("push weekly user=%s status=%s", user_id, outcome.status)
+
+
+@register("push_monthly_health")
+def push_monthly_health(payload: dict, session: Session) -> None:
+    """月学习健康报告：L5 归因诊断，有诊断结论才推。"""
+    from app.agent.l5_orchestrator import L5Orchestrator
+    from app.agent.push_service import PushService
+
+    user_id = str(payload.get("user_id") or "")
+    if not user_id:
+        raise ValueError("push_monthly_health 缺少 user_id")
+
+    result = L5Orchestrator(session=session).diagnose(user_id=user_id)
+    if result.state != "ok":
+        logger.info("push monthly skipped user=%s state=%s", user_id, result.state)
+        return
+    svc = PushService(session)
+    outcome = svc.enqueue(
+        user_id=user_id, push_type="diagnosis",
+        title=f"学习健康报告 · {result.pattern or '诊断'}",
+        body=f"{result.root_cause}\n建议：{result.suggested_action}",
+        subject=result.diagnosis_id,
+    )
+    logger.info("push monthly user=%s status=%s", user_id, outcome.status)

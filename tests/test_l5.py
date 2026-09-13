@@ -145,6 +145,53 @@ def test_decide_unknown_diagnosis(session):
     assert "不存在" in message
 
 
+def test_decide_accept_appends_plan_task(session):
+    """采纳 → 建议写入计划形成闭环（诊断 → 计划 → 执行）。"""
+    for i in range(5):
+        _add_item(session, "u1", title=f"条目{i}")
+    orch = _orch(session, DIAG_ROWS)
+    result = orch.diagnose(user_id="u1")
+
+    ok, message = orch.decide(user_id="u1", diagnosis_id=result.diagnosis_id, accepted=True)
+    assert ok and "计划" in message
+
+    from app.domain.models.plan_task import PlanTask
+    task = session.scalars(select(PlanTask)).first()
+    assert task is not None
+    assert "每天只读一篇" in task.subject  # 建议已转成任务
+
+
+def test_decide_accept_creates_goal_when_no_plan(session):
+    """没有现存计划时，采纳也会先建「采纳诊断建议」目标+计划，保证建议有落点。"""
+    for i in range(5):
+        _add_item(session, "u1", title=f"条目{i}")
+    orch = _orch(session, DIAG_ROWS)
+    result = orch.diagnose(user_id="u1")
+
+    orch.decide(user_id="u1", diagnosis_id=result.diagnosis_id, accepted=True)
+
+    from app.domain.models.learning_goal import LearningGoal
+    from app.domain.models.learning_plan import LearningPlan
+    goal = session.scalars(select(LearningGoal)).first()
+    plan = session.scalars(select(LearningPlan)).first()
+    assert goal is not None and "采纳诊断建议" in goal.description
+    assert plan is not None and plan.goal_id == goal.id
+
+
+def test_decide_reject_does_not_write_plan(session):
+    """拒绝只记偏好，不写计划。"""
+    for i in range(5):
+        _add_item(session, "u1", title=f"条目{i}")
+    orch = _orch(session, DIAG_ROWS)
+    result = orch.diagnose(user_id="u1")
+
+    ok, _ = orch.decide(user_id="u1", diagnosis_id=result.diagnosis_id, accepted=False)
+    assert ok
+
+    from app.domain.models.plan_task import PlanTask
+    assert session.scalars(select(PlanTask)).first() is None
+
+
 # ---------- API ----------
 
 

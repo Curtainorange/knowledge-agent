@@ -161,7 +161,7 @@ class L5Orchestrator:
         )
 
     def decide(self, *, user_id: str, diagnosis_id: str, accepted: bool) -> tuple[bool, str]:
-        """用户对诊断的采纳/拒绝。采纳 → 记意图（供 L4 重规划参考）；拒绝 → 记偏好。"""
+        """用户对诊断的采纳/拒绝。采纳 → 回写计划（闭环）；拒绝 → 记偏好。"""
         diagnosis = self._repo.get(diagnosis_id)
         if diagnosis is None or diagnosis.user_id != user_id:
             return False, "诊断不存在"
@@ -173,8 +173,48 @@ class L5Orchestrator:
                      "pattern": diagnosis.pattern},
         )
         if accepted:
-            return True, "已采纳诊断，建议可纳入后续计划重排参考"
+            if diagnosis.suggested_action:
+                self._append_to_plan(user_id, diagnosis)
+                return True, "已采纳诊断，建议已加入你的学习计划"
+            return True, "已采纳诊断（本诊断无具体建议，未写入计划）"
         return True, "已记录你的判断，后续会减少同类打扰"
+
+    def _append_to_plan(self, user_id: str, diagnosis) -> None:
+        """把诊断建议追加为学习计划的一个任务（形成闭环：诊断 → 计划 → 执行）。
+
+        没有现存计划时先建一个「采纳诊断建议」的目标与计划，再挂任务——保证采纳
+        建议总有落点，而不是因「用户还没建计划」而静默丢弃。
+        """
+        from app.domain.repositories.learning_plan_repository import (
+            LearningGoalRepository,
+            LearningPlanRepository,
+            PlanTaskRepository,
+        )
+
+        plan_repo = LearningPlanRepository(self._session, user_id=user_id)
+        plan = plan_repo.latest_for_user(user_id)
+        if plan is None:
+            goal = LearningGoalRepository(self._session, user_id=user_id).create(
+                user_id=user_id,
+                description=f"采纳诊断建议：{diagnosis.pattern or '学习调整'}",
+            )
+            plan = plan_repo.create(
+                user_id=user_id, goal_id=goal.id,
+                content={"rationale": f"来自 L5 诊断 {diagnosis.id}"},
+                version=1,
+            )
+        task_repo = PlanTaskRepository(self._session, user_id=user_id)
+        existing = task_repo.list_by_plan(plan.id)
+        next_week = max([t.week_index for t in existing] + [0]) + 1
+        task_repo.create_many(
+            user_id=user_id, plan_id=plan.id,
+            tasks=[{
+                "week_index": next_week,
+                "subject": (diagnosis.suggested_action or "")[:256],
+                "status": "pending",
+            }],
+        )
+        self._session.commit()
 
     def latest(self, *, user_id: str):
         return self._repo.latest_for_user(user_id)

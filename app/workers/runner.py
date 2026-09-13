@@ -18,7 +18,7 @@ from app.domain.db import SessionLocal
 from app.domain.repositories.user_repository import UserRepository
 from app.workers import handlers  # noqa: F401  导入即注册任务处理器
 from app.workers.tasks import RunSummary, run_pending
-from app.workers.triggers import ensure_weekly_scans
+from app.workers.triggers import ensure_push_schedules, ensure_weekly_scans
 
 logger = logging.getLogger(__name__)
 
@@ -28,9 +28,13 @@ _start_lock = threading.Lock()
 
 def run_once(session) -> RunSummary:
     """跑一轮（供测试与脚本手动调用，不起线程）。"""
-    created = ensure_weekly_scans(session, UserRepository(session).list_ids())
+    user_ids = UserRepository(session).list_ids()
+    created = ensure_weekly_scans(session, user_ids)
     if created:
         logger.info("weekly l2 scans queued: %d", created)
+    pushed = ensure_push_schedules(session, user_ids)
+    if pushed:
+        logger.info("push schedules queued: %d", pushed)
     return run_pending(session)
 
 

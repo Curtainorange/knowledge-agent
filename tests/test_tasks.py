@@ -155,9 +155,13 @@ def test_ingest_enqueues_scan_and_merges_within_hour(session):
     assert len([r for r in _rows(session) if r.task_name == "l2_scan"]) == 2  # 用户间互不影响
 
 
-def test_run_once_enqueues_weekly_scan_only_once(session):
+def test_run_once_enqueues_weekly_scan_only_once(session, monkeypatch):
     """周扫：同一周内反复调用 ensure 只会排一次任务。"""
+    from app.core.config import settings
     from app.workers.runner import run_once
+
+    # 聚焦 L2 周扫幂等，关闭推送调度（推送调度在 test_push_schedule 单独测）
+    monkeypatch.setattr(settings, "push_schedule_enabled", False)
 
     users = UserRepository(session)
     users.create_user(username="wk_a", password_hash="x")

@@ -72,3 +72,52 @@ def ensure_weekly_scans(session: Session, user_ids: list[str]) -> int:
         if result and result.created:
             created += 1
     return created
+
+
+# ---- 主动推送调度（ADR-14 的定时侧）-----------------------------------------
+# 与 L2 周扫同一套幂等键技巧：周简报 / 月健康报告都退化成「确保这个 key 存在」，
+# worker 每轮无脑 ensure 也不会重复推送（PushService 内还有 content_hash 去重兜底）。
+
+TASK_PUSH_WEEKLY = "push_weekly_digest"
+TASK_PUSH_MONTHLY = "push_monthly_health"
+
+
+def push_weekly_key(user_id: str, now: datetime | None = None) -> str:
+    iso = (now or _utcnow()).isocalendar()
+    return f"push:weekly:{user_id}:{iso[0]}-W{iso[1]:02d}"
+
+
+def push_monthly_key(user_id: str, now: datetime | None = None) -> str:
+    stamp = now or _utcnow()
+    return f"push:monthly:{user_id}:{stamp.year}-{stamp.month:02d}"
+
+
+def enqueue_push(user_id: str, session: Session, *, monthly: bool) -> EnqueueResult | None:
+    """入队一次推送任务（周简报 / 月健康）。幂等键按 ISO 周 / 月去重。"""
+    key = push_monthly_key(user_id) if monthly else push_weekly_key(user_id)
+    try:
+        result = enqueue(
+            session,
+            task_name=TASK_PUSH_MONTHLY if monthly else TASK_PUSH_WEEKLY,
+            user_id=user_id,
+            payload={"user_id": user_id},
+            idempotency_key=key,
+        )
+    except Exception as exc:
+        logger.warning("enqueue push failed user=%s monthly=%s err=%s", user_id, monthly, exc)
+        return None
+    if result.created:
+        logger.info("push queued user=%s monthly=%s key=%s", user_id, monthly, key)
+    return result
+
+
+def ensure_push_schedules(session: Session, user_ids: list[str]) -> int:
+    """确保每个活跃用户的周简报与月健康已排队；返回本轮新入队数。"""
+    if not settings.push_schedule_enabled:
+        return 0
+    created = 0
+    for user_id in user_ids:
+        weekly = enqueue_push(user_id, session, monthly=False)
+        monthly = enqueue_push(user_id, session, monthly=True)
+        created += (1 if weekly and weekly.created else 0) + (1 if monthly and monthly.created else 0)
+    return created
