@@ -153,6 +153,24 @@ def test_book_image_endpoint(client, tmp_path):
     assert img.content.startswith(b"\x89PNG")
 
 
+def test_book_image_via_query_token(client, tmp_path):
+    """`<img>` 带不了 Authorization 头，端点必须支持 ?token= 兜底（否则图片 401 打不开）。"""
+    headers = auth_headers(client, "book_img_qs")
+    epub = _make_epub_with_image(tmp_path).read_bytes()
+    book = _upload(client, headers, "插图.epub", epub).json()
+    token = headers["Authorization"].split()[1]
+
+    # 不带 header、只用 ?token=
+    resp = client.get(f"/api/v1/books/{book['book_id']}/images/img_0000.png?token={token}")
+    assert resp.status_code == 200
+    assert resp.content.startswith(b"\x89PNG")
+
+    # 两者都没有 → 401（鉴权没有被绕过）
+    assert client.get(
+        f"/api/v1/books/{book['book_id']}/images/img_0000.png"
+    ).status_code == 401
+
+
 def test_book_image_endpoint_blocks_path_traversal(client, tmp_path):
     """图片名必须匹配 img_0000.ext，防路径穿越。"""
     headers = auth_headers(client, "book_img_sec")
@@ -347,3 +365,92 @@ def test_list_notes_cross_user_forbidden(client):
     assert client.get(
         f"/api/v1/books/{book['book_id']}/notes", headers=headers_b
     ).status_code == 403
+
+
+# ---------- 阅读日志 ----------
+
+def _seed_reading(session, user_id: str, title: str = "测试书"):
+    """造一本书 + 跨两天的阅读进度事件，返回 book。"""
+    from datetime import datetime, timedelta, timezone
+
+    from app.domain.repositories.book_repository import BookRepository
+    from app.domain.repositories.learning_event_repository import LearningEventRepository
+    from app.feedback import events
+
+    book = BookRepository(session, user_id=user_id).create(
+        user_id=user_id, title=title, author="", format="txt",
+        file_path="/tmp/x.txt", chapters=[], full_text="x" * 5000, total_chars=5000,
+    )
+    repo = LearningEventRepository(session)
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    yesterday = now - timedelta(days=1)
+
+    # 昨天：1000 → 1500（同日取最后一次）
+    repo.append(user_id=user_id, event_type=events.BOOK_PROGRESS,
+                payload={"book_id": book.id, "current_char": 1000, "read_progress": 0.2},
+                occurred_at=yesterday)
+    repo.append(user_id=user_id, event_type=events.BOOK_PROGRESS,
+                payload={"book_id": book.id, "current_char": 1500, "read_progress": 0.3},
+                occurred_at=yesterday + timedelta(hours=1))
+    # 今天：读到 3000
+    repo.append(user_id=user_id, event_type=events.BOOK_PROGRESS,
+                payload={"book_id": book.id, "current_char": 3000, "read_progress": 0.6},
+                occurred_at=now)
+    session.commit()
+    return book
+
+
+def test_reading_log_aggregates_by_day(session):
+    """阅读日志：按天算增量，「当天读了多少」= 当天结束位置 − 此前已读位置。"""
+    from app.books.service import BookService
+
+    _seed_reading(session, "u1")
+    result = BookService(session).reading_log(user_id="u1", days=30)
+
+    assert result["active_days"] == 2
+    assert result["total_chars"] == 3000  # 1500（昨天）+ 1500（今天）
+
+    latest = result["days"][0]  # 按日期倒序，最新一天在前
+    assert latest["total_chars"] == 1500
+    assert latest["books"][0]["title"] == "测试书"
+
+    # 回退（往回翻）不算新增：再记一条更小的 current_char，今天增量不变
+    from datetime import datetime, timezone
+
+    from app.domain.repositories.learning_event_repository import LearningEventRepository
+    from app.feedback import events
+
+    LearningEventRepository(session).append(
+        user_id="u1", event_type=events.BOOK_PROGRESS,
+        payload={"book_id": latest["books"][0]["book_id"], "current_char": 500, "read_progress": 0.1},
+        occurred_at=datetime.now(timezone.utc).replace(tzinfo=None),
+    )
+    session.commit()
+    again = BookService(session).reading_log(user_id="u1", days=30)
+    assert again["total_chars"] == 3000  # 未因回退而减少或增加
+
+
+def test_reading_log_api(client):
+    """阅读日志端点：走完整用户流程（上传 → 更新进度 → 查日志），
+    并验证静态路由 `/reading-log` 不被 `/{book_id}` 动态路由吃掉。"""
+    headers = auth_headers(client, "reading_log_api")
+    book = _upload(client, headers, "书.txt", SAMPLE_TXT.encode("utf-8")).json()
+
+    # 更新进度会追加 BOOK_PROGRESS 事件（阅读日志的数据源）
+    resp = client.patch(
+        f"/api/v1/books/{book['book_id']}/progress",
+        json={"current_char": 12, "read_progress": 0.5},
+        headers=headers,
+    )
+    assert resp.status_code == 200
+
+    body = client.get("/api/v1/books/reading-log?days=30", headers=headers).json()
+    assert body["active_days"] == 1
+    assert body["total_chars"] == 12
+    assert body["days"][0]["books"][0]["title"] == "书"
+
+
+def test_reading_log_page_served(client):
+    resp = client.get("/reading_log.html")
+    assert resp.status_code == 200
+    assert "rl-list" in resp.text

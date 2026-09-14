@@ -1,0 +1,111 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>阅读日志 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="reading">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">阅读日志</span></div>
+  <nav class="nav">
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+    <a href="/l4.html" data-nav="l4">路径修正</a>
+    <a href="/l5.html" data-nav="l5">健康诊断</a>
+    <a href="/notify.html" data-nav="notify">通知</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="card">
+    <h2>阅读概览
+      <button id="btn-back" class="sm">← 书架</button>
+    </h2>
+    <div class="meta">最近 <strong id="rl-window">30</strong> 天共读 <strong id="rl-total">0</strong>，
+      活跃 <strong id="rl-days">0</strong> 天。</div>
+    <div class="meta">数据来自每次阅读的进度记录，按天聚合。</div>
+  </div>
+
+  <div class="card">
+    <h2>按天记录</h2>
+    <div id="rl-list"></div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script>
+(function () {
+  'use strict';
+
+  var $ = CC.$;
+  var esc = CC.esc;
+  var WINDOW_DAYS = 30;
+
+  function fmtChars(n) {
+    n = Number(n || 0);
+    if (n >= 10000) {
+      return (n / 10000).toFixed(1) + ' 万字';
+    }
+    return n + ' 字';
+  }
+
+  function render(data) {
+    $('#rl-window').textContent = String(WINDOW_DAYS);
+    $('#rl-total').textContent = fmtChars(data.total_chars);
+    $('#rl-days').textContent = String(data.active_days || 0);
+
+    var days = data.days || [];
+    if (!days.length) {
+      $('#rl-list').innerHTML = '<div class="empty">还没有阅读记录。<br>去书架打开一本书，读几页就会出现在这里。</div>';
+      return;
+    }
+    $('#rl-list').innerHTML = days.map(function (day) {
+      var books = (day.books || []).map(function (b) {
+        return '<div class="topic-row">' +
+          '<span class="topic-name">' + esc(b.title) + '</span>' +
+          '<span class="topic-levels">' + esc(fmtChars(b.chars_read)) +
+            ' · 已读 ' + Math.round(Number(b.progress || 0) * 100) + '%</span>' +
+        '</div>';
+      }).join('');
+      return '<div class="question-card">' +
+        '<div class="q-head">' + esc(day.date) +
+          ' <span class="badge ok">' + esc(fmtChars(day.total_chars)) + '</span></div>' +
+        books +
+      '</div>';
+    }).join('');
+  }
+
+  async function load() {
+    try {
+      var data = await CC.api('GET', '/api/v1/books/reading-log?days=' + WINDOW_DAYS);
+      render(data);
+    } catch (err) {
+      $('#rl-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
+    }
+  }
+
+  $('#btn-back').addEventListener('click', function () {
+    location.href = '/books.html';
+  });
+
+  (async function boot() {
+    if (!(await CC.requireAuth())) {
+      return;
+    }
+    await load();
+  })();
+})();
+</script>
+</body>
+</html>

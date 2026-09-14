@@ -87,3 +87,20 @@ def get_current_user(
 ) -> User:
     """取当前用户实体（与 get_user_id 同一套校验，FastAPI 会缓存依赖避免重复查询）。"""
     return _authed_user(authorization, session)
+
+
+def get_user_id_flexible(
+    authorization: str | None = Header(default=None),
+    token: str | None = None,
+    session: Session = Depends(get_session),
+) -> str:
+    """图片等「浏览器直接发起的资源请求」的鉴权。
+
+    `<img src>` 由浏览器自己发出，**无法携带 Authorization 头**（token 存在
+    localStorage，不在 cookie），若沿用 get_user_id 会一律 401、图片打不开。
+    这里在 Header 缺失时允许用 `?token=<access token>` 兜底——校验逻辑与
+    get_user_id 完全相同（同一出口 `_authed_user`），只是取值来源多了一条。
+    """
+    if not authorization and token:
+        authorization = f"Bearer {token}"
+    return _authed_user(authorization, session).id

@@ -172,6 +172,11 @@ def reader_page() -> FileResponse:
     return _page("reader.html")
 
 
+@app.get("/reading_log.html", include_in_schema=False)
+def reading_log_page() -> FileResponse:
+    return _page("reading_log.html")
+
+
 @app.get("/conflicts.html", include_in_schema=False)
 def conflicts_page() -> FileResponse:
     return _page("conflicts.html")

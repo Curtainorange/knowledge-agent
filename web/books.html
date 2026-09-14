@@ -28,7 +28,12 @@
 
 <main class="single">
   <div class="card">
-    <h2>书架 <button id="btn-upload" class="sm">上传书籍</button></h2>
+    <h2>书架
+      <span>
+        <button id="btn-log" class="sm">阅读日志</button>
+        <button id="btn-upload" class="sm">上传书籍</button>
+      </span>
+    </h2>
     <input type="file" id="file-input" accept=".txt,.epub" hidden>
     <div class="meta" style="margin-bottom:12px">
       支持 .txt / .epub，上传后自动解析章节；点开即可阅读并记录进度，选中文字可一键记入知识库。
@@ -112,6 +117,10 @@
 
   $('#btn-upload').addEventListener('click', function () {
     $('#file-input').click();
+  });
+
+  $('#btn-log').addEventListener('click', function () {
+    location.href = '/reading_log.html';
   });
 
   $('#file-input').addEventListener('change', function (event) {

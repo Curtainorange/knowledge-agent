@@ -158,8 +158,11 @@
       var imgStart = match.index;
       html += renderTextRange(text, cursor, imgStart, marks);
       var name = match[1];
+      // 图片由浏览器直接加载，带不了 Authorization 头，故用 ?token= 兜底
+      var imgUrl = '/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) +
+        '?token=' + encodeURIComponent(CC.token() || '');
       html += '<figure class="reader-figure">' +
-        '<img src="/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) + '" alt="插图" loading="lazy">' +
+        '<img src="' + imgUrl + '" alt="插图" loading="lazy">' +
         '<span class="img-pos">[[IMG:' + esc(name) + ']]</span>' +
       '</figure>';
       cursor = imgStart + match[0].length;

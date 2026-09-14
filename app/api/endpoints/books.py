@@ -16,7 +16,7 @@ from fastapi.responses import FileResponse
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
-from app.api.deps import get_session, get_user_id
+from app.api.deps import get_session, get_user_id, get_user_id_flexible
 from app.books.service import BookService
 from app.core import trace
 from app.domain.models.book import Book
@@ -120,6 +120,26 @@ class DeleteResponse(BaseModel):
     request_id: str
 
 
+class ReadingLogBookOut(BaseModel):
+    book_id: str
+    title: str
+    chars_read: int
+    progress: float
+
+
+class ReadingLogDayOut(BaseModel):
+    date: str
+    total_chars: int
+    books: list[ReadingLogBookOut]
+
+
+class ReadingLogResponse(BaseModel):
+    days: list[ReadingLogDayOut]
+    total_chars: int
+    active_days: int
+    request_id: str
+
+
 def _book_out(book: Book) -> BookOut:
     return BookOut(
         book_id=book.id,
@@ -175,6 +195,25 @@ def list_books(
     )
 
 
+@router.get("/reading-log", response_model=ReadingLogResponse)
+def reading_log(
+    days: int = 30,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> ReadingLogResponse:
+    """按天聚合的阅读日志：每天读了哪几本书、各读了多少字。
+
+    必须定义在 `/{book_id}` 之前，否则 "reading-log" 会被当成 book_id 吃掉。
+    """
+    result = BookService(session).reading_log(user_id=user_id, days=days)
+    return ReadingLogResponse(
+        days=[ReadingLogDayOut(**day) for day in result["days"]],
+        total_chars=result["total_chars"],
+        active_days=result["active_days"],
+        request_id=trace.get_request_id() or "",
+    )
+
+
 @router.get("/{book_id}", response_model=BookDetailResponse)
 def get_book(
     book_id: str,
@@ -204,10 +243,13 @@ def get_book(
 def get_book_image(
     book_id: str,
     name: str,
-    user_id: str = Depends(get_user_id),
+    user_id: str = Depends(get_user_id_flexible),
     session: Session = Depends(get_session),
 ) -> FileResponse:
-    """返回书籍插图。name 形如 img_0001.jpg，严格校验防路径穿越。"""
+    """返回书籍插图。name 形如 img_0001.jpg，严格校验防路径穿越。
+
+    鉴权走 flexible（允许 `?token=`）——`<img src>` 带不了 Authorization 头。
+    """
     try:
         book = _repo(user_id, session).get(book_id)
     except PermissionError as exc:
