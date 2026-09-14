@@ -38,12 +38,29 @@ html{-webkit-text-size-adjust:100%}
 body{
   margin:0;
   font:14px/1.65 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
-  background:
-    radial-gradient(1200px 500px at 100% -10%, rgba(99,102,241,.08), transparent 60%),
-    radial-gradient(900px 400px at -10% 0%, rgba(124,58,237,.07), transparent 55%),
-    linear-gradient(180deg,var(--bg) 0%,var(--bg-2) 100%);
-  background-attachment:fixed;
   color:var(--text);
+  /* 分层背景：细网格质感 + 四角柔和光晕 + 底色渐变。
+     冷色（靛蓝/紫/青）为主、暖色（橙）点缀，避免大片单调灰白；透明度都压得很低，
+     保证正文与卡片的可读性不被干扰。 */
+  background-color:#e9edf8;
+  background-image:
+    /* ① 细网格：给留白一点「工程图纸」的质感 */
+    linear-gradient(rgba(79,70,229,.045) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(79,70,229,.045) 1px, transparent 1px),
+    /* ② 四角光晕 */
+    radial-gradient(1200px 660px at 88% -16%, rgba(99,102,241,.22), transparent 62%),
+    radial-gradient(1020px 580px at -12% 2%, rgba(124,58,237,.18), transparent 58%),
+    radial-gradient(880px 520px at 76% 104%, rgba(14,165,233,.14), transparent 60%),
+    radial-gradient(720px 480px at 2% 96%, rgba(251,146,60,.10), transparent 62%),
+    /* ③ 底色渐变兜底 */
+    linear-gradient(160deg, #f8f9fd 0%, #eef1f9 42%, #e6ebf7 100%);
+  background-size:
+    34px 34px, 34px 34px,
+    auto, auto, auto, auto, auto;
+  background-repeat:
+    repeat, repeat,
+    no-repeat, no-repeat, no-repeat, no-repeat, no-repeat;
+  background-attachment:fixed;
   -webkit-font-smoothing:antialiased;
 }
 ::selection{background:rgba(99,102,241,.22)}
@@ -52,10 +69,10 @@ body{
 header.topbar{
   display:flex;align-items:center;gap:16px;flex-wrap:wrap;
   padding:12px 24px;
-  background:rgba(255,255,255,.78);
-  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
-  border-bottom:1px solid rgba(230,233,242,.9);
-  box-shadow:var(--shadow-xs);
+  background:rgba(255,255,255,.66);
+  -webkit-backdrop-filter:blur(18px) saturate(1.5);backdrop-filter:blur(18px) saturate(1.5);
+  border-bottom:1px solid rgba(255,255,255,.55);
+  box-shadow:0 1px 0 rgba(26,32,51,.03), var(--shadow-xs);
   position:sticky;top:0;z-index:50;
 }
 .brand{
@@ -98,10 +115,11 @@ main.single{grid-template-columns:1fr;max-width:900px;margin:0 auto}
 .card{
   background:var(--card);border:1px solid var(--border);border-radius:var(--radius);
   padding:18px;margin-bottom:16px;
-  box-shadow:var(--shadow-sm);
+  /* 阴影带一点靛蓝色调，与背景光晕呼应，比纯灰阴影更协调 */
+  box-shadow:0 4px 18px rgba(79,70,229,.07), 0 1px 2px rgba(26,32,51,.04);
   transition:box-shadow .18s,transform .18s;
 }
-.card:hover{box-shadow:var(--shadow-md)}
+.card:hover{box-shadow:0 12px 32px rgba(79,70,229,.13), 0 2px 6px rgba(26,32,51,.05)}
 .card h2{
   margin:0 0 14px;font-size:15px;font-weight:600;display:flex;align-items:center;
   justify-content:space-between;gap:8px;color:var(--text);
