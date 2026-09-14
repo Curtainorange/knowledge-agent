@@ -6,6 +6,7 @@ from tests.helpers import auth_headers
 PAGES = (
     "/", "/index.html", "/login.html", "/knowledge.html", "/mine.html",
     "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
+    "/books.html", "/reader.html", "/reading_log.html",
 )
 
 
@@ -142,6 +143,17 @@ def test_nav_links_to_l5_and_notify_everywhere(client):
         body = client.get(path).text
         assert "/l5.html" in body, path
         assert "/notify.html" in body, path
+
+
+def test_reader_has_toc_and_chapter_navigation(client):
+    """阅读器要能顺畅跳章：侧边目录 + 上/下章 + 进度条（而不是只有一个下拉）。"""
+    body = client.get("/reader.html").text
+    assert "toc-panel" in body           # 侧边目录抽屉
+    assert "toc-list" in body
+    assert "btn-prev" in body and "btn-next" in body  # 上一章 / 下一章
+    assert "progress-fill" in body       # 阅读进度条
+    assert "chapter-indicator" in body   # 第 n / N 章
+    assert "chapter-select" not in body  # 旧的下拉已替换
 
 
 def test_api_routes_unaffected(client):

@@ -12,23 +12,40 @@
   <div class="brand">认知副驾<span class="sub">阅读器</span></div>
   <div class="reader-tools">
     <button id="btn-back" class="sm">← 书架</button>
-    <select id="chapter-select" title="跳转章节"></select>
-    <button id="btn-notes" class="sm">本书知识 <span id="notes-count">0</span></button>
-    <button id="font-down" class="sm">A-</button>
-    <button id="font-up" class="sm">A+</button>
+    <button id="btn-toc" class="sm">目录</button>
+    <span class="reader-indicator" id="chapter-indicator">—</span>
   </div>
   <div class="who">
-    <span class="who-name" id="who-name"></span>
+    <button id="btn-notes" class="sm">本书知识 <span id="notes-count">0</span></button>
+    <button id="font-down" class="sm" title="缩小字号">A-</button>
+    <button id="font-up" class="sm" title="放大字号">A+</button>
     <button id="btn-logout">退出</button>
   </div>
 </header>
 
 <main class="single">
   <div class="card reader-card">
-    <div class="reader-title" id="chapter-title">加载中…</div>
+    <div class="reader-progress"><i id="progress-fill" style="width:0%"></i></div>
+    <div class="reader-title">
+      <span id="chapter-title">加载中…</span>
+      <span class="reader-meta" id="chapter-meta"></span>
+    </div>
     <div class="reader-body" id="reader-body"></div>
+    <div class="reader-nav">
+      <button id="btn-prev" class="sm">‹ 上一章</button>
+      <button id="btn-top" class="sm">回到顶部</button>
+      <button id="btn-next" class="sm">下一章 ›</button>
+    </div>
   </div>
 </main>
+
+<aside class="toc-panel" id="toc-panel" hidden>
+  <div class="panel-head">
+    <h3>目录 <span class="badge" id="toc-count">0</span></h3>
+    <button id="toc-close" class="sm">关闭</button>
+  </div>
+  <div class="toc-list" id="toc-list"></div>
+</aside>
 
 <div id="selection-pop">
   <button data-act="excerpt">存摘录</button>
@@ -177,7 +194,6 @@
     var body = $('#reader-body');
     $('#chapter-title').textContent = data.title;
     body.innerHTML = renderContent(data.content, chapterByIndex(index) || { char_start: 0 });
-    $('#chapter-select').value = String(index);
     applyFont();
     body.scrollTop = 0;
 
@@ -185,18 +201,103 @@
       requestAnimationFrame(function () {
         var max = body.scrollHeight - body.clientHeight;
         body.scrollTop = Math.max(0, scrollRatio * max);
+        updateNavAndProgress();
       });
     }
+    updateNavAndProgress();
   }
 
   function renderBookInfo() {
     document.querySelector('.brand .sub').textContent = '阅读 · ' + state.book.title;
   }
 
-  function renderChapterSelect() {
-    $('#chapter-select').innerHTML = (state.book.chapters || []).map(function (c) {
-      return '<option value="' + c.index + '">' + esc(c.title) + '</option>';
+  /* ---------- 目录 ---------- */
+  function orderedChapters() {
+    return (state.book.chapters || []).slice().sort(function (a, b) {
+      return a.index - b.index;
+    });
+  }
+
+  function renderToc() {
+    var chapters = orderedChapters();
+    $('#toc-count').textContent = String(chapters.length);
+    if (!chapters.length) {
+      $('#toc-list').innerHTML = '<div class="empty">这本书没有分章。</div>';
+      return;
+    }
+    $('#toc-list').innerHTML = chapters.map(function (c) {
+      var on = c.index === state.chapter ? ' on' : '';
+      return '<div class="toc-item' + on + '" data-index="' + c.index + '">' +
+        '<span class="toc-no">' + c.index + '</span>' +
+        '<span class="toc-title">' + esc(c.title) + '</span>' +
+      '</div>';
     }).join('');
+  }
+
+  function openToc() {
+    renderToc();
+    var panel = $('#toc-panel');
+    panel.hidden = false;
+    // 打开时把当前章节滚到可视区中间，长目录也能立刻定位
+    var on = $('#toc-list').querySelector('.toc-item.on');
+    if (on) {
+      on.scrollIntoView({ block: 'center' });
+    }
+  }
+
+  function positionOf(index) {
+    var chapters = orderedChapters();
+    for (var i = 0; i < chapters.length; i++) {
+      if (chapters[i].index === index) {
+        return i;
+      }
+    }
+    return -1;
+  }
+
+  async function goChapter(index) {
+    if (index == null || index === state.chapter) {
+      return;
+    }
+    saveProgress();
+    await loadChapter(index, null);
+  }
+
+  function goPrev() {
+    var chapters = orderedChapters();
+    var pos = positionOf(state.chapter);
+    if (pos <= 0) {
+      CC.toast('已经是第一章');
+      return;
+    }
+    goChapter(chapters[pos - 1].index);
+  }
+
+  function goNext() {
+    var chapters = orderedChapters();
+    var pos = positionOf(state.chapter);
+    if (pos < 0 || pos >= chapters.length - 1) {
+      CC.toast('已经是最后一章');
+      return;
+    }
+    goChapter(chapters[pos + 1].index);
+  }
+
+  /* 顶部进度条 + 章节指示：全书进度 = (已过章节数 + 当前章内滚动比例) / 总章数 */
+  function updateNavAndProgress() {
+    var chapters = orderedChapters();
+    var pos = positionOf(state.chapter);
+    var total = chapters.length || 1;
+    var body = $('#reader-body');
+    var max = body.scrollHeight - body.clientHeight;
+    var innerRatio = max > 0 ? Math.min(1, Math.max(0, body.scrollTop / max)) : 0;
+    var overall = total ? (Math.max(0, pos) + innerRatio) / total : 0;
+
+    $('#progress-fill').style.width = (overall * 100).toFixed(1) + '%';
+    $('#chapter-indicator').textContent = (pos >= 0 ? (pos + 1) : '—') + ' / ' + total + ' 章';
+    $('#chapter-meta').textContent = '全书 ' + Math.round(overall * 100) + '%';
+    $('#btn-prev').disabled = pos <= 0;
+    $('#btn-next').disabled = pos < 0 || pos >= total - 1;
   }
 
   /* ---------- 本书知识面板 ---------- */
@@ -372,8 +473,11 @@
     }
   });
 
-  // 快捷键：选中后 Ctrl/Cmd + Enter 直接存摘录，不打断阅读
+  // 快捷键：Ctrl/Cmd + Enter 存摘录；← / → 翻章；Esc 关闭浮层
   document.addEventListener('keydown', function (event) {
+    var tag = (event.target.tagName || '').toUpperCase();
+    var typing = tag === 'INPUT' || tag === 'TEXTAREA';
+
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
       var info = getSelectionInfo();
       if (!info) {
@@ -384,10 +488,26 @@
       saveNote(info.text, '', info.localStart, info.localEnd)
         .then(function () { window.getSelection().removeAllRanges(); })
         .catch(function (err) { CC.toast('保存失败：' + err.message); });
-    } else if (event.key === 'Escape') {
+      return;
+    }
+
+    if (event.key === 'Escape') {
       hidePop();
       drawer.hidden = true;
       $('#notes-panel').hidden = true;
+      $('#toc-panel').hidden = true;
+      return;
+    }
+
+    if (typing || !drawer.hidden) {
+      return; // 正在输入 / 抽屉打开时不拦截方向键
+    }
+    if (event.key === 'ArrowLeft') {
+      event.preventDefault();
+      goPrev();
+    } else if (event.key === 'ArrowRight') {
+      event.preventDefault();
+      goNext();
     }
   });
 
@@ -418,10 +538,34 @@
     saveProgress();
     location.href = '/books.html';
   });
-  $('#chapter-select').addEventListener('change', function (event) {
-    saveProgress();
-    loadChapter(Number(event.target.value), null);
+
+  /* 目录面板 */
+  $('#btn-toc').addEventListener('click', function () {
+    if ($('#toc-panel').hidden) {
+      openToc();
+    } else {
+      $('#toc-panel').hidden = true;
+    }
   });
+  $('#toc-close').addEventListener('click', function () {
+    $('#toc-panel').hidden = true;
+  });
+  $('#toc-list').addEventListener('click', function (event) {
+    var item = event.target.closest('.toc-item');
+    if (!item) {
+      return;
+    }
+    $('#toc-panel').hidden = true;
+    goChapter(Number(item.getAttribute('data-index')));
+  });
+
+  /* 翻章 / 回到顶部 */
+  $('#btn-prev').addEventListener('click', goPrev);
+  $('#btn-next').addEventListener('click', goNext);
+  $('#btn-top').addEventListener('click', function () {
+    $('#reader-body').scrollTo({ top: 0, behavior: 'smooth' });
+  });
+
   $('#font-down').addEventListener('click', function () {
     state.font = Math.max(14, state.font - 2);
     applyFont();
@@ -430,7 +574,10 @@
     state.font = Math.min(28, state.font + 2);
     applyFont();
   });
-  $('#reader-body').addEventListener('scroll', scheduleSave);
+  $('#reader-body').addEventListener('scroll', function () {
+    scheduleSave();
+    updateNavAndProgress(); // 滚动时同步进度条
+  });
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
       saveProgress();
@@ -450,7 +597,6 @@
       return;
     }
     renderBookInfo();
-    renderChapterSelect();
     await reloadNotes();
 
     var index = currentChapterIndex();
