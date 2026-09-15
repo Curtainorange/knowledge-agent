@@ -40,6 +40,23 @@ async def request_id_middleware(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def static_cache_middleware(request: Request, call_next):
+    """前端静态资源（页面 / JS / CSS）一律「先校验再使用」。
+
+    这些文件是随代码一起演进的，浏览器若沿用启发式缓存，用户就会拿着**旧版
+    app.js 或旧页面**去跑新后端——表现为「BUG 明明修了却没生效」「页面少了一块」。
+    本项目为此已误判过多次（曾连着三次把「旧代码服务器」当成代码问题）。
+
+    `no-cache` 不是「不缓存」——它仍会走 304 协商，代价极小，
+    但保证取到的一定是当前版本。
+    """
+    response = await call_next(request)
+    if request.url.path.endswith((".html", ".js", ".css")):
+        response.headers["Cache-Control"] = "no-cache"
+    return response
+
+
 # 参数校验失败的提示要能直接给人看：FastAPI 默认把 pydantic 的原始错误数组透出
 # （`[{"type":"string_too_short","loc":["body","username"],"msg":"String should have
 # at least 3 characters",...}]`），前端把它 JSON.stringify 后就是一整串英文 JSON，

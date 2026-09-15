@@ -56,6 +56,16 @@ def test_shared_assets_served(client):
     assert "javascript" in js.headers["content-type"]
 
 
+def test_static_assets_are_revalidated(client):
+    """前端静态资源必须「先校验再使用」，否则用户会拿着旧版 JS 跑新后端——
+    表现为「BUG 修了却没生效」。本项目已为此误判多次。"""
+    for path in ("/knowledge.html", "/assets/app.js", "/assets/style.css"):
+        resp = client.get(path)
+        assert resp.headers.get("cache-control") == "no-cache", path
+    # 接口响应不该被加上这个头（它们是动态内容，缓存策略另说）
+    assert client.get("/health").headers.get("cache-control") != "no-cache"
+
+
 def test_conflicts_page_is_isolated(client):
     """L2 冲突检测页只做冲突处理：不含录入 / 登录 / 挖掘表单。"""
     body = client.get("/conflicts.html").text
