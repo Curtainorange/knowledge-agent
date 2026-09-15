@@ -47,7 +47,13 @@
 
   <section>
     <div class="card">
-      <h2>知识列表 <button id="btn-reload" class="sm">刷新</button></h2>
+      <h2>知识列表
+        <span>
+          <button id="btn-export-md" class="sm">导出 MD</button>
+          <button id="btn-export-json" class="sm">导出 JSON</button>
+          <button id="btn-reload" class="sm">刷新</button>
+        </span>
+      </h2>
       <div class="list" id="kb-list"></div>
     </div>
   </section>
@@ -242,6 +248,33 @@
   $('#btn-reload').addEventListener('click', function () {
     loadItems().catch(function (err) { CC.toast('刷新失败：' + err.message); });
   });
+
+  /* 导出：带 token 拉取文件流再触发下载
+     （普通 <a href> 由浏览器直发、带不了 Authorization，所以走 fetch） */
+  async function exportKnowledge(format) {
+    try {
+      var resp = await fetch('/api/v1/knowledge/export?format=' + format, {
+        headers: { Authorization: 'Bearer ' + CC.token() }
+      });
+      if (!resp.ok) {
+        throw new Error('HTTP ' + resp.status);
+      }
+      var blob = await resp.blob();
+      var url = URL.createObjectURL(blob);
+      var a = document.createElement('a');
+      a.href = url;
+      a.download = format === 'json' ? 'knowledge-export.json' : 'knowledge-export.md';
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      CC.toast('已开始下载');
+    } catch (err) {
+      CC.toast('导出失败：' + err.message);
+    }
+  }
+  $('#btn-export-md').addEventListener('click', function () { exportKnowledge('markdown'); });
+  $('#btn-export-json').addEventListener('click', function () { exportKnowledge('json'); });
 
   /* 修改密码：后端换哈希并把令牌版本 +1（其它设备立即失效），
      同时回送新令牌，本机不用重新登录 */

@@ -174,3 +174,61 @@ def test_missing_item_returns_404(client):
     assert client.get(
         "/api/v1/knowledge/items/not-exist", headers=_headers(client, "u_404")
     ).status_code == 404
+
+
+# ---------- 导出 ----------
+
+def test_export_markdown(client):
+    """导出 Markdown：取全量、带下载头、含标题与正文。"""
+    headers = _headers(client, "u_export_md")
+    _create(client, "u_export_md", title="导出一", content="正文一", headers=headers)
+    _create(client, "u_export_md", title="导出二", content="正文二", headers=headers)
+
+    resp = client.get("/api/v1/knowledge/export?format=markdown", headers=headers)
+    assert resp.status_code == 200
+    assert "text/markdown" in resp.headers["content-type"]
+    assert "attachment" in resp.headers["content-disposition"]
+
+    body = resp.text
+    assert "# 知识库导出" in body
+    assert "共 2 条" in body
+    assert "## 导出一" in body and "正文一" in body
+    assert "## 导出二" in body and "正文二" in body
+
+
+def test_export_json(client):
+    """导出 JSON：结构完整、字段齐全。"""
+    headers = _headers(client, "u_export_json")
+    _create(client, "u_export_json", title="JSON 条目", content="JSON 正文", headers=headers)
+
+    resp = client.get("/api/v1/knowledge/export?format=json", headers=headers)
+    assert resp.status_code == 200
+    assert "application/json" in resp.headers["content-type"]
+
+    body = resp.json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "JSON 条目"
+    assert body["items"][0]["content"] == "JSON 正文"
+    for key in ("item_id", "tags", "source", "created_at"):
+        assert key in body["items"][0]
+
+
+def test_export_is_user_scoped(client):
+    """导出只能看到自己的条目，不会串号。"""
+    _create(client, "u_export_a", title="A 的条目", content="A", headers=_headers(client, "u_export_a"))
+    _create(client, "u_export_b", title="B 的条目", content="B", headers=_headers(client, "u_export_b"))
+
+    body = client.get(
+        "/api/v1/knowledge/export?format=json", headers=_headers(client, "u_export_a")
+    ).json()
+    titles = [i["title"] for i in body["items"]]
+    assert "A 的条目" in titles
+    assert "B 的条目" not in titles
+
+
+def test_export_rejects_bad_format(client):
+    """非法 format 应被 422 拦下（避免导出成意料之外的格式）。"""
+    resp = client.get(
+        "/api/v1/knowledge/export?format=pdf", headers=_headers(client, "u_export_bad")
+    )
+    assert resp.status_code == 422

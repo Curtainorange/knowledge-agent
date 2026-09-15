@@ -16,6 +16,7 @@ Thumbs.db
 # --- 运行时产物 ---
 *.db
 *.sqlite3
+/backups/          # 数据备份（本地保留，不入库）
 
 # --- 本地模型权重（体积大，用 scripts/fetch_embedding_model.py 按需获取）---
 # 锚定根目录，避免误伤代码目录 app/domain/models/

@@ -5,9 +5,10 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+import json
+from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query
+from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -212,4 +213,69 @@ def delete_item(
     session.commit()
     return KnowledgeDeleteResponse(
         item_id=item.id, deleted=True, request_id=trace.get_request_id() or ""
+    )
+
+
+@router.get("/export")
+def export_items(
+    format: str = Query(default="markdown", pattern="^(markdown|json)$"),
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> Response:
+    """导出当前用户的全部知识条目（markdown / json），供备份与迁移。
+
+    与列表接口不同，这里刻意取**全量**：导出要的是「一条不落」，分页反而添乱。
+    响应带 Content-Disposition，浏览器会直接下载文件。
+    """
+    items = KnowledgeRepository(session, user_id=user_id).list_active(user_id)
+    exported_at = datetime.now(timezone.utc).strftime("%Y-%m-%d %H:%M UTC")
+
+    if format == "json":
+        payload = {
+            "exported_at": exported_at,
+            "total": len(items),
+            "items": [
+                {
+                    "item_id": i.id,
+                    "title": i.title,
+                    "content": i.raw_content,
+                    "tags": list(i.tags or []),
+                    "source": i.source,
+                    "read_progress": i.read_progress,
+                    "created_at": i.created_at.isoformat() if i.created_at else None,
+                    "updated_at": i.updated_at.isoformat() if i.updated_at else None,
+                }
+                for i in items
+            ],
+        }
+        body = json.dumps(payload, ensure_ascii=False, indent=2)
+        media_type, filename = "application/json", "knowledge-export.json"
+    else:
+        lines: list[str] = [
+            "# 知识库导出",
+            "",
+            f"> 导出时间：{exported_at} · 共 {len(items)} 条",
+            "",
+        ]
+        for i in items:
+            lines.append(f"## {i.title}")
+            lines.append("")
+            lines.append(i.raw_content or "")
+            lines.append("")
+            meta: list[str] = []
+            if i.tags:
+                meta.append("标签：" + "、".join(str(t) for t in i.tags))
+            if i.source:
+                meta.append(f"来源：{i.source}")
+            if i.created_at:
+                meta.append("创建：" + i.created_at.strftime("%Y-%m-%d %H:%M"))
+            lines.append("> " + " · ".join(meta))
+            lines.append("")
+        body = "\n".join(lines)
+        media_type, filename = "text/markdown; charset=utf-8", "knowledge-export.md"
+
+    return Response(
+        content=body,
+        media_type=media_type,
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
     )
