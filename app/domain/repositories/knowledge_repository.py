@@ -1,7 +1,7 @@
 """知识条目仓储：当前用户的录入与检索读取，强制 user_id 作用域。"""
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.domain.models.knowledge_item import KnowledgeItem
@@ -50,25 +50,45 @@ class KnowledgeRepository(BaseRepository[KnowledgeItem]):
 
     # ---- 对外管理接口（列表 / 更新 / 软删）--------------------------------
 
-    def count_active(self, user_id: str) -> int:
-        """当前用户未删除条目总数（用于分页）。"""
+    @staticmethod
+    def _filter_conditions(user_id: str, query: str | None):
+        """列表与计数的共用过滤条件：未删除 + 可选关键词（标题或正文包含）。"""
+        conditions = [KnowledgeItem.user_id == user_id, KnowledgeItem.is_deleted.is_(False)]
+        text = (query or "").strip()
+        if text:
+            like = f"%{text}%"
+            conditions.append(
+                or_(KnowledgeItem.title.ilike(like), KnowledgeItem.raw_content.ilike(like))
+            )
+        return conditions
+
+    def count_active(self, user_id: str, query: str | None = None) -> int:
+        """当前用户未删除条目总数（可选关键词过滤，用于分页）。"""
         self._guard(user_id)
         stmt = (
             select(func.count())
             .select_from(KnowledgeItem)
-            .where(KnowledgeItem.user_id == user_id, KnowledgeItem.is_deleted.is_(False))
+            .where(*self._filter_conditions(user_id, query))
         )
         return int(self._session.scalar(stmt) or 0)
 
-    def page_active(self, user_id: str, limit: int = 20, offset: int = 0) -> list[KnowledgeItem]:
+    def page_active(
+        self,
+        user_id: str,
+        limit: int = 20,
+        offset: int = 0,
+        query: str | None = None,
+    ) -> list[KnowledgeItem]:
         """分页读取未删除条目（列表展示用，避免一次性拉全量）。
 
-        以 id 作二级排序：created_at 只精确到秒，同秒录入的条目分页顺序否则不确定。
+        传 `query` 时按「标题或正文包含关键词」过滤（`ilike`，对英文大小写不敏感；
+        中文为子串匹配）。以 id 作二级排序：created_at 只精确到秒，
+        同秒录入的条目分页顺序否则不确定。
         """
         self._guard(user_id)
         stmt = (
             select(KnowledgeItem)
-            .where(KnowledgeItem.user_id == user_id, KnowledgeItem.is_deleted.is_(False))
+            .where(*self._filter_conditions(user_id, query))
             .order_by(KnowledgeItem.created_at.desc(), KnowledgeItem.id.asc())
             .limit(limit)
             .offset(offset)

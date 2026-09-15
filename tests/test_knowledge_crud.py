@@ -232,3 +232,59 @@ def test_export_rejects_bad_format(client):
         "/api/v1/knowledge/export?format=pdf", headers=_headers(client, "u_export_bad")
     )
     assert resp.status_code == 422
+
+
+# ---------- 搜索 ----------
+
+def test_search_matches_title_and_content(client):
+    """关键词命中标题或正文；无匹配返回空。"""
+    headers = _headers(client, "u_search")
+    _create(client, "u_search", title="数据库索引", content="B+树与哈希", headers=headers)
+    _create(client, "u_search", title="另一篇", content="讲的是数据库事务", headers=headers)
+    _create(client, "u_search", title="无关条目", content="前端渲染", headers=headers)
+
+    by_title = client.get("/api/v1/knowledge/items?q=索引", headers=headers).json()
+    assert by_title["total"] == 1
+    assert by_title["items"][0]["title"] == "数据库索引"
+
+    by_content = client.get("/api/v1/knowledge/items?q=数据库", headers=headers).json()
+    assert by_content["total"] == 2  # 标题一条 + 正文一条
+
+    none = client.get("/api/v1/knowledge/items?q=完全没有的词", headers=headers).json()
+    assert none["total"] == 0
+    assert none["items"] == []
+
+
+def test_search_is_user_scoped(client):
+    """搜索不会跨用户串号。"""
+    _create(client, "u_search_a", title="A 的数据库笔记", content="x", headers=_headers(client, "u_search_a"))
+    _create(client, "u_search_b", title="B 的数据库笔记", content="x", headers=_headers(client, "u_search_b"))
+
+    body = client.get("/api/v1/knowledge/items?q=数据库", headers=_headers(client, "u_search_a")).json()
+    assert body["total"] == 1
+    assert body["items"][0]["title"] == "A 的数据库笔记"
+
+
+def test_search_excludes_deleted(client):
+    """已软删的条目不参与搜索。"""
+    headers = _headers(client, "u_search_del")
+    created = _create(client, "u_search_del", title="待删的搜索条目", content="x", headers=headers)
+    client.delete("/api/v1/knowledge/items/" + created["item_id"], headers=headers)
+
+    body = client.get("/api/v1/knowledge/items?q=待删的搜索条目", headers=headers).json()
+    assert body["total"] == 0
+
+
+def test_search_with_pagination(client):
+    """搜索 + 分页组合：total 是命中总数，分页在命中集内切。"""
+    headers = _headers(client, "u_search_page")
+    for i in range(5):
+        _create(client, "u_search_page", title=f"检索目标 {i}", content="同主题", headers=headers)
+
+    first = client.get("/api/v1/knowledge/items?q=检索目标&limit=2&offset=0", headers=headers).json()
+    assert first["total"] == 5
+    assert len(first["items"]) == 2
+
+    second = client.get("/api/v1/knowledge/items?q=检索目标&limit=2&offset=2", headers=headers).json()
+    first_ids = {i["item_id"] for i in first["items"]}
+    assert all(i["item_id"] not in first_ids for i in second["items"])

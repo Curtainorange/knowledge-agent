@@ -54,6 +54,7 @@
           <button id="btn-reload" class="sm">刷新</button>
         </span>
       </h2>
+      <div class="field"><input id="kb-search" type="search" placeholder="搜索标题或正文…"></div>
       <div class="list" id="kb-list"></div>
     </div>
   </section>
@@ -82,7 +83,8 @@
 
   var $ = CC.$;
   var esc = CC.esc;
-  var state = { items: [], total: 0, detail: {}, selected: null };
+  var PAGE_SIZE = 20;
+  var state = { items: [], total: 0, detail: {}, selected: null, query: '', loading: false };
 
   function embedBadge(status) {
     if (status === 'embedded') {
@@ -116,10 +118,12 @@
     var box = $('#kb-list');
     $('#kb-count').textContent = state.total;
     if (!state.items.length) {
-      box.innerHTML = '<div class="empty">知识库还是空的，先在左侧录一条。</div>';
+      box.innerHTML = state.query
+        ? '<div class="empty">没有匹配「' + esc(state.query) + '」的条目。</div>'
+        : '<div class="empty">知识库还是空的，先在左侧录一条。</div>';
       return;
     }
-    box.innerHTML = state.items.map(function (item) {
+    var html = state.items.map(function (item) {
       var pct = Math.round((item.read_progress || 0) * 100);
       var open = state.selected === item.item_id;
       return '<div class="item ' + (open ? 'active' : '') + '" data-id="' + esc(item.item_id) + '">' +
@@ -130,13 +134,39 @@
         (open ? detailHtml(item, pct) : '') +
       '</div>';
     }).join('');
+    // 还有更多时补一个「加载更多」——此前固定 limit=50，超出部分永远看不到
+    if (state.items.length < state.total) {
+      html += '<button id="kb-more" class="sm" style="width:100%;margin-top:6px">' +
+        '加载更多（已显示 ' + state.items.length + ' / ' + state.total + '）</button>';
+    }
+    box.innerHTML = html;
   }
 
-  async function loadItems() {
-    var data = await CC.api('GET', '/api/v1/knowledge/items?limit=50&offset=0');
-    state.items = data.items;
-    state.total = data.total;
-    renderItems();
+  /** 拉取列表；reset=true 从第一页重来（首屏 / 刷新 / 搜索 / 增删后），false 追加下一页。 */
+  async function loadItems(reset) {
+    if (reset === undefined) {
+      reset = true;
+    }
+    if (state.loading) {
+      return;
+    }
+    state.loading = true;
+    try {
+      if (reset) {
+        state.items = [];
+        state.selected = null;
+      }
+      var params = 'limit=' + PAGE_SIZE + '&offset=' + state.items.length;
+      if (state.query) {
+        params += '&q=' + encodeURIComponent(state.query);
+      }
+      var data = await CC.api('GET', '/api/v1/knowledge/items?' + params);
+      state.total = data.total;
+      state.items = state.items.concat(data.items);
+      renderItems();
+    } finally {
+      state.loading = false;
+    }
   }
 
   async function selectItem(itemId) {
@@ -153,6 +183,10 @@
   }
 
   $('#kb-list').addEventListener('click', async function (event) {
+    if (event.target.closest('#kb-more')) {
+      loadItems(false).catch(function (err) { CC.toast('加载失败：' + err.message); });
+      return;
+    }
     var itemNode = event.target.closest('.item');
     if (!itemNode) {
       return;
@@ -247,6 +281,17 @@
 
   $('#btn-reload').addEventListener('click', function () {
     loadItems().catch(function (err) { CC.toast('刷新失败：' + err.message); });
+  });
+
+  /* 搜索：防抖 300ms，避免每敲一个字都发一次请求 */
+  var searchTimer = null;
+  $('#kb-search').addEventListener('input', function () {
+    var value = this.value.trim();
+    clearTimeout(searchTimer);
+    searchTimer = setTimeout(function () {
+      state.query = value;
+      loadItems(true).catch(function (err) { CC.toast('搜索失败：' + err.message); });
+    }, 300);
   });
 
   /* 导出：带 token 拉取文件流再触发下载

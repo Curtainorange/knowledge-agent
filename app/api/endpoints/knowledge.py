@@ -107,13 +107,14 @@ def create_item(
 def list_items(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    q: str | None = Query(default=None, max_length=100, description="关键词：标题或正文包含即命中"),
     user_id: str = Depends(get_user_id),
     session: Session = Depends(get_session),
 ) -> KnowledgeListResponse:
-    """分页列出当前用户未删除条目（默认 20 条，最多 100 条）。"""
+    """分页列出当前用户未删除条目（默认 20 条，最多 100 条）；传 `q` 则按关键词过滤。"""
     repo = KnowledgeRepository(session, user_id=user_id)
-    total = repo.count_active(user_id)
-    rows = repo.page_active(user_id, limit=limit, offset=offset)
+    total = repo.count_active(user_id, query=q)
+    rows = repo.page_active(user_id, limit=limit, offset=offset, query=q)
     return KnowledgeListResponse(
         items=[
             KnowledgeBrief(
