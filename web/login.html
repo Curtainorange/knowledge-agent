@@ -101,10 +101,12 @@
     if (msg) {
       CC.toast(msg);
     }
-    // 已有有效令牌就直接进入，不必重复登录
+    // 已有有效令牌就直接进入，不必重复登录。
+    // noAuthRedirect：人已经站在登录页了，401 不该再跳一次登录页；
+    // 但静默续期仍然会先尝试（access 过期、refresh 还有效时可直接进去）。
     if (CC.token()) {
       try {
-        await CC.api('GET', '/api/v1/auth/me');
+        await CC.api('GET', '/api/v1/auth/me', null, { noAuthRedirect: true });
         location.replace(next);
         return;
       } catch (err) {

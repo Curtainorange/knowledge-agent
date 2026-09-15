@@ -11,6 +11,27 @@ window.CC = (function () {
   var REFRESH_KEY = 'cc_refresh_token';
   var NAME_KEY = 'cc_username';
 
+  /* 这些端点的 401 表示「你给的凭证本身不对」（密码错 / 刷新令牌无效），
+     必须把原因原样报给用户；若也当成「登录过期」跳转，就会把「密码错误」
+     误报成「登录过期」，用户永远看不到真正的原因。
+
+     ⚠️ 这里必须是**白名单**而不是「/api/v1/auth/ 前缀」：
+     `/api/v1/auth/me` 是**会话探针**，它的 401 恰恰就是「登录已过期」，
+     必须跳转登录页。早期版本排除了整个 auth 前缀，于是令牌一过期，
+     页面既不跳登录也不报错，`requireAuth` 静默返回 null、`boot()` 直接
+     结束——界面渲染成一个空壳：列表空、用户名空、退出按钮没绑事件
+     （用户看到的就是「记录全没了 + 账号不显示 + 退不掉」）。 */
+  var NO_AUTH_REDIRECT_PATHS = [
+    '/api/v1/auth/login',
+    '/api/v1/auth/register',
+    '/api/v1/auth/password',
+    '/api/v1/auth/account',
+    '/api/v1/auth/refresh'
+  ];
+
+  var _topbarBound = false;
+  var _refreshInFlight = null;
+
   function $(selector) {
     return document.querySelector(selector);
   }
@@ -23,6 +44,10 @@ window.CC = (function () {
 
   function token() {
     return localStorage.getItem(TOKEN_KEY) || '';
+  }
+
+  function refreshToken() {
+    return localStorage.getItem(REFRESH_KEY) || '';
   }
 
   function username() {
@@ -54,13 +79,22 @@ window.CC = (function () {
     }, 2600);
   }
 
+  function isLoginPage() {
+    return location.pathname.indexOf('login.html') !== -1;
+  }
+
   function goLogin(message) {
     clearSession();
-    var url = '/login.html';
+    var params = [];
     if (message) {
-      url += '?msg=' + encodeURIComponent(message);
+      params.push('msg=' + encodeURIComponent(message));
     }
-    location.replace(url);
+    // 带上回跳目标：重新登录后回到刚才那一页，而不是一律丢到知识库。
+    // 在登录页自身则不带（否则会自我嵌套）。
+    if (!isLoginPage()) {
+      params.push('next=' + encodeURIComponent(location.pathname + location.search));
+    }
+    location.replace('/login.html' + (params.length ? '?' + params.join('&') : ''));
   }
 
   /* 把错误响应转成能直接显示给人看的短句。
@@ -94,9 +128,9 @@ window.CC = (function () {
     return 'HTTP ' + res.status;
   }
 
-  async function api(method, path, body) {
-    var t = token();
+  function rawFetch(method, path, body) {
     var headers = { 'Content-Type': 'application/json' };
+    var t = token();
     if (t) {
       headers.Authorization = 'Bearer ' + t;
     }
@@ -104,12 +138,63 @@ window.CC = (function () {
     if (body !== undefined && body !== null) {
       options.body = JSON.stringify(body);
     }
+    return fetch(path, options);
+  }
 
-    var res = await fetch(path, options);
-    // auth 接口自身不触发跳转，否则会把「密码错误」误报成「登录过期」
-    if (res.status === 401 && path.indexOf('/api/v1/auth/') !== 0) {
-      goLogin('登录已过期，请重新登录');
-      throw new Error('登录已过期');
+  /* 用 refresh token 静默续期：成功则换掉 access token 并返回 true。
+     并发的多个请求共享同一次续期，避免同时打出多个 /refresh。 */
+  function tryRefresh() {
+    if (_refreshInFlight) {
+      return _refreshInFlight;
+    }
+    var rt = refreshToken();
+    if (!rt) {
+      return Promise.resolve(false);
+    }
+    _refreshInFlight = fetch('/api/v1/auth/refresh', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ refresh_token: rt })
+    }).then(function (res) {
+      if (!res.ok) {
+        return false;
+      }
+      return res.json().then(function (data) {
+        if (!data || !data.access_token) {
+          return false;
+        }
+        localStorage.setItem(TOKEN_KEY, data.access_token);
+        return true;
+      });
+    }).catch(function () {
+      return false;
+    }).then(function (ok) {
+      _refreshInFlight = null;
+      return ok;
+    });
+    return _refreshInFlight;
+  }
+
+  /* options.noAuthRedirect：401 时不跳登录页，由调用方自己处置
+     （登录页的探针就是这么用的——它已经站在登录页上了）。 */
+  async function api(method, path, body, options) {
+    options = options || {};
+    var basePath = path.split('?')[0];
+    var res = await rawFetch(method, path, body);
+
+    if (res.status === 401 && NO_AUTH_REDIRECT_PATHS.indexOf(basePath) === -1) {
+      // access token 过期：先静默续期，再原样重试一次。
+      // 读一本书动辄一两小时，access token 只有 2 小时——不续期的话
+      // 「读完书退出来」必然撞上过期，用户就会看到一整页空白。
+      if (await tryRefresh()) {
+        res = await rawFetch(method, path, body);
+      }
+      if (res.status === 401 && !options.noAuthRedirect) {
+        var expired = new Error('登录已过期，请重新登录');
+        expired.authRedirect = true;
+        goLogin('登录已过期，请重新登录');
+        throw expired;
+      }
     }
 
     var data = {};
@@ -139,12 +224,16 @@ window.CC = (function () {
     if (nameEl) {
       nameEl.textContent = username();
     }
+    if (_topbarBound) {
+      return; // 幂等：重复调用不会把退出按钮绑多次
+    }
     var logout = $('#btn-logout');
     if (logout) {
       logout.addEventListener('click', function () {
         clearSession();
         location.replace('/login.html');
       });
+      _topbarBound = true;
     }
   }
 
@@ -158,8 +247,12 @@ window.CC = (function () {
     }
   }
 
-  /* 业务页统一入口：无令牌直接跳登录；令牌失效由 api() 负责跳转 */
+  /* 业务页统一入口：无令牌直接跳登录；令牌失效由 api() 负责续期或跳转。
+     顶栏在**校验之前**就渲染好——这样即使校验失败，用户名仍可见、
+     退出按钮仍可用，不会留下一个「退不掉」的死页面。 */
   async function requireAuth() {
+    renderTopbar();
+    highlightNav();
     if (!token()) {
       goLogin();
       return null;
@@ -168,9 +261,13 @@ window.CC = (function () {
       var me = await api('GET', '/api/v1/auth/me');
       localStorage.setItem(NAME_KEY, me.username);
       renderTopbar();
-      highlightNav();
       return me;
     } catch (err) {
+      // 401 已由 api() 跳转登录页；能走到这里说明是网络/服务端异常，
+      // 必须让用户看得见，不能静默留一个空壳。
+      if (!(err && err.authRedirect)) {
+        toast('会话校验失败：' + ((err && err.message) || err) + '（可刷新页面重试）');
+      }
       return null;
     }
   }
@@ -179,6 +276,7 @@ window.CC = (function () {
     $: $,
     esc: esc,
     token: token,
+    refreshToken: refreshToken,
     username: username,
     setSession: setSession,
     clearSession: clearSession,
@@ -186,6 +284,7 @@ window.CC = (function () {
     api: api,
     withLoading: withLoading,
     requireAuth: requireAuth,
-    goLogin: goLogin
+    goLogin: goLogin,
+    tryRefresh: tryRefresh
   };
 })();
