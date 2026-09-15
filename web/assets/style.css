@@ -266,6 +266,34 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 .toc-item.on{background:var(--accent-weak);color:var(--accent);font-weight:600}
 .toc-no{flex:0 0 32px;font-size:12px;color:var(--muted-2);font-variant-numeric:tabular-nums}
 .toc-title{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+
+/* ============ 阅读日志：趋势柱状图 ============ */
+.rl-chart{
+  display:flex;align-items:flex-end;gap:6px;overflow-x:auto;
+  padding:8px 2px 4px;min-height:180px;
+}
+.rl-chart .empty{width:100%;align-self:center}
+.rl-bar{
+  flex:1 0 32px;display:flex;flex-direction:column;align-items:center;gap:4px;
+}
+.rl-bar-val{
+  font-size:10.5px;font-weight:600;color:var(--accent);white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
+.rl-bar-track{
+  width:100%;height:140px;display:flex;align-items:flex-end;justify-content:center;
+  border-bottom:1px solid var(--border);
+}
+.rl-bar-track i{
+  display:block;width:56%;max-width:26px;min-height:3px;
+  background:var(--accent-grad);border-radius:6px 6px 2px 2px;
+  transition:height .25s ease;
+}
+.rl-bar:hover .rl-bar-track i{box-shadow:0 4px 14px rgba(79,70,229,.35)}
+.rl-bar-x{
+  font-size:11px;color:var(--muted-2);white-space:nowrap;
+  font-variant-numeric:tabular-nums;
+}
 #selection-pop{
   position:fixed;background:var(--accent-grad);color:#fff;padding:4px;border-radius:10px;
   font-size:13px;display:none;gap:4px;z-index:60;box-shadow:var(--shadow-md);
@@ -432,7 +460,24 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 /* ============ 阅读器图片 ============ */
 .reader-figure{margin:18px 0;text-align:center}
 .reader-figure img{
-  max-width:100%;max-height:520px;border-radius:12px;
+  max-width:100%;max-height:520px;border-radius:12px;cursor:zoom-in;
   box-shadow:var(--shadow-md);background:#fafbfe;
+  transition:transform .15s,box-shadow .15s;
 }
+.reader-figure img:hover{transform:scale(1.008);box-shadow:var(--shadow-lg)}
 .img-pos{display:none}
+
+/* 插图放大（lightbox） */
+.img-lightbox{
+  position:fixed;inset:0;z-index:100;padding:32px;cursor:zoom-out;
+  display:flex;align-items:center;justify-content:center;
+  background:rgba(15,18,32,.88);
+  -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
+  animation:lb-in .16s ease;
+}
+.img-lightbox[hidden]{display:none}
+.img-lightbox img{
+  max-width:100%;max-height:100%;border-radius:12px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+}
+@keyframes lb-in{from{opacity:0}to{opacity:1}}

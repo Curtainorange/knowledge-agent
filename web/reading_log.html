@@ -31,13 +31,22 @@
     <h2>阅读概览
       <button id="btn-back" class="sm">← 书架</button>
     </h2>
+    <div class="tabs" id="rl-group">
+      <button class="sm on" data-group="day">按天</button>
+      <button class="sm" data-group="week">按周</button>
+      <button class="sm" data-group="month">按月</button>
+    </div>
     <div class="meta">最近 <strong id="rl-window">30</strong> 天共读 <strong id="rl-total">0</strong>，
-      活跃 <strong id="rl-days">0</strong> 天。</div>
-    <div class="meta">数据来自每次阅读的进度记录，按天聚合。</div>
+      活跃 <strong id="rl-days">0</strong><span id="rl-unit">天</span>。</div>
   </div>
 
   <div class="card">
-    <h2>按天记录</h2>
+    <h2>阅读趋势</h2>
+    <div class="rl-chart" id="rl-chart"></div>
+  </div>
+
+  <div class="card">
+    <h2>明细</h2>
     <div id="rl-list"></div>
   </div>
 </main>
@@ -51,6 +60,8 @@
   var $ = CC.$;
   var esc = CC.esc;
   var WINDOW_DAYS = 30;
+  var UNIT = { day: '天', week: '周', month: '月' };
+  var state = { group: 'day' };
 
   function fmtChars(n) {
     n = Number(n || 0);
@@ -60,40 +71,105 @@
     return n + ' 字';
   }
 
-  function render(data) {
-    $('#rl-window').textContent = String(WINDOW_DAYS);
-    $('#rl-total').textContent = fmtChars(data.total_chars);
-    $('#rl-days').textContent = String(data.active_days || 0);
+  /* 桶标签：日 9/14 · 周 W37 · 月 9月 */
+  function shortLabel(key, group) {
+    var m;
+    if (group === 'week' && (m = /^(\d{4})-W(\d+)$/.exec(key))) {
+      return 'W' + Number(m[2]);
+    }
+    if (group === 'month' && (m = /^(\d{4})-(\d{2})$/.exec(key))) {
+      return Number(m[2]) + '月';
+    }
+    if ((m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(key))) {
+      return Number(m[2]) + '/' + Number(m[3]);
+    }
+    return key;
+  }
 
-    var days = data.days || [];
-    if (!days.length) {
+  function fullLabel(key, group) {
+    var m;
+    if (group === 'week' && (m = /^(\d{4})-W(\d+)$/.exec(key))) {
+      return m[1] + ' 年第 ' + Number(m[2]) + ' 周';
+    }
+    if (group === 'month' && (m = /^(\d{4})-(\d{2})$/.exec(key))) {
+      return m[1] + ' 年 ' + Number(m[2]) + ' 月';
+    }
+    return key;
+  }
+
+  /* 纯 CSS 柱状图：左旧右新，高度按桶内字数归一化 */
+  function renderChart(buckets, group) {
+    var box = $('#rl-chart');
+    if (!buckets.length) {
+      box.innerHTML = '<div class="empty">暂无数据</div>';
+      return;
+    }
+    var max = Math.max.apply(null, buckets.map(function (b) { return b.total_chars; }).concat([1]));
+    var asc = buckets.slice().reverse(); // 时间正序
+    box.innerHTML = asc.map(function (b) {
+      var h = Math.max(3, Math.round((b.total_chars / max) * 100));
+      return '<div class="rl-bar" title="' + esc(fullLabel(b.key, group)) + '：' +
+          esc(fmtChars(b.total_chars)) + '">' +
+        '<span class="rl-bar-val">' + esc(fmtChars(b.total_chars)) + '</span>' +
+        '<div class="rl-bar-track"><i style="height:' + h + '%"></i></div>' +
+        '<span class="rl-bar-x">' + esc(shortLabel(b.key, group)) + '</span>' +
+      '</div>';
+    }).join('');
+  }
+
+  function renderList(buckets, group) {
+    if (!buckets.length) {
       $('#rl-list').innerHTML = '<div class="empty">还没有阅读记录。<br>去书架打开一本书，读几页就会出现在这里。</div>';
       return;
     }
-    $('#rl-list').innerHTML = days.map(function (day) {
-      var books = (day.books || []).map(function (b) {
+    $('#rl-list').innerHTML = buckets.map(function (b) {
+      var books = (b.books || []).map(function (bk) {
         return '<div class="topic-row">' +
-          '<span class="topic-name">' + esc(b.title) + '</span>' +
-          '<span class="topic-levels">' + esc(fmtChars(b.chars_read)) +
-            ' · 已读 ' + Math.round(Number(b.progress || 0) * 100) + '%</span>' +
+          '<span class="topic-name">' + esc(bk.title) + '</span>' +
+          '<span class="topic-levels">' + esc(fmtChars(bk.chars_read)) +
+            ' · 已读 ' + Math.round(Number(bk.progress || 0) * 100) + '%</span>' +
         '</div>';
       }).join('');
       return '<div class="question-card">' +
-        '<div class="q-head">' + esc(day.date) +
-          ' <span class="badge ok">' + esc(fmtChars(day.total_chars)) + '</span></div>' +
+        '<div class="q-head">' + esc(fullLabel(b.key, group)) +
+          ' <span class="badge ok">' + esc(fmtChars(b.total_chars)) + '</span></div>' +
         books +
       '</div>';
     }).join('');
   }
 
-  async function load() {
+  function render(data) {
+    var group = data.group || state.group;
+    $('#rl-window').textContent = String(WINDOW_DAYS);
+    $('#rl-total').textContent = fmtChars(data.total_chars);
+    $('#rl-days').textContent = String(data.active_buckets || 0);
+    $('#rl-unit').textContent = UNIT[group] || '天';
+    renderChart(data.buckets || [], group);
+    renderList(data.buckets || [], group);
+  }
+
+  async function load(group) {
+    state.group = group;
+    var tabs = document.querySelectorAll('#rl-group button');
+    for (var i = 0; i < tabs.length; i++) {
+      tabs[i].classList.toggle('on', tabs[i].getAttribute('data-group') === group);
+    }
     try {
-      var data = await CC.api('GET', '/api/v1/books/reading-log?days=' + WINDOW_DAYS);
+      var data = await CC.api(
+        'GET', '/api/v1/books/reading-log?days=' + WINDOW_DAYS + '&group=' + group
+      );
       render(data);
     } catch (err) {
       $('#rl-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
     }
   }
+
+  $('#rl-group').addEventListener('click', function (event) {
+    var btn = event.target.closest('button[data-group]');
+    if (btn) {
+      load(btn.getAttribute('data-group'));
+    }
+  });
 
   $('#btn-back').addEventListener('click', function () {
     location.href = '/books.html';
@@ -103,7 +179,7 @@
     if (!(await CC.requireAuth())) {
       return;
     }
-    await load();
+    await load('day');
   })();
 })();
 </script>

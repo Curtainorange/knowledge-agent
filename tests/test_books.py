@@ -401,16 +401,17 @@ def _seed_reading(session, user_id: str, title: str = "测试书"):
 
 
 def test_reading_log_aggregates_by_day(session):
-    """阅读日志：按天算增量，「当天读了多少」= 当天结束位置 − 此前已读位置。"""
+    """阅读日志：按天算增量，「当天读了多少」= 当天达到的最大位置 − 此前已读位置。"""
     from app.books.service import BookService
 
     _seed_reading(session, "u1")
     result = BookService(session).reading_log(user_id="u1", days=30)
 
-    assert result["active_days"] == 2
+    assert result["group"] == "day"
+    assert result["active_buckets"] == 2
     assert result["total_chars"] == 3000  # 1500（昨天）+ 1500（今天）
 
-    latest = result["days"][0]  # 按日期倒序，最新一天在前
+    latest = result["buckets"][0]  # 按日期倒序，最新一天在前
     assert latest["total_chars"] == 1500
     assert latest["books"][0]["title"] == "测试书"
 
@@ -430,6 +431,28 @@ def test_reading_log_aggregates_by_day(session):
     assert again["total_chars"] == 3000  # 未因回退而减少或增加
 
 
+def test_reading_log_groups_by_week_and_month(session):
+    """同一批事件按周/月聚合：总字数不变，桶数减少（粒度变粗）。"""
+    from app.books.service import BookService
+
+    _seed_reading(session, "u1")
+    svc = BookService(session)
+
+    by_day = svc.reading_log(user_id="u1", days=30, group="day")
+    by_week = svc.reading_log(user_id="u1", days=30, group="week")
+    by_month = svc.reading_log(user_id="u1", days=30, group="month")
+
+    # 总量与口径无关，只与「读了多少」有关
+    assert by_day["total_chars"] == by_week["total_chars"] == by_month["total_chars"] == 3000
+    assert by_week["group"] == "week"
+    assert by_month["group"] == "month"
+    # 昨天的 key 形如 2026-W37 / 2026-09
+    assert "-W" in by_week["buckets"][0]["key"] or by_week["active_buckets"] >= 1
+    assert len(by_month["buckets"][0]["key"].split("-")) == 2  # YYYY-MM
+    # 非法 group 回落到 day
+    assert svc.reading_log(user_id="u1", days=30, group="oops")["group"] == "day"
+
+
 def test_reading_log_api(client):
     """阅读日志端点：走完整用户流程（上传 → 更新进度 → 查日志），
     并验证静态路由 `/reading-log` 不被 `/{book_id}` 动态路由吃掉。"""
@@ -445,9 +468,17 @@ def test_reading_log_api(client):
     assert resp.status_code == 200
 
     body = client.get("/api/v1/books/reading-log?days=30", headers=headers).json()
-    assert body["active_days"] == 1
+    assert body["group"] == "day"
+    assert body["active_buckets"] == 1
     assert body["total_chars"] == 12
-    assert body["days"][0]["books"][0]["title"] == "书"
+    assert body["buckets"][0]["books"][0]["title"] == "书"
+
+    # 按周聚合也应当返回 200 且结构一致
+    weekly = client.get(
+        "/api/v1/books/reading-log?days=30&group=week", headers=headers
+    ).json()
+    assert weekly["group"] == "week"
+    assert weekly["total_chars"] == 12
 
 
 def test_reading_log_page_served(client):

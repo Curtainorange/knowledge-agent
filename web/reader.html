@@ -69,6 +69,10 @@
   <div id="notes-list"></div>
 </aside>
 
+<div class="img-lightbox" id="img-lightbox" hidden>
+  <img id="lightbox-img" alt="">
+</div>
+
 <div id="toast"></div>
 <script src="/assets/app.js"></script>
 <script>
@@ -175,17 +179,25 @@
       var imgStart = match.index;
       html += renderTextRange(text, cursor, imgStart, marks);
       var name = match[1];
-      // 图片由浏览器直接加载，带不了 Authorization 头，故用 ?token= 兜底
+      // 图片由浏览器直接加载，带不了 Authorization 头，故用 ?token= 兜底。
+      // 不用 loading="lazy"：位置恢复要在图片加载完成后校准（lazy 会让 complete 长期为假）。
       var imgUrl = '/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) +
         '?token=' + encodeURIComponent(CC.token() || '');
       html += '<figure class="reader-figure">' +
-        '<img src="' + imgUrl + '" alt="插图" loading="lazy">' +
+        '<img src="' + imgUrl + '" alt="插图（点击放大）" title="点击放大">' +
         '<span class="img-pos">[[IMG:' + esc(name) + ']]</span>' +
       '</figure>';
       cursor = imgStart + match[0].length;
     }
     html += renderTextRange(text, cursor, text.length, marks);
     return html;
+  }
+
+  /* 按比例恢复章内滚动位置；插图加载完成后会再调用一次校准 */
+  function restoreScroll(body, ratio) {
+    var max = body.scrollHeight - body.clientHeight;
+    body.scrollTop = Math.max(0, ratio * max);
+    updateNavAndProgress();
   }
 
   async function loadChapter(index, scrollRatio) {
@@ -199,9 +211,25 @@
 
     if (scrollRatio != null) {
       requestAnimationFrame(function () {
-        var max = body.scrollHeight - body.clientHeight;
-        body.scrollTop = Math.max(0, scrollRatio * max);
-        updateNavAndProgress();
+        restoreScroll(body, scrollRatio);
+        // 插图会把布局撑高：图片未加载完时算出的 scrollTop 会偏前（表现为「只恢复到章首附近」）。
+        // 等这一章的图片都加载（或失败）后，再按同一比例校准一次。
+        var imgs = Array.prototype.slice.call(body.querySelectorAll('img'));
+        var pending = 0;
+        imgs.forEach(function (im) {
+          if (im.complete) {
+            return;
+          }
+          pending++;
+          var done = function () {
+            pending--;
+            if (pending <= 0) {
+              restoreScroll(body, scrollRatio);
+            }
+          };
+          im.addEventListener('load', done);
+          im.addEventListener('error', done);
+        });
       });
     }
     updateNavAndProgress();
@@ -496,11 +524,12 @@
       drawer.hidden = true;
       $('#notes-panel').hidden = true;
       $('#toc-panel').hidden = true;
+      closeLightbox();
       return;
     }
 
-    if (typing || !drawer.hidden) {
-      return; // 正在输入 / 抽屉打开时不拦截方向键
+    if (typing || !drawer.hidden || !$('#img-lightbox').hidden) {
+      return; // 正在输入 / 抽屉或大图打开时不拦截方向键
     }
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
@@ -565,6 +594,24 @@
   $('#btn-top').addEventListener('click', function () {
     $('#reader-body').scrollTo({ top: 0, behavior: 'smooth' });
   });
+
+  /* 插图点击放大（lightbox） */
+  function closeLightbox() {
+    var box = $('#img-lightbox');
+    if (!box.hidden) {
+      box.hidden = true;
+      $('#lightbox-img').src = '';
+    }
+  }
+  $('#reader-body').addEventListener('click', function (event) {
+    var img = event.target.closest('img');
+    if (!img || !img.src) {
+      return;
+    }
+    $('#lightbox-img').src = img.src;
+    $('#img-lightbox').hidden = false;
+  });
+  $('#img-lightbox').addEventListener('click', closeLightbox);
 
   $('#font-down').addEventListener('click', function () {
     state.font = Math.max(14, state.font - 2);

@@ -154,6 +154,18 @@ def test_reader_has_toc_and_chapter_navigation(client):
     assert "progress-fill" in body       # 阅读进度条
     assert "chapter-indicator" in body   # 第 n / N 章
     assert "chapter-select" not in body  # 旧的下拉已替换
+    assert "img-lightbox" in body        # 插图点击放大
+    assert "restoreScroll" in body       # 章内位置恢复（图片加载后校准）
+
+
+def test_reading_log_page_has_group_switch_and_chart(client):
+    """阅读日志支持 日/周/月 切换与趋势图。"""
+    body = client.get("/reading_log.html").text
+    assert "rl-group" in body            # 视图切换
+    assert 'data-group="week"' in body
+    assert 'data-group="month"' in body
+    assert "rl-chart" in body            # 趋势柱状图
+    assert "rl-list" in body
 
 
 def test_api_routes_unaffected(client):

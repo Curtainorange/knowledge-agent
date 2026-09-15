@@ -127,16 +127,17 @@ class ReadingLogBookOut(BaseModel):
     progress: float
 
 
-class ReadingLogDayOut(BaseModel):
-    date: str
+class ReadingLogBucketOut(BaseModel):
+    key: str  # day: 2026-09-14 / week: 2026-W37 / month: 2026-09
     total_chars: int
     books: list[ReadingLogBookOut]
 
 
 class ReadingLogResponse(BaseModel):
-    days: list[ReadingLogDayOut]
+    group: str
+    buckets: list[ReadingLogBucketOut]
     total_chars: int
-    active_days: int
+    active_buckets: int
     request_id: str
 
 
@@ -198,18 +199,21 @@ def list_books(
 @router.get("/reading-log", response_model=ReadingLogResponse)
 def reading_log(
     days: int = 30,
+    group: str = "day",
     user_id: str = Depends(get_user_id),
     session: Session = Depends(get_session),
 ) -> ReadingLogResponse:
-    """按天聚合的阅读日志：每天读了哪几本书、各读了多少字。
+    """按天 / 周 / 月聚合的阅读日志：每桶读了哪几本书、各读了多少字。
 
-    必须定义在 `/{book_id}` 之前，否则 "reading-log" 会被当成 book_id 吃掉。
+    `group`：day（默认）/ week / month。必须定义在 `/{book_id}` 之前，
+    否则 "reading-log" 会被当成 book_id 吃掉。
     """
-    result = BookService(session).reading_log(user_id=user_id, days=days)
+    result = BookService(session).reading_log(user_id=user_id, days=days, group=group)
     return ReadingLogResponse(
-        days=[ReadingLogDayOut(**day) for day in result["days"]],
+        group=result["group"],
+        buckets=[ReadingLogBucketOut(**bucket) for bucket in result["buckets"]],
         total_chars=result["total_chars"],
-        active_days=result["active_days"],
+        active_buckets=result["active_buckets"],
         request_id=trace.get_request_id() or "",
     )
 

@@ -197,63 +197,80 @@ class BookService:
         stmt = select(Book).where(Book.user_id == user_id, Book.id.in_(book_ids))
         return {b.id: b.title for b in self._session.scalars(stmt)}
 
-    def reading_log(self, *, user_id: str, days: int = 30) -> dict:
-        """按天聚合阅读记录：每天读了哪几本书、各读了多少字。
+    def reading_log(self, *, user_id: str, days: int = 30, group: str = "day") -> dict:
+        """按天 / 周 / 月聚合阅读记录：每个时间桶读了哪几本书、各读了多少字。
 
-        数据源是 BOOK_PROGRESS 事件（每次保存进度都追加一条，含 book_id 与
-        current_char）。「当天读了多少」= 当天达到的最大已读位置 − 此前已读位置。
-        用**当天最大**而非「最后一次」：读者回翻时最后一条记录会退回较低位置，
-        若按最后一次算会把当天的阅读量抹掉；用最大位置则单调、跨天也正确。
+        - `group`：`day`（默认）/ `week`（ISO 周）/ `month`。
+        - 数据源是 BOOK_PROGRESS 事件（每次保存进度都追加一条，含 book_id 与
+          current_char）。**桶内阅读量 = 桶内达到的最大已读位置 − 此前位置**；
+          用「最大」而非「最后一次」——读者回翻时最后一条会退回较低位置，
+          按最后一次算会把当桶的阅读量抹掉。
+        - 跨桶基准用「此前所有桶的最大位置」，因此跨天/跨周连续阅读也不会漏算；
+          桶排序按桶内最新日期，避免 ISO 周跨年时字符串序错乱。
         """
         from datetime import datetime, timedelta, timezone
 
         from app.domain.repositories.learning_event_repository import LearningEventRepository
         from app.feedback import events as event_types
 
+        group = group if group in ("day", "week", "month") else "day"
         since = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=max(1, days))
         rows = LearningEventRepository(self._session).list_since(
             user_id, since=since, event_type=event_types.BOOK_PROGRESS
         )
 
-        # 每本书每天达到的最大已读位置（附带该位置对应的进度）
+        def bucket_key(day) -> str:
+            if group == "week":
+                iso = day.isocalendar()
+                return f"{iso[0]}-W{iso[1]:02d}"
+            if group == "month":
+                return f"{day.year}-{day.month:02d}"
+            return day.isoformat()
+
+        # 每本书每个桶达到的最大已读位置（附该位置对应的进度）
         per_book: dict[str, dict[str, dict]] = {}
+        bucket_latest: dict[str, str] = {}  # 桶 -> 桶内最新日期（仅用于排序）
         for row in rows:
             payload = row.payload or {}
             book_id = payload.get("book_id")
             if not book_id:
                 continue
-            date = row.occurred_at.date().isoformat()
-            day = per_book.setdefault(book_id, {}).setdefault(
-                date, {"max_char": -1, "progress": 0.0}
+            occurred = row.occurred_at.date()
+            key = bucket_key(occurred)
+            bucket_latest[key] = max(bucket_latest.get(key, ""), occurred.isoformat())
+            slot = per_book.setdefault(book_id, {}).setdefault(
+                key, {"max_char": -1, "progress": 0.0}
             )
             char = int(payload.get("current_char") or 0)
-            if char > day["max_char"]:
-                day["max_char"] = char
-                day["progress"] = float(payload.get("read_progress") or 0.0)
+            if char > slot["max_char"]:
+                slot["max_char"] = char
+                slot["progress"] = float(payload.get("read_progress") or 0.0)
 
         titles = self._titles_for(user_id, list(per_book))
+        order = lambda key: bucket_latest.get(key, key)  # noqa: E731
 
-        daily: dict[str, dict] = {}
-        for book_id, by_date in per_book.items():
+        buckets: dict[str, dict] = {}
+        for book_id, by_bucket in per_book.items():
             prev_max = 0
-            for date in sorted(by_date):
-                peak = by_date[date]["max_char"]
+            for key in sorted(by_bucket, key=order):
+                peak = by_bucket[key]["max_char"]
                 delta = max(0, peak - prev_max)
                 prev_max = max(prev_max, peak)
                 if delta <= 0:
                     continue
-                day = daily.setdefault(date, {"date": date, "total_chars": 0, "books": []})
-                day["books"].append({
+                bucket = buckets.setdefault(key, {"key": key, "total_chars": 0, "books": []})
+                bucket["books"].append({
                     "book_id": book_id,
                     "title": titles.get(book_id, "（已删除）"),
                     "chars_read": delta,
-                    "progress": round(by_date[date]["progress"], 4),
+                    "progress": round(by_bucket[key]["progress"], 4),
                 })
-                day["total_chars"] += delta
+                bucket["total_chars"] += delta
 
-        days_out = [daily[d] for d in sorted(daily, reverse=True)]
+        ordered = [buckets[k] for k in sorted(buckets, key=order, reverse=True)]
         return {
-            "days": days_out,
-            "total_chars": sum(d["total_chars"] for d in days_out),
-            "active_days": len(days_out),
+            "group": group,
+            "buckets": ordered,
+            "total_chars": sum(b["total_chars"] for b in ordered),
+            "active_buckets": len(ordered),
         }
