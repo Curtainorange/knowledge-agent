@@ -121,6 +121,27 @@ python scripts/fetch_embedding_model.py
 pytest          # 全程 Mock，不触发真实 API
 ```
 
+## 数据备份与导出
+
+**备份（全库）** —— 你的知识、书籍、阅读记录都在 `dev.db` 与 `data/` 里，建议定期备份：
+
+```bash
+python scripts/backup.py            # 备份到 backups/backup_<时间戳>/，保留最近 10 份
+python scripts/backup.py --keep 20  # 保留最近 20 份
+python scripts/backup.py --list     # 查看已有备份
+```
+
+> 数据库用 SQLite 在线备份 API 取快照，**服务器运行中执行也安全**。
+> `backups/` 已在 `.gitignore` 中，不会进版本库。
+
+**导出（当前用户的知识）** —— 界面里走「知识库 → 知识列表 → 导出 MD / 导出 JSON」，
+或直接调接口：
+
+```bash
+curl -H "Authorization: Bearer <token>" \
+  "http://127.0.0.1:8000/api/v1/knowledge/export?format=markdown" -o knowledge.md
+```
+
 ## 目录结构
 
 ```
