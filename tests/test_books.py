@@ -5,10 +5,14 @@
 from __future__ import annotations
 
 import zipfile
+from io import BytesIO
 from urllib.parse import quote
+
+import pytest
 
 from app.domain.models.knowledge_item import KnowledgeItem
 from tests.helpers import auth_headers
+from tests.pdf_factory import build_pdf
 
 SAMPLE_TXT = "第一章 起点\n这是第一章的内容。\n\n第二章 转折\n这是第二章的内容。"
 
@@ -182,6 +186,203 @@ def test_book_image_endpoint_blocks_path_traversal(client, tmp_path):
     assert bad.status_code == 404
 
 
+# ---------- PDF ----------
+
+def _write_pdf(tmp_path, name: str, pages, **kwargs):
+    path = tmp_path / name
+    path.write_bytes(build_pdf(pages, **kwargs))
+    return path
+
+
+def test_parse_pdf_without_outline_splits_by_page(tmp_path):
+    """没有书签的 PDF：按页分章，章节标题就是页码。"""
+    from app.books.parser import parse_pdf
+
+    parsed = parse_pdf(_write_pdf(
+        tmp_path, "plain.pdf", [["page one body"], ["page two body"]], title="PDF Sample"
+    ))
+
+    assert [c["title"] for c in parsed.chapters] == ["第 1 页", "第 2 页"]
+    assert "page one body" in parsed.full_text
+    assert "page two body" in parsed.full_text
+
+
+def test_parse_pdf_reads_metadata_with_filename_fallback(tmp_path):
+    """书名 / 作者取自 PDF 元数据；元数据缺失时回退到文件名。"""
+    from app.books.parser import parse_pdf
+
+    parsed = parse_pdf(_write_pdf(
+        tmp_path, "meta.pdf", [["body text"]], title="Book A", author="Author B"
+    ))
+    assert (parsed.title, parsed.author) == ("Book A", "Author B")
+
+    untitled = parse_pdf(_write_pdf(tmp_path, "无名.pdf", [["body text"]]))
+    assert untitled.title == "无名"
+    assert untitled.author == ""
+
+
+def test_parse_pdf_uses_outline_for_chapters(tmp_path):
+    """有书签的 PDF：按书签分章，首个书签之前的页归入「开篇」。"""
+    from app.books.parser import parse_pdf
+
+    parsed = parse_pdf(_write_pdf(
+        tmp_path, "outlined.pdf",
+        [["cover page"], ["alpha text"], ["alpha more"], ["beta text"]],
+        title="Outlined",
+        outline=[("Alpha", 1), ("Beta", 3)],
+    ))
+
+    assert [c["title"] for c in parsed.chapters] == ["开篇", "Alpha", "Beta"]
+    # 章节区间必须能在 full_text 上精确切出该章正文
+    chunks = {
+        c["title"]: parsed.full_text[c["char_start"]:c["char_end"]]
+        for c in parsed.chapters
+    }
+    assert "cover page" in chunks["开篇"]
+    assert "alpha text" in chunks["Alpha"]
+    assert "alpha more" in chunks["Alpha"]
+    assert "beta text" not in chunks["Alpha"]
+    assert "beta text" in chunks["Beta"]
+
+
+def test_parse_pdf_strips_repeated_header_and_page_number(tmp_path):
+    """跨页重复的页眉与页码要剔除，否则每页都混进「书名 + 数字」。"""
+    from app.books.parser import parse_pdf
+
+    pages = [["Running Header", f"chapter body line {i}", str(i + 1)] for i in range(8)]
+    parsed = parse_pdf(_write_pdf(tmp_path, "furniture.pdf", pages, title="Furniture"))
+
+    assert "Running Header" not in parsed.full_text
+    assert "chapter body line 3" in parsed.full_text
+    assert "\n3\n" not in parsed.full_text  # 页码行已剔除
+    assert len(parsed.chapters) == 8
+
+
+def test_parse_pdf_keeps_repeated_line_inside_page(tmp_path):
+    """页中重复出现的正文行不能当页眉删掉——判定范围只限页首 / 页末行。"""
+    from app.books.parser import parse_pdf
+
+    pages = [["Running Header", "the same sentence", str(i)] for i in range(8)]
+    parsed = parse_pdf(_write_pdf(tmp_path, "middle.pdf", pages))
+
+    assert parsed.full_text.count("the same sentence") == 8
+    assert "Running Header" not in parsed.full_text
+
+
+def test_parse_pdf_rejects_pdf_without_text(tmp_path):
+    """扫描图片版 PDF 没有文本层，要给出可读提示，而不是入库一本空书。"""
+    from app.books.parser import parse_pdf
+
+    with pytest.raises(ValueError) as excinfo:
+        parse_pdf(_write_pdf(tmp_path, "scan.pdf", [[], []]))
+    assert "没有可提取的文字" in str(excinfo.value)
+
+
+def test_parse_pdf_rejects_encrypted(tmp_path):
+    """加密 PDF 明确报错，不能把「打不开」当成「空书」静默入库。"""
+    from pypdf import PdfReader, PdfWriter
+
+    from app.books.parser import parse_pdf
+
+    source = PdfReader(BytesIO(build_pdf([["secret page"]])))
+    writer = PdfWriter()
+    for page in source.pages:
+        writer.add_page(page)
+    writer.encrypt("open-sesame")
+    buffer = BytesIO()
+    writer.write(buffer)
+
+    path = tmp_path / "locked.pdf"
+    path.write_bytes(buffer.getvalue())
+    with pytest.raises(ValueError) as excinfo:
+        parse_pdf(path)
+    assert "加密" in str(excinfo.value)
+
+
+def test_parse_pdf_rejects_too_many_pages(tmp_path, monkeypatch):
+    from app.books import parser
+
+    monkeypatch.setattr(parser, "_PDF_MAX_PAGES", 1)
+    with pytest.raises(ValueError) as excinfo:
+        parser.parse_pdf(_write_pdf(tmp_path, "many.pdf", [["a"], ["b"]]))
+    assert "页数过多" in str(excinfo.value)
+
+
+def test_merge_wrapped_lines_joins_broken_paragraph():
+    """PDF 的硬换行会把一句话拆成多行，读的时候要接回去。"""
+    from app.books.parser import _merge_wrapped_lines
+
+    assert _merge_wrapped_lines([
+        "这是一段在 PDF 里被硬换行拆开的中文段落，",
+        "接上下一行之后应当合成一整句。",
+    ]) == ["这是一段在 PDF 里被硬换行拆开的中文段落，接上下一行之后应当合成一整句。"]
+
+
+def test_merge_wrapped_lines_keeps_boundaries():
+    """三类边界都不能合并：上一行已收尾、上一行是短标题、下一行是新块。"""
+    from app.books.parser import _merge_wrapped_lines
+
+    assert _merge_wrapped_lines(["这是完整的一句。", "这是另一段的内容。"]) == [
+        "这是完整的一句。",
+        "这是另一段的内容。",
+    ]
+    assert _merge_wrapped_lines(["短标题", "下一行的正文内容不该被并进标题。"]) == [
+        "短标题",
+        "下一行的正文内容不该被并进标题。",
+    ]
+    assert _merge_wrapped_lines([
+        "这一行足够长而且没有句末标点所以本来会被接上",
+        "1. 但它是列表项，必须独立成行",
+    ]) == [
+        "这一行足够长而且没有句末标点所以本来会被接上",
+        "1. 但它是列表项，必须独立成行",
+    ]
+
+
+def test_merge_wrapped_lines_latin_spacing_and_hyphen():
+    from app.books.parser import _merge_wrapped_lines
+
+    assert _merge_wrapped_lines([
+        "the quick brown fox jumps over the lazy",
+        "dog and keeps on running.",
+    ]) == ["the quick brown fox jumps over the lazy dog and keeps on running."]
+
+    # 英文行尾断词：去掉连字符直接相接
+    assert _merge_wrapped_lines([
+        "a sentence wrapped by the layout engi-",
+        "neering of the renderer.",
+    ]) == ["a sentence wrapped by the layout engineering of the renderer."]
+
+
+def test_squeeze_cjk_spaces_only_when_dense():
+    """汉字之间的伪空格要压掉，正常的中英混排要保住。"""
+    from app.books.parser import _squeeze_cjk_spaces
+
+    assert _squeeze_cjk_spaces("这 是 一 句 话 的 例 子") == "这是一句话的例子"
+    mixed = "用 Python 写 脚本 很快"
+    assert _squeeze_cjk_spaces(mixed) == mixed
+
+
+def test_merge_wrapped_lines_joins_single_char_runs():
+    """逐字定位排版会抽成「一个字一行」，连续多个要接回整行。"""
+    from app.books.parser import _merge_wrapped_lines
+
+    assert _merge_wrapped_lines(list("逐字排版产生伪空格")) == ["逐字排版产生伪空格"]
+    # 只有两个字，够不上「逐字排版」的特征，保持原样
+    assert _merge_wrapped_lines(["上", "下"]) == ["上", "下"]
+
+
+def test_parse_pdf_ignores_placeholder_metadata(tmp_path):
+    """元数据是导出工具写死的占位值时，书名要回退到文件名。"""
+    from app.books.parser import parse_pdf
+
+    parsed = parse_pdf(_write_pdf(
+        tmp_path, "真书名.pdf", [["body text"]], title="untitled", author="anonymous"
+    ))
+    assert parsed.title == "真书名"
+    assert parsed.author == ""
+
+
 # ---------- 接口 ----------
 
 def test_upload_txt_returns_book(client):
@@ -202,6 +403,37 @@ def test_upload_epub(client, tmp_path):
     body = resp.json()
     assert body["format"] == "epub"
     assert body["chapter_count"] == 2
+
+
+def test_upload_pdf(client):
+    """PDF 走完整链路：上传 → 书架 → 章节 → 阅读内容。"""
+    headers = auth_headers(client, "book_pdf")
+    pdf = build_pdf(
+        [["first page text"], ["second page text"]],
+        title="PDF Book", author="PDF Author",
+    )
+    resp = _upload(client, headers, "电子书.pdf", pdf)
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    assert body["format"] == "pdf"
+    assert body["title"] == "PDF Book"
+    assert body["author"] == "PDF Author"
+    assert body["chapter_count"] == 2
+
+    detail = client.get(f"/api/v1/books/{body['book_id']}", headers=headers).json()
+    assert [c["title"] for c in detail["chapters"]] == ["第 1 页", "第 2 页"]
+
+    chapter = client.get(f"/api/v1/books/{body['book_id']}/chapter/2", headers=headers).json()
+    assert "second page text" in chapter["content"]
+    assert chapter["next_index"] is None
+
+
+def test_upload_pdf_without_text_rejected(client):
+    """扫描图片版 PDF 上传时给出 400 与可读原因，不让空书进书架。"""
+    headers = auth_headers(client, "book_pdf_scan")
+    resp = _upload(client, headers, "扫描件.pdf", build_pdf([[], []]))
+    assert resp.status_code == 400
+    assert "没有可提取的文字" in resp.json()["detail"]
 
 
 def test_list_and_detail(client):
@@ -270,7 +502,7 @@ def test_note_creates_knowledge_item(client, session):
 
 def test_reject_unsupported_format(client):
     headers = auth_headers(client, "book_badfmt")
-    resp = _upload(client, headers, "文件.pdf", b"%PDF-1.4")
+    resp = _upload(client, headers, "文件.docx", b"PK\x03\x04")
     assert resp.status_code == 400
 
 

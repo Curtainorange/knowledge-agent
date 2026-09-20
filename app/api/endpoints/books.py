@@ -26,7 +26,7 @@ from app.domain.repositories.book_repository import BookRepository
 router = APIRouter(prefix="/api/v1/books", tags=["books"])
 
 MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
-_ALLOWED_SUFFIXES = (".txt", ".epub")
+_ALLOWED_SUFFIXES = (".txt", ".epub", ".pdf")
 
 
 class ChapterOut(BaseModel):

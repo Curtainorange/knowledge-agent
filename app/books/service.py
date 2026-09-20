@@ -16,6 +16,15 @@ from app.retrieval.embedding import build_embedding
 
 from pathlib import Path
 
+# 支持的上传格式：后缀 → 存储用的格式标识（与 api 层白名单保持一致）
+_FORMAT_BY_SUFFIX = {".txt": "txt", ".epub": "epub", ".pdf": "pdf"}
+# 三种解析器签名统一为 (path, title=...)，title 仅在文件自身没有元数据时兜底
+_PARSERS = {
+    "txt": parser.parse_txt,
+    "epub": parser.parse_epub,
+    "pdf": parser.parse_pdf,
+}
+
 
 def _books_root() -> Path:
     root = Path(settings.books_dir)
@@ -37,15 +46,11 @@ class BookService:
         repo = BookRepository(self._session, user_id=user_id)
         book_id = str(uuid4())
         suffix = Path(filename).suffix.lower()
-        book_format = "epub" if suffix == ".epub" else "txt"
+        book_format = _FORMAT_BY_SUFFIX.get(suffix, "txt")
         dest = _user_dir(user_id) / f"{book_id}{suffix}"
         dest.write_bytes(content)
 
-        parsed = (
-            parser.parse_epub(dest)
-            if book_format == "epub"
-            else parser.parse_txt(dest, title=Path(filename).stem)
-        )
+        parsed = _PARSERS[book_format](dest, title=Path(filename).stem)
 
         # 插图落盘：存到 <books_dir>/<user>/<book_id>/images/<name>，
         # 阅读器按 full_text 里的 [[IMG:name]] 占位符回填显示

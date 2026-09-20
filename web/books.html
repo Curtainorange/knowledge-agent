@@ -34,9 +34,10 @@
         <button id="btn-upload" class="sm">上传书籍</button>
       </span>
     </h2>
-    <input type="file" id="file-input" accept=".txt,.epub" hidden>
+    <input type="file" id="file-input" accept=".txt,.epub,.pdf" hidden>
     <div class="meta" style="margin-bottom:12px">
-      支持 .txt / .epub，上传后自动解析章节；点开即可阅读并记录进度，选中文字可一键记入知识库。
+      支持 .txt / .epub / .pdf，上传后自动解析章节（PDF 优先用书内书签分章，没有书签则按页）；
+      点开即可阅读并记录进度，选中文字可一键记入知识库。
     </div>
     <div class="list" id="book-list"></div>
   </div>
