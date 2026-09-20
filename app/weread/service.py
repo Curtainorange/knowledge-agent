@@ -87,6 +87,48 @@ def _join_title(book_title: str, part: str) -> str:
     return (text or book_title or "微信读书")[:_TITLE_MAX]
 
 
+def _find_first(node, key: str) -> str:
+    """在嵌套结构里找第一个有值的 `key`。
+
+    微信读书的想法回包层级不稳定（`reviewId` 挂在外层、正文在内层），
+    写死层级迟早会漏字段，这里统一按「深度优先找第一个有值的」处理。
+    """
+    if isinstance(node, dict):
+        value = node.get(key)
+        if value not in (None, "", 0):
+            return str(value).strip()
+        for child in node.values():
+            found = _find_first(child, key)
+            if found:
+                return found
+    elif isinstance(node, list):
+        for child in node:
+            found = _find_first(child, key)
+            if found:
+                return found
+    return ""
+
+
+def _unwrap_review(wrapper) -> dict:
+    """取出想法 / 点评的**内容对象**。
+
+    官方文档写的是 `reviews[].review.content`（一层），但公开点评接口实测是
+    `{idx, review: {reviewId, review: {content, abstract, ...}}}`（两层）：id 在外层、
+    正文在内层。这里逐层下探到真正带 `content` 的那一层，两种写法都能吃。
+    """
+    node = wrapper
+    for _ in range(3):
+        if not isinstance(node, dict):
+            return {}
+        if "content" in node or "abstract" in node:
+            return node
+        inner = node.get("review")
+        if not isinstance(inner, dict):
+            return node
+        node = inner
+    return node if isinstance(node, dict) else {}
+
+
 class WeReadSyncService:
     """把微信读书的划线 / 想法拉进本地知识库。
 
@@ -235,10 +277,9 @@ class WeReadSyncService:
             })
 
         for wrapper in client.my_reviews(book_id) or []:
-            review = wrapper.get("review") if isinstance(wrapper, dict) else None
-            review = review or wrapper or {}
+            review = _unwrap_review(wrapper)
             content = (review.get("content") or "").strip()
-            review_id = str(review.get("reviewId") or "").strip()
+            review_id = _find_first(wrapper, "reviewId")
             if not content or not review_id:
                 continue
             abstract = (review.get("abstract") or "").strip()

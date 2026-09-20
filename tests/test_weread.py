@@ -226,6 +226,54 @@ def test_sync_creates_highlight_and_thought(session):
     assert thought.source_locator["kind"] == "review"
 
 
+def test_sync_handles_nested_review_wrapper(session):
+    """想法回包的层级不稳定：真实接口是两层（reviewId 在外、正文在内），文档写的是一层。
+
+    两种都要能解析——否则真实同步会「一条想法都收不到」。
+    """
+    from app.weread.service import WeReadSyncService
+
+    notebooks = [{"bookId": "b1", "book": {"title": "书"}, "sort": 1}]
+    bookmarks = {"b1": {"updated": [], "chapters": []}}
+    nested = {
+        "idx": 1,
+        "review": {
+            "reviewId": "r_nested",
+            "likesCount": 3,
+            "review": {
+                "reviewId": "r_nested",
+                "content": "两层结构里的想法正文",
+                "abstract": "两层结构对应的划线原文",
+                "range": "10-20",
+                "chapterUid": 7,
+                "chapterIdx": 3,
+                "chapterName": "第三章",
+                "createTime": 1700000200,
+            },
+        },
+    }
+    flat = {"review": {"reviewId": "r_flat", "content": "一层结构里的想法正文"}}
+
+    svc = WeReadSyncService(
+        session,
+        client=_FakeClient(notebooks, bookmarks, reviews={"b1": [nested, flat]}, info={}),
+    )
+    result = svc.sync(user_id="u_nested")
+
+    assert result.created == 2
+    items = {item.source_item_id: item for item in _items(session, "u_nested")}
+    assert set(items) == {"rv:r_nested", "rv:r_flat"}
+
+    nested_item = items["rv:r_nested"]
+    assert nested_item.raw_content == "两层结构对应的划线原文\n\n【我的想法】两层结构里的想法正文"
+    assert nested_item.note == "两层结构里的想法正文"
+    assert nested_item.source_locator["chapter_index"] == 3
+    assert nested_item.source_locator["chapter_title"] == "第三章"
+
+    flat_item = items["rv:r_flat"]
+    assert flat_item.raw_content == "一层结构里的想法正文"
+
+
 def test_sync_is_idempotent(session):
     """重复同步只跳过，不产生重复条目（幂等键 = bookmarkId / reviewId）。"""
     svc = _service(session)
