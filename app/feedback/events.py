@@ -28,6 +28,8 @@ KNOWLEDGE_DELETED = "knowledge.item.deleted"
 BOOK_UPLOADED = "book.uploaded"
 BOOK_PROGRESS = "book.progress"
 NOTE_CREATED = "note.created"
+# 外部阅读平台同步（微信读书官方 AI Skills 接口）
+WEREAD_SYNCED = "weread.synced"
 # 能力调用与反馈
 L1_MINE = "l1.mine"
 L2_SCAN = "l2.scan"

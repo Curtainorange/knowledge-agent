@@ -30,6 +30,7 @@
   <div class="card">
     <h2>书架
       <span>
+        <button id="btn-weread" class="sm">同步微信读书</button>
         <button id="btn-log" class="sm">阅读日志</button>
         <button id="btn-upload" class="sm">上传书籍</button>
       </span>
@@ -37,7 +38,8 @@
     <input type="file" id="file-input" accept=".txt,.epub,.pdf" hidden>
     <div class="meta" style="margin-bottom:12px">
       支持 .txt / .epub / .pdf，上传后自动解析章节（PDF 优先用书内书签分章，没有书签则按页）；
-      点开即可阅读并记录进度，选中文字可一键记入知识库。
+      点开即可阅读并记录进度，选中文字可一键记入知识库。<br>
+      「同步微信读书」会把你在微信读书里的划线与想法导入知识库（走官方 AI Skills 接口，可反复点击、不会重复）。
     </div>
     <div class="list" id="book-list"></div>
   </div>
@@ -116,6 +118,45 @@
     }
   }
 
+  /* ---------- 微信读书同步 ---------- */
+  async function loadWereadStatus() {
+    var btn = $('#btn-weread');
+    try {
+      var data = await CC.api('GET', '/api/v1/weread/status');
+      if (!data.configured) {
+        btn.textContent = '同步微信读书（未配置）';
+        btn.title = '需要先在 .env 里配置 WEREAD_API_KEY 才能同步';
+        return;
+      }
+      btn.textContent = '同步微信读书';
+      btn.title = '已同步 ' + data.synced_items + ' 条'
+        + (data.last_synced_at ? '，上次同步：' + data.last_synced_at : '');
+    } catch (err) {
+      /* 状态查询失败不影响书架本身 */
+    }
+  }
+
+  async function syncWeread() {
+    var btn = $('#btn-weread');
+    btn.disabled = true;
+    btn.textContent = '同步中…';
+    try {
+      var r = await CC.api('POST', '/api/v1/weread/sync');
+      var parts = ['新增 ' + r.created + ' 条'];
+      if (r.skipped) { parts.push('跳过 ' + r.skipped + ' 条（已存在）'); }
+      if (r.failed_books) { parts.push(r.failed_books + ' 本读取失败'); }
+      if (r.pending_books) { parts.push('还有 ' + r.pending_books + ' 本未扫描，可再点一次'); }
+      CC.toast('微信读书同步完成：' + parts.join('，'));
+    } catch (err) {
+      CC.toast('同步失败：' + err.message);
+    } finally {
+      btn.disabled = false;
+      await loadWereadStatus(); // 由它统一更新按钮文案与提示
+    }
+  }
+
+  $('#btn-weread').addEventListener('click', syncWeread);
+
   $('#btn-upload').addEventListener('click', function () {
     $('#file-input').click();
   });
@@ -165,6 +206,7 @@
     } catch (err) {
       CC.toast('加载书架失败：' + err.message);
     }
+    await loadWereadStatus();
   })();
 })();
 </script>

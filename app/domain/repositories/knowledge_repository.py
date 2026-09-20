@@ -72,6 +72,20 @@ class KnowledgeRepository(BaseRepository[KnowledgeItem]):
         )
         return int(self._session.scalar(stmt) or 0)
 
+    def count_by_source(self, user_id: str, source: str) -> int:
+        """按来源统计未删除条目数（如「微信读书同步进来多少条」）。"""
+        self._guard(user_id)
+        stmt = (
+            select(func.count())
+            .select_from(KnowledgeItem)
+            .where(
+                KnowledgeItem.user_id == user_id,
+                KnowledgeItem.source == source,
+                KnowledgeItem.is_deleted.is_(False),
+            )
+        )
+        return int(self._session.scalar(stmt) or 0)
+
     def page_active(
         self,
         user_id: str,

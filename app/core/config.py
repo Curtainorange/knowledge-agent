@@ -49,6 +49,21 @@ class Settings(BaseSettings):
     # 上传的电子书原始文件存放目录（体积大，不入库；已加入 .gitignore）
     books_dir: str = "data/books"
 
+    # --- 微信读书同步（官方 AI Skills 接口，只读个人阅读数据）---
+    # API Key 在 https://weread.qq.com/r/weread-skills 扫码获取，格式 wrk-xxxxxxxx。
+    # 留空则同步入口不可用（不影响其它功能）。**Key 等同账号访问凭据，切勿提交到仓库。**
+    weread_api_key: str = ""
+    # 官方技能包版本：每次请求必须上报；回包出现 upgrade_info 时需按提示升级
+    weread_skill_version: str = "1.0.4"
+    weread_gateway_url: str = "https://i.weread.qq.com/api/agent/gateway"
+    weread_timeout_seconds: float = 20.0
+    # 单次同步的条目上限：超出部分不计入，前端提示「还有 N 条待同步」
+    weread_max_items_per_sync: int = 300
+    # 笔记本概览的游标分页大小（官方接口无 offset 分页）
+    weread_page_size: int = 50
+    # 请求间隔（秒）：官方接口有频次限制，逐本拉取时留出冷却
+    weread_request_interval_seconds: float = 0.3
+
     # --- Hugging Face 模型下载（国内走镜像，见 .env.example 说明）---
     hf_endpoint: str = ""            # 例 https://hf-mirror.com
     hf_hub_disable_xet: bool = False # 禁 Xet，强制镜像普通 HTTP 下载

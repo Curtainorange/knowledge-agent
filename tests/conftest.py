@@ -22,6 +22,8 @@ from app.main import app
 settings.deepseek_api_key = ""
 # 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
 settings.embedding_backend = "hash"
+# 微信读书同步：强制「未配置 API Key」，避免本机 .env 里的真实 Key 影响断言
+settings.weread_api_key = ""
 # 书籍文件写到临时目录，避免污染真实 data/books
 settings.books_dir = tempfile.mkdtemp(prefix="cc_test_books_")
 # 鉴权：固定密钥（避免随机密钥带来的不可预期），并调低 PBKDF2 迭代数以免拖慢测试
