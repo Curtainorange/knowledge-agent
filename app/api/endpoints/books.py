@@ -25,7 +25,7 @@ from app.domain.repositories.book_repository import BookRepository
 
 router = APIRouter(prefix="/api/v1/books", tags=["books"])
 
-MAX_UPLOAD_BYTES = 50 * 1024 * 1024  # 50MB
+MAX_UPLOAD_BYTES = 100 * 1024 * 1024  # 100MB（大尺寸教材 / 扫描版 PDF 常见）
 _ALLOWED_SUFFIXES = (".txt", ".epub", ".pdf")
 
 
@@ -174,7 +174,10 @@ async def upload_book(
     if not content:
         raise HTTPException(status_code=400, detail="文件内容为空")
     if len(content) > MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail="文件过大（上限 50MB）")
+        raise HTTPException(
+            status_code=413,
+            detail=f"文件过大（上限 {MAX_UPLOAD_BYTES // (1024 * 1024)}MB）",
+        )
 
     try:
         book = BookService(session).upload(user_id=user_id, filename=filename, content=content)

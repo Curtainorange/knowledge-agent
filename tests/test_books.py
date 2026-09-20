@@ -436,6 +436,24 @@ def test_upload_pdf_without_text_rejected(client):
     assert "没有可提取的文字" in resp.json()["detail"]
 
 
+def test_upload_limit_is_100mb():
+    """单份上传上限 100MB（大尺寸教材 / 扫描版 PDF 的实际需求）。"""
+    from app.api.endpoints import books as books_module
+
+    assert books_module.MAX_UPLOAD_BYTES == 100 * 1024 * 1024
+
+
+def test_upload_rejects_oversized_file(client, monkeypatch):
+    """超过上限要返回 413，且提示语由上限值派生（不会与常量脱节）。"""
+    from app.api.endpoints import books as books_module
+
+    monkeypatch.setattr(books_module, "MAX_UPLOAD_BYTES", 8)
+    headers = auth_headers(client, "book_too_big")
+    resp = _upload(client, headers, "大书.txt", b"x" * 64)
+    assert resp.status_code == 413
+    assert "文件过大" in resp.json()["detail"]
+
+
 def test_list_and_detail(client):
     headers = auth_headers(client, "book_list")
     _upload(client, headers, "书A.txt", SAMPLE_TXT.encode("utf-8"))
