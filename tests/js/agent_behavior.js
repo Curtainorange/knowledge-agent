@@ -166,6 +166,99 @@ const briefEmpty = CCA.renderCard({
 check('空知识库只给提示，不渲染空表格', briefEmpty.indexOf('知识库还是空的') !== -1
   && briefEmpty.indexOf('topic-row') === -1);
 
+console.log('\n后台任务：占位卡与失败卡');
+const pending = CCA.renderCard({
+  kind: 'pending', key: 't1', turn_id: 't1', capability: 'l2',
+  label: '正在扫描冲突', note: '通常半分钟以内。', href: '/conflicts.html'
+});
+check('占位卡渲染标题与说明', pending.indexOf('正在扫描冲突') !== -1 && pending.indexOf('通常半分钟以内') !== -1);
+
+const failedCard = CCA.renderCard({
+  kind: 'failed', key: 't2', turn_id: 't2', capability: 'l2',
+  label: '冲突检测', note: '后台执行失败，可以换原页面手动重试。', href: '/conflicts.html'
+});
+check('失败卡说明原因', failedCard.indexOf('后台执行失败') !== -1);
+check('失败卡给出重试落点', failedCard.indexOf('href="/conflicts.html"') !== -1);
+
+console.log('\nL2 冲突卡片：可操作的按钮要带齐寻址信息');
+const conflictCard = CCA.renderCard({
+  kind: 'l2_conflicts',
+  key: 'card-1',
+  summary: { scanned_items: 4, pairs_judged: 2, conflicts_found: 1 },
+  href: '/conflicts.html',
+  items: [
+    {
+      conflict_id: 'c1', item_a_id: 'a1', item_b_id: 'b1',
+      title_a: '专注优先', title_b: XSS,
+      claim_a: '多任务并行是效率的关键', claim_b: '多任务必然降低效率',
+      conflict_type: '立场对立', detail: '一边要多任务', suggestion: '挑一个场景实测',
+      confidence: 0.82, user_state: 'unseen'
+    },
+    {
+      conflict_id: 'c2', item_a_id: 'a2', item_b_id: 'b2',
+      title_a: '甲', title_b: '乙', claim_a: 'x', claim_b: 'y',
+      conflict_type: '结论互斥', detail: '', suggestion: '',
+      confidence: 0.61, user_state: 'ignored'
+    }
+  ]
+});
+check('冲突两侧主张都渲染', conflictCard.indexOf('多任务必然降低效率') !== -1);
+check('已忽略的冲突加上 done 标记', conflictCard.indexOf('conflict done') !== -1);
+check('按钮带上卡片 key（操作回流靠它寻址）', conflictCard.indexOf('data-card-key="card-1"') !== -1);
+check('按钮带上冲突 id 与目标状态',
+  conflictCard.indexOf('data-target="c1"') !== -1 && conflictCard.indexOf('data-value="accepted"') !== -1);
+check('已忽略的条目不再出现「忽略」按钮',
+  conflictCard.indexOf('data-target="c2" data-value="ignored"') === -1);
+check('已处理过的条目给出「标回待处理」',
+  conflictCard.indexOf('data-target="c2" data-value="unseen"') !== -1);
+check('冲突标题里的用户数据被转义', conflictCard.indexOf('<img src=x') === -1);
+
+const emptyScan = CCA.renderCard({
+  kind: 'l2_conflicts', key: 'card-2', summary: { conflicts_found: 0 }, items: [], href: '/conflicts.html'
+});
+check('没扫出冲突时给一句交代而不是空白', emptyScan.indexOf('没有再发现新的矛盾') !== -1);
+
+console.log('\nL5 诊断卡：结论、推理链与采纳按钮');
+const diagnosis = CCA.renderCard({
+  kind: 'l5_diagnosis',
+  key: 'diag-1',
+  state: 'ok',
+  diagnosis_id: 'd1',
+  pattern: '高收藏低完成',
+  root_cause: XSS,
+  confidence: 0.66,
+  suggested_action: '把单次任务压到 15 分钟',
+  reasoning_chain: ['收藏 12 条', '读完 1 条'],
+  status: 'pending',
+  metrics: { total_items: 12, completed_items: 1, study_events_week: 3, unseen_conflicts: 2 },
+  note: '',
+  href: '/l5.html'
+});
+check('诊断结论与置信度渲染', diagnosis.indexOf('高收藏低完成') !== -1 && diagnosis.indexOf('置信度 66%') !== -1);
+check('归因正文被转义', diagnosis.indexOf('<img src=x') === -1);
+check('推理链折叠展示', diagnosis.indexOf('推理链（2 步）') !== -1);
+check('行为依据渲染', diagnosis.indexOf('知识库 12 条') !== -1);
+check('给出采纳与拒绝两个按钮',
+  diagnosis.indexOf('data-agent-action="l5.diagnosis.decide"') !== -1
+  && diagnosis.indexOf('data-value="accepted"') !== -1
+  && diagnosis.indexOf('data-value="rejected"') !== -1);
+
+const rejected = CCA.renderCard({
+  kind: 'l5_diagnosis', key: 'diag-2', state: 'ok', diagnosis_id: 'd2',
+  pattern: '启动困难', root_cause: '门槛过高', confidence: 0.5, suggested_action: '先做最小的',
+  reasoning_chain: [], status: 'rejected', metrics: {}, note: '', href: '/l5.html'
+});
+check('已拒绝的诊断不再出现采纳按钮', rejected.indexOf('data-agent-action') === -1);
+check('已拒绝的诊断仍然展示结论', rejected.indexOf('启动困难') !== -1);
+
+const diagDegraded = CCA.renderCard({
+  kind: 'l5_diagnosis', key: 'diag-3', state: 'degraded', diagnosis_id: '',
+  pattern: '', root_cause: '', confidence: 0, suggested_action: '', reasoning_chain: [],
+  status: 'pending', metrics: {}, note: '归因分析失败（模型输出无法解析）。', href: '/l5.html'
+});
+check('降级时不渲染空的诊断框', diagDegraded.indexOf('class="diag"') === -1
+  && diagDegraded.indexOf('归因分析失败') !== -1);
+
 console.log('\n数值与徽标');
 check('pct 四舍五入', CCA.pct(0.567) === 57);
 check('pct 容错非数字', CCA.pct(null) === 0 && CCA.pct('x') === 0);

@@ -530,4 +530,24 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 .created .c-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
 .brief .notice{margin-bottom:8px}
 .brief .patterns .meta{margin-bottom:2px}
+
+/* 后台任务占位卡：结果出来前先占位，由轮询换成结果卡。
+   动效克制（只做透明度呼吸），并尊重 prefers-reduced-motion。 */
+.pending-card{
+  border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:var(--radius-sm);padding:13px;background:var(--accent-weak);
+}
+.pending-card .p-head{display:flex;align-items:center;gap:8px;font-weight:600;font-size:13.5px;color:var(--accent)}
+.pending-card .p-note{font-size:13px;color:var(--text-2);margin-top:6px;line-height:1.6}
+.p-dot{width:8px;height:8px;border-radius:50%;background:var(--accent);flex:none;animation:cc-pulse 1.4s ease-in-out infinite}
+@keyframes cc-pulse{0%,100%{opacity:1}50%{opacity:.3}}
+@media(prefers-reduced-motion:reduce){.p-dot{animation:none}}
+
+/* L5 诊断卡：结论 + 推理链 + 采纳/不用 */
+.diag{
+  border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:var(--radius-sm);padding:13px;box-shadow:var(--shadow-xs);
+}
+.diag .row strong{flex:1;min-width:0;font-weight:600;color:var(--text)}
+.diag .d-body{margin-top:8px;font-size:13px;color:var(--text-2);line-height:1.7}
 @media(max-width:700px){.agent-log{max-height:none}}

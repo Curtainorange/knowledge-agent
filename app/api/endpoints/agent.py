@@ -1,17 +1,25 @@
-"""统一对话入口端点 POST /api/v1/agent/chat（对话即入口）。
+"""统一对话入口端点（对话即入口）。
 
 与 `POST /api/v1/chat` 的区别：chat 是裸对话，这里是**带能力分发的对话**——
 用户说什么都往这里发，由 `Copilot` 决定交给哪个能力。原 /chat 保留不动，
 旧调用方与既有测试不受影响。
+
+四个端点各管一件事：
+
+- `POST /chat`         一轮对话（可能同步返回结果，也可能返回一张 pending 卡）
+- `GET  /conversation` 读会话（前端渲染 + 轮询 pending 卡 + 刷新页面恢复历史）
+- `POST /actions`      卡片内操作（采纳/忽略）——**不写新消息**，只更新卡片状态
+- `GET  /capabilities` 能力目录（快捷入口与「是否已接入」由服务端给）
 """
 from __future__ import annotations
 
 from typing import Any
 
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent import turns
 from app.agent.copilot import Copilot
 from app.agent.router import CAPABILITY_CATALOG, WIRED_CAPABILITIES
 from app.api.deps import get_gateway, get_session, get_user_id
@@ -33,6 +41,35 @@ class AgentChatResponse(BaseModel):
     card: dict[str, Any] | None = None
     state: str = "idle"
     decided_by: str = ""
+    request_id: str
+
+
+class ConversationMessageOut(BaseModel):
+    role: str
+    content: str
+    source: str = ""
+    card: dict[str, Any] | None = None
+
+
+class ConversationOut(BaseModel):
+    conversation_id: str
+    state: str
+    messages: list[ConversationMessageOut]
+    request_id: str
+
+
+class AgentActionRequest(BaseModel):
+    conversation_id: str
+    card_key: str = Field(min_length=1, description="卡片的 key（操作回流时就地替换用）")
+    action: str = Field(min_length=1)
+    target_id: str = Field(min_length=1)
+    value: str = ""
+
+
+class AgentActionResponse(BaseModel):
+    card_key: str
+    card: dict[str, Any]
+    reply: str
     request_id: str
 
 
@@ -60,6 +97,61 @@ def agent_chat(
     )
     # 事务已由 Copilot 提交（各能力内部还有各自的提交点），这里只负责组织回包
     return AgentChatResponse(**turn.as_dict(), request_id=trace.get_request_id() or "")
+
+
+@router.get("/conversation/{conversation_id}", response_model=ConversationOut)
+def agent_conversation(
+    conversation_id: str,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> ConversationOut:
+    """读一个会话的全部消息与卡片。
+
+    前端用它对两件事：轮询 pending 卡是否出结果；刷新页面后恢复历史。
+    返回值里的卡片是**按当前数据库刷新过**的——否则已经处理过的冲突
+    会重新显示成待处理，卡片就成了假的。
+    """
+    try:
+        data = turns.read_conversation(
+            session, user_id=user_id, conversation_id=conversation_id
+        )
+    except LookupError as exc:
+        raise HTTPException(status_code=404, detail="会话不存在") from exc
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="无权访问该会话") from exc
+    return ConversationOut(**data, request_id=trace.get_request_id() or "")
+
+
+@router.post("/actions", response_model=AgentActionResponse)
+def agent_action(
+    body: AgentActionRequest,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> AgentActionResponse:
+    """卡片内操作（采纳 / 忽略 / 标回）。
+
+    刻意**不追加会话消息**：对已有结果的处置不是新的一轮对话，写一条「已忽略」
+    只会把消息流刷满噪声。动作本身由学习事件记录（L2 反馈 / L5 决策），
+    这就是那份留痕；卡片状态则通过刷新保持真实。
+    """
+    try:
+        reply, card = turns.apply_action(
+            session,
+            user_id=user_id,
+            conversation_id=body.conversation_id,
+            card_key=body.card_key,
+            action=body.action,
+            target_id=body.target_id,
+            value=body.value,
+        )
+    except turns.ActionError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return AgentActionResponse(
+        card_key=body.card_key,
+        card=card,
+        reply=reply,
+        request_id=trace.get_request_id() or "",
+    )
 
 
 @router.get("/capabilities", response_model=list[CapabilityOut])

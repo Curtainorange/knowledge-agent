@@ -32,6 +32,37 @@ def l2_scan(payload: dict, session: Session) -> None:
     )
 
 
+@register("agent_capability")
+def agent_capability(payload: dict, session: Session) -> None:
+    """对话里发起的重能力（L2 扫描 / L3 简报 / L5 诊断）。
+
+    与其它处理器只记日志不同，它必须**把结果写回那条 pending 消息**——
+    否则用户只会看到一条永远在转圈的卡片。执行逻辑与同步路径共用
+    `turns.execute_capability`，异步只改「在哪儿跑」，不改「跑什么」。
+    """
+    from app.agent import turns
+    from app.llm.gateway import ModelGateway
+
+    turn_id = str(payload.get("turn_id") or "")
+    user_id = str(payload.get("user_id") or "")
+    conversation_id = str(payload.get("conversation_id") or "")
+    capability = str(payload.get("capability") or "")
+    if not (turn_id and user_id and conversation_id and capability):
+        raise ValueError("agent_capability 缺少 turn_id / user_id / conversation_id / capability")
+
+    reply, card = turns.execute_capability(
+        capability, user_id=user_id, session=session, gateway=ModelGateway(), key=turn_id
+    )
+    written = turns.finish_turn(
+        session, user_id=user_id, conversation_id=conversation_id,
+        turn_id=turn_id, reply=reply, card=card,
+    )
+    logger.info(
+        "agent turn done user=%s capability=%s turn=%s written=%s",
+        user_id, capability, turn_id, written,
+    )
+
+
 @register("push_weekly_digest")
 def push_weekly_digest(payload: dict, session: Session) -> None:
     """周简报推送：组装本周冲突/新增/活跃度，有内容才推（无内容不打扰）。"""

@@ -16,7 +16,7 @@ import pytest
 from fastapi.testclient import TestClient
 
 from app.api import deps
-from app.domain.models.conflict import Conflict
+from app.domain.models.book import Book
 from app.domain.models.conversation import Conversation
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.llm.completion import Completion
@@ -269,18 +269,21 @@ def test_l3_writes_exactly_one_exchange(client, session, provider):
 
 
 def test_unwired_capability_returns_guide_card_without_side_effects(client, session, provider):
-    """认得意图 ≠ 已经接入。回引导卡可以，偷偷跑一遍 L2 不行。"""
+    """认得意图 ≠ 已经接入。回引导卡可以，偷偷跑一遍那个能力不行。
+
+    用「书架」这条还没接进来的路径来锁：路由得认出来（否则会兜底成闲聊），
+    但必须只回引导卡，且一条书都不该被写进来。
+    """
     headers = auth_headers(client, "agent_guide")
-    _seed_item(client, headers, "数据库索引", "B+树与哈希索引的适用场景")
+    body = _send(client, headers, "我的书架里有什么")
 
-    body = _send(client, headers, "扫描知识冲突")
-
-    assert body["capability"] == "l2"
+    assert body["capability"] == "books"
     assert body["card"]["kind"] == "guide"
-    assert body["card"]["href"] == "/conflicts.html"
-    assert "冲突检测" in body["reply"]
+    assert body["card"]["href"] == "/books.html"
+    assert "书架" in body["reply"]
+    assert provider.task_types == []              # 引导卡不该顺手调模型
     session.flush()
-    assert session.query(Conflict).count() == 0   # 没有任何副作用
+    assert session.query(Book).count() == 0       # 没有任何副作用
 
 
 # ---- 通用对话 ---------------------------------------------------------------
@@ -360,10 +363,13 @@ def test_capabilities_endpoint_lists_wired_flags(client):
     assert resp.status_code == 200
 
     items = {item["capability"]: item for item in resp.json()}
-    assert items["l1"]["wired"] is True
-    assert items["l3"]["wired"] is True
-    assert items["knowledge_add"]["wired"] is True
-    assert items["l2"]["wired"] is False
-    assert items["l2"]["href"] == "/conflicts.html"
+    wired = {name for name, item in items.items() if item["wired"]}
+    assert wired == {"l1", "l2", "l3", "l5", "knowledge_add"}
+    assert items["books"]["wired"] is False
+    assert items["books"]["href"] == "/books.html"
+    assert items["weread_sync"]["wired"] is False
+    # 未接入的能力必须给得出原页面地址，否则引导卡是个死胡同
     for item in items.values():
         assert item["label"] and item["example"]
+        if not item["wired"]:
+            assert item["href"]

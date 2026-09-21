@@ -139,32 +139,22 @@ def set_conflict_state(
     user_id: str = Depends(get_user_id),
     session: Session = Depends(get_session),
 ) -> ConflictStateResponse:
-    """更新冲突反馈状态（unseen / ignored / accepted）。"""
-    xrepo = ConflictRepository(session, user_id=user_id)
+    """更新冲突反馈状态（unseen / ignored / accepted）。
+
+    实际语义在 `L2Orchestrator.decide_conflict`——对话卡片里的采纳/忽略按钮走的是
+    同一个方法，反馈事件与误报抑制的输入只能有一份实现。
+    """
     try:
-        conflict = xrepo.get(conflict_id)
+        conflict = L2Orchestrator.decide_conflict(
+            session, user_id=user_id, conflict_id=conflict_id, state=body.state
+        )
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail="无权访问该冲突") from exc
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
     if conflict is None:
         raise HTTPException(status_code=404, detail="冲突不存在")
 
-    previous_state = conflict.user_state
-    xrepo.set_state(conflict, body.state)
-    session.commit()
-
-    from app.feedback import events
-
-    # 反馈是误报抑制的输入（同类型被忽略 ≥N 次即收敛），也是 L5 判断"用户是否采纳建议"的信号
-    events.record(
-        session, user_id=user_id, event_type=events.L2_CONFLICT_FEEDBACK,
-        payload={
-            "conflict_id": conflict.id,
-            "from_state": previous_state,
-            "to_state": body.state,
-            "conflict_type": conflict.conflict_type,
-            "confidence": conflict.confidence,
-        },
-    )
     return ConflictStateResponse(
         conflict_id=conflict.id,
         user_state=conflict.user_state,

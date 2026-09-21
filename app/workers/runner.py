@@ -11,7 +11,6 @@ from __future__ import annotations
 
 import logging
 import threading
-import time
 
 from app.core.config import settings
 from app.domain.db import SessionLocal
@@ -24,6 +23,17 @@ logger = logging.getLogger(__name__)
 
 _started = False
 _start_lock = threading.Lock()
+# 唤醒信号：对话里发起异步能力时用它把 worker 从睡眠中立刻叫起来。
+# 没有它就只能等满一个轮询周期（默认 15s），「异步」会退化成纯粹的等待。
+_wake = threading.Event()
+
+
+def nudge() -> None:
+    """叫醒 worker 立刻跑一轮（进程内、尽力而为）。
+
+    worker 未启动时什么也不会发生——调用方不该依赖它，它只是省等待时间。
+    """
+    _wake.set()
 
 
 def run_once(session) -> RunSummary:
@@ -69,4 +79,7 @@ def _loop() -> None:
                 session.close()
         except Exception as exc:  # 任何异常都不能让轮询线程死掉
             logger.warning("task worker round failed: %s", exc)
-        time.sleep(max(1.0, settings.worker_poll_seconds))
+        # 可被 nudge() 提前叫醒；没人叫就睡满一个轮询周期。
+        # 先 clear 再 wait：否则上一轮遗留的信号会让我们空转一圈。
+        _wake.clear()
+        _wake.wait(timeout=max(1.0, settings.worker_poll_seconds))

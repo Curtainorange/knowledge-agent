@@ -39,7 +39,8 @@ def test_card_renderer_reuses_shared_escaping():
 def test_user_message_does_not_use_innerhtml():
     """用户输入的那一行必须走 textContent——它是唯一完全未经过过滤的内容。"""
     js = _agent_js()
-    assert "bubble.textContent = text" in js
+    assert "bubble.textContent =" in js
+    assert "bubble.innerHTML" not in js
 
 
 def test_send_is_mutually_exclusive():
@@ -49,8 +50,9 @@ def test_send_is_mutually_exclusive():
     历史里就会出现「答一、问二、答二、问一」这种错位。
     """
     js = _agent_js()
-    assert "var sending = false" in js
-    assert "if (!message || sending)" in js
+    assert "state.sending = true" in js
+    assert "state.sending = false" in js
+    assert "if (!message || state.sending)" in js
 
 
 def test_quick_entries_come_from_server():
@@ -62,6 +64,55 @@ def test_quick_entries_come_from_server():
     js = _agent_js()
     assert "/api/v1/agent/capabilities" in js
     assert "item.wired" in js
+
+
+# ---------- 异步回合与操作回流的前端不变量 --------------------------------
+
+
+def test_card_actions_use_event_delegation():
+    """卡片内操作必须走事件委托。
+
+    卡片会被反复重建（轮询到结果时、操作后重绘时），给按钮逐个绑监听的话，
+    重建之后按钮就「点不动」了——而且这种失效只在特定时序下出现，极难复现。
+    """
+    js = _agent_js()
+    assert "log.addEventListener('click'" in js
+    assert "closest('[data-agent-action]')" in js
+
+
+def test_polling_is_bounded():
+    """轮询必须有上限。没有上限的话，一条卡死的 pending 消息会让页面永远打请求。"""
+    js = _agent_js()
+    assert "POLL_MAX" in js
+    assert "state.polls" in js
+
+
+def test_optimistic_message_is_rolled_back_on_failure():
+    """乐观追加的用户消息在请求失败时要撤回。
+
+    不撤的话界面里会留下一条「我说过、但服务端并不知道」的消息，
+    下一轮对话的上下文与用户的认知就对不上了。
+    """
+    js = _agent_js()
+    assert "state.messages.pop()" in js
+
+
+def test_conversation_id_is_persisted_for_reload():
+    """会话 id 落 localStorage：刷新页面才能把历史连卡片一起恢复。"""
+    js = _agent_js()
+    assert "cc_agent_conversation" in js
+    assert "/api/v1/agent/conversation/" in js
+
+
+def test_messages_array_is_the_single_source_of_truth():
+    """DOM 由消息数组推导（`syncMessages`），不允许各路径各写各的 append。
+
+    否则「DOM 说已忽略、轮询又把它变回待处理」这类不一致迟早出现。
+    """
+    js = _agent_js()
+    assert "function syncMessages()" in js
+    assert "function messageNode(" in js
+    assert "function signature(" in js
 
 
 # ---------- 运行时行为（Node；环境无 node 时跳过）------------------------

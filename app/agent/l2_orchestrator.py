@@ -30,7 +30,11 @@ from app.domain.models.claim import Claim
 from app.domain.models.conflict import Conflict
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.claim_repository import ClaimRepository
-from app.domain.repositories.conflict_repository import ConflictRepository, make_pair_key
+from app.domain.repositories.conflict_repository import (
+    VALID_STATES,
+    ConflictRepository,
+    make_pair_key,
+)
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.llm.gateway import ModelGateway
 from app.llm.prompts import L2_EXTRACT, L2_JUDGE
@@ -221,6 +225,44 @@ class L2Orchestrator:
             },
         )
         return result
+
+    # ---- 用户反馈 ------------------------------------------------------
+
+    @staticmethod
+    def decide_conflict(session: Session, *, user_id: str, conflict_id: str, state: str):
+        """用户对一条冲突的反馈（unseen / ignored / accepted）。
+
+        返回冲突实体；冲突不存在返回 None；状态非法抛 ValueError；
+        冲突属于他人则让仓储的 PermissionError 原样抛出（由调用方决定呈现方式）。
+
+        放在编排层而不是端点里，是因为它有两条调用路径——原页面端点与对话卡片的
+        操作按钮。反馈语义（尤其是那条 `L2_CONFLICT_FEEDBACK` 事件，它是误报抑制
+        和 L5 判断「用户是否采纳建议」的输入）只能有一份实现。
+        """
+        from app.feedback import events
+
+        if state not in VALID_STATES:
+            raise ValueError(f"非法冲突状态：{state}")
+
+        xrepo = ConflictRepository(session, user_id=user_id)
+        conflict = xrepo.get(conflict_id)
+        if conflict is None:
+            return None
+
+        previous_state = conflict.user_state
+        xrepo.set_state(conflict, state)
+        session.commit()
+        events.record(
+            session, user_id=user_id, event_type=events.L2_CONFLICT_FEEDBACK,
+            payload={
+                "conflict_id": conflict.id,
+                "from_state": previous_state,
+                "to_state": state,
+                "conflict_type": conflict.conflict_type,
+                "confidence": conflict.confidence,
+            },
+        )
+        return conflict
 
     # ---- L2-1 主张提取 ---------------------------------------------------
 

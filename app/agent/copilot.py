@@ -1,10 +1,17 @@
 """统一对话编排：一句话进来，出去的是「一句回复 + 一张卡片」。
 
-这是「对话即入口」的落点。它本身**不实现任何能力**，只做三件事：
+这是「对话即入口」的落点，它本身**不实现任何能力**，只做三件事：
 
 1. **承接**：上一轮 L1 还在等澄清时，把这句话优先当成对追问的回答（见 router 的说明）。
-2. **分发**：按 `CapabilityRoute` 把话交给对应的编排器/服务。
+2. **分发**：按 `CapabilityRoute` 把话交给对应的编排器 / 服务，或交给 `turns` 异步跑。
 3. **收口**：把结果整理成统一卡片写回会话，前端只认卡片、不认能力细节。
+
+模块分工（改之前先看清楚，免得把逻辑放错地方）：
+
+- `router`   —— 一句话 → 一条 `CapabilityRoute`（意图判定）
+- `turns`    —— 异步回合、结果写回、卡片内操作回流（耗时能力与可变状态）
+- `cards`    —— 卡片协议与配套回复文案（前后端唯一契约）
+- 本模块     —— 把上面三样拼起来，并决定「同步跑还是异步跑」
 
 ---
 
@@ -13,11 +20,13 @@
 - 各能力**自己追加自己的消息**。`Orchestrator.chat` 会写 user+assistant；
   `L1Orchestrator.mine` 会写 user（以及在 clarify 时写追问）。它们先于本层落地，
   本层再补一条就会重复。
-- 本层只负责**能力没写的那一条**：L1 命中/空库的结果消息、知识录入、以及未接入能力的引导。
+- 本层只负责**能力没写的那一条**：L1 命中/空库的结果消息、重能力的结果、
+  知识录入、以及未接入能力的引导（统一走 `_append_exchange`）。
 
-**卡片落在哪？** 只挂在「有结果」的回合上。L1 的追问、普通闲聊都是纯文本回合，不带卡——
-脱开页面重新进来时，历史里能看到结论卡，看不到中间过程的候选列表，这是有意取舍：
-候选是瞬时的，结论才值得留。
+**同步还是异步？** `l2/l3/l5` 量级在十几秒到几分钟，交给 `turns` 入队后台跑
+（前端先拿到一张 pending 卡）。但异步**依赖 worker**：`worker_enabled=False`
+（测试、或某些只读部署）时后台没人干活，那样 pending 卡会永远转圈——
+所以此时自动退回同步执行，慢，但一定有结果。
 
 这些结果消息还有一个**结构性副作用**：它把 `source` 从 `l1` 换成了 `agent`，
 于是下一轮挖掘的「连续澄清轮」计数会归零（见 `L1Orchestrator._l1_turn_count`）。
@@ -27,13 +36,25 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass
+from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.agent.l1_orchestrator import L1Orchestrator, L1Result
-from app.agent.l3_orchestrator import L3Brief, L3Orchestrator
+from app.agent import turns
+from app.agent.cards import (
+    guide_card,
+    knowledge_created_card,
+    l1_clarify_card,
+    l1_empty_card,
+    l1_located_card,
+    located_reply,
+    note_empty_card,
+)
+from app.agent.l1_orchestrator import L1Orchestrator
 from app.agent.orchestrator import Orchestrator
-from app.agent.router import CapabilityRoute, CapabilityRouter, capability_spec, parse_note
+from app.agent.router import CapabilityRoute, CapabilityRouter, parse_note
+from app.agent.turns import SOURCE
+from app.core.config import settings
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.feedback import events
 from app.ingestion.service import IngestionService
@@ -42,146 +63,7 @@ from app.retrieval.embedding import build_embedding
 
 logger = logging.getLogger(__name__)
 
-# 本层追加的消息统一带这个来源标记，与 L1 自己的 source="l1" 区分开
-SOURCE = "agent"
 _TITLE_MAX = 256
-
-
-# ---- 卡片构造 --------------------------------------------------------------
-#
-# 卡片是后端与前端之间的契约：前端只按 kind 渲染，不猜能力语义。
-
-
-def _candidates_payload(result: L1Result) -> list[dict]:
-    """召回候选原样带出（含已命中项）。
-
-    沿用 L1 端点的既有约定：这是「本次召回的完整视图」，由调用方自行排除已命中的 id。
-    只给一条结果时用户无从判断模型是真定位到了、还是随手挑了一条，所以候选必须带出来。
-    """
-    return [
-        {
-            "item_id": c.item_id,
-            "title": c.title,
-            "snippet": c.snippet,
-            "score": c.score,
-            "channels": list(c.channels),
-        }
-        for c in result.candidates
-    ]
-
-
-def _card_l1_located(result: L1Result) -> dict:
-    return {
-        "kind": "l1_located",
-        "items": [
-            {
-                "item_id": item.item_id,
-                "title": item.title,
-                "snippet": item.snippet,
-                "read_progress": round(float(item.read_progress or 0.0), 4),
-                "embed_status": item.embed_status,
-                "href": f"/knowledge.html?item={item.item_id}",
-            }
-            for item in result.located_items
-        ],
-        "candidates": _candidates_payload(result),
-        "hint": result.read_hint,
-        "reason": result.reason,
-    }
-
-
-def _card_l1_clarify(result: L1Result) -> dict:
-    return {
-        "kind": "l1_clarify",
-        "question": result.question,
-        "candidates": _candidates_payload(result),
-        "turn": result.turn,
-        "max_turns": result.max_turns,
-        "reason": result.reason,
-    }
-
-
-def _card_l1_empty() -> dict:
-    return {
-        "kind": "l1_empty",
-        "title": "知识库还是空的",
-        "note": "先录入几条知识再来挖掘——没有素材就没法按线索找回。",
-        "href": "/knowledge.html",
-    }
-
-
-def _card_knowledge_created(item) -> dict:
-    return {
-        "kind": "knowledge_created",
-        "item_id": item.id,
-        "title": item.title,
-        "tags": [str(tag) for tag in (item.tags or [])],
-        "embed_status": item.embed_status,
-        "href": f"/knowledge.html?item={item.id}",
-    }
-
-
-def _card_l3_brief(result: L3Brief) -> dict:
-    """L3 认知简报卡。
-
-    `state` 一并带出：`degraded` 时主题分布仍有效、只是追问生成失败，前端要能
-    **保留已有的部分**并把降级原因说清楚，而不是整张卡当成失败。
-    """
-    spec = capability_spec("l3")
-    return {
-        "kind": "l3_brief",
-        "state": result.state,                 # ok | empty | degraded
-        "analyzed_items": result.analyzed_items,
-        "topics": [
-            {"topic": stat.topic, "count": stat.count, "levels": dict(stat.levels)}
-            for stat in result.topics
-        ],
-        "patterns": list(result.patterns),
-        "questions": [
-            {
-                "question": q.question,
-                "why": q.why,
-                "evidence": q.evidence,
-                "next_step": q.next_step,
-            }
-            for q in result.questions
-        ],
-        "conflicts": dict(result.conflict_stats),
-        "overview": result.overview,
-        "note": result.note,
-        "href": spec.href if spec else "",
-    }
-
-
-def _card_note_empty() -> dict:
-    return {
-        "kind": "note_empty",
-        "title": "没看出要记什么",
-        "note": "换成「记一下：正文内容 #标签」的写法再试一次。",
-    }
-
-
-def _card_guide(capability: str) -> dict:
-    """未接入对话的能力 → 一张把用户送回原页面的引导卡。
-
-    刻意**不**复用能力自己的编排器去「顺手做一下」：那样用户以为是对话在做，
-    出了问题也不知道该找哪个页面看结果。说清楚「还没接进来、先去哪儿」更诚实。
-    """
-    spec = capability_spec(capability)
-    label = spec.label if spec else "这个能力"
-    href = spec.href if spec else "/"
-    note = (
-        f"「{label}」还没接进对话，先去原页面用；接进来之后这里可以直接操作。"
-        if href
-        else f"「{label}」还没接进对话。"
-    )
-    return {
-        "kind": "guide",
-        "capability": capability,
-        "label": label,
-        "href": href,
-        "note": note,
-    }
 
 
 @dataclass
@@ -233,15 +115,21 @@ class Copilot:
         clarifying = (conversation.state or "") == "clarifying"
         route = self._router.route(message, user_id=user_id, allow_model=not clarifying)
 
-        method = self._handlers().get(route.capability)
-        if method is None:
-            reply, card = self._guide(
-                repo, conversation, user_id=user_id, message=message, route=route
+        if self._runs_async(route.capability):
+            reply, card = turns.start_turn(
+                self._session, user_id=user_id, conversation=conversation,
+                capability=route.capability, message=message,
             )
         else:
-            reply, card = method(
-                repo, conversation, user_id=user_id, message=message, route=route
-            )
+            method = self._handlers().get(route.capability)
+            if method is None:
+                reply, card = self._guide(
+                    repo, conversation, user_id=user_id, message=message, route=route
+                )
+            else:
+                reply, card = method(
+                    repo, conversation, user_id=user_id, message=message, route=route
+                )
 
         self._session.commit()
         self._emit_turn(user_id, route, card)
@@ -256,11 +144,22 @@ class Copilot:
 
     # ---- 分发 ------------------------------------------------------------
 
+    @staticmethod
+    def _runs_async(capability: str) -> bool:
+        """重能力走后台。**必须有 worker 才敢异步**——没有 worker 的话 pending 卡永远不落地。"""
+        return capability in turns.ASYNC_CAPABILITIES and settings.worker_enabled
+
     def _handlers(self) -> dict[str, object]:
-        """已接入的能力。未登记的能力一律走引导卡。"""
+        """已接入的能力。未登记的能力一律走引导卡。
+
+        `l2/l3/l5` 登记的是**同步**执行：正常路径上它们会被 `_runs_async` 拦到后台去，
+        这里只在没有 worker 时兜底。
+        """
         return {
             "l1": self._l1,
-            "l3": self._l3,
+            "l2": self._heavy,
+            "l3": self._heavy,
+            "l5": self._heavy,
             "knowledge_add": self._knowledge_add,
             "chat": self._chat,
         }
@@ -280,8 +179,8 @@ class Copilot:
         )
 
         if result.state == "located":
-            card = _card_l1_located(result)
-            reply = _located_reply(result)
+            card = l1_located_card(result)
+            reply = located_reply(result)
             # 结果消息由本层追加：L1 命中时自己只置状态、不写消息
             repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
             return reply, card
@@ -289,30 +188,30 @@ class Copilot:
         if result.state == "clarifying":
             # 追问由 L1 自己追加（source=l1），重复写会出现两条同样的提问。
             # 卡片只用于本轮即时渲染，不进历史——候选是瞬时的，结论才值得留。
-            return result.question, _card_l1_clarify(result)
+            return result.question, l1_clarify_card(result)
 
-        card = _card_l1_empty()
+        card = l1_empty_card()
         reply = result.question or card["note"]
         repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
         return reply, card
 
-    def _l3(self, repo, conversation, *, user_id, message, route):
-        """L3 认知简报：只读、无副作用，但**慢**（两次模型调用，通常十几秒）。
-
-        L3 自己不写任何消息，所以这里 user 与 assistant 两条都要本层补。
-        同步执行意味着请求会占住十几秒——之所以先按同步接，是为了让卡片形态先跑通；
-        异步回合协议就绪后，这个 handler 会整体挪到后台执行（见 `ASYNC_CAPABILITIES`）。
-        """
-        result = L3Orchestrator(self._gateway, self._session).brief(user_id=user_id)
-        card = _card_l3_brief(result)
-        reply = _brief_reply(result)
+    def _heavy(self, repo, conversation, *, user_id, message, route):
+        """同步跑重能力。只在没有 worker 时走到这里（否则 `_runs_async` 已经拦下）。"""
+        key = str(uuid4())
+        reply, card = turns.execute_capability(
+            route.capability,
+            user_id=user_id,
+            session=self._session,
+            gateway=self._gateway,
+            key=key,
+        )
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
 
     def _knowledge_add(self, repo, conversation, *, user_id, message, route):
         note = self._note_args(message, route)
         if not note["content"]:
-            card = _card_note_empty()
+            card = note_empty_card()
             self._append_exchange(repo, conversation, message, card["note"], card)
             return card["note"], card
 
@@ -324,13 +223,13 @@ class Copilot:
             source=SOURCE,
             tags=note["tags"],
         )
-        card = _card_knowledge_created(item)
+        card = knowledge_created_card(item)
         reply = f"已记下：{item.title}"
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
 
     def _guide(self, repo, conversation, *, user_id, message, route):
-        card = _card_guide(route.capability)
+        card = guide_card(route.capability)
         self._append_exchange(repo, conversation, message, card["note"], card)
         return card["note"], card
 
@@ -342,7 +241,7 @@ class Copilot:
         """给「自己什么都不写」的能力补上 user + assistant 两条消息。
 
         与 `_l1` / `_chat` 的分工是互补的：那两个能力自己写了消息，本层就不插手；
-        这里的能力（L3、知识录入、引导卡）什么都没写，两条都得本层补。
+        这里的能力（L2/L3/L5、知识录入、引导卡）什么都没写，两条都得本层补。
         写重了历史里会冒出两条一样的回复，写漏了历史就断片——两个方向都有测试锁着。
         """
         repo.append_message(conversation, "user", message, source=SOURCE)
@@ -412,28 +311,3 @@ class Copilot:
                 event_type=events.AGENT_ROUTE_MISSED,
                 payload=payload,
             )
-
-
-def _located_reply(result: L1Result) -> str:
-    """命中后的那一句回复。标题列出来，细节交给卡片。"""
-    if not result.located_items:
-        return "没能定位到具体条目，换个说法再试试？"
-    titles = "、".join(item.title for item in result.located_items[:3])
-    reply = f"找到 {len(result.located_items)} 条：{titles}"
-    if result.read_hint:
-        reply = f"{reply}。{result.read_hint}"
-    return reply
-
-
-def _brief_reply(result: L3Brief) -> str:
-    """简报那一句回复。
-
-    降级时**不要**说「失败」：`degraded` 表示主题分布仍然有效、只是追问那一步没成，
-    卡片里还有可用内容，一句「失败了」会让用户直接放弃看。
-    """
-    if result.state == "ok":
-        return (
-            f"分析了 {result.analyzed_items} 条，"
-            f"{len(result.topics)} 个主题，{len(result.questions)} 个值得想的问题"
-        )
-    return result.note or "简报没能完整生成，稍后再试一次。"

@@ -42,7 +42,7 @@ FALLBACK_CAPABILITY = "chat"
 
 # 目前已经真正接进对话的能力。其余能力路由层认得、但由 copilot 回一张「去哪儿」的引导卡，
 # 而不是假装做完了——「路由认得」与「能力已接入」必须分开，否则用户会以为功能坏了。
-WIRED_CAPABILITIES: frozenset[str] = frozenset({"l1", "l3", "knowledge_add", "chat"})
+WIRED_CAPABILITIES: frozenset[str] = frozenset({"l1", "l2", "l3", "l5", "knowledge_add", "chat"})
 
 
 @dataclass(frozen=True)
