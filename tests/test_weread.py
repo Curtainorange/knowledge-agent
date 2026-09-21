@@ -225,6 +225,12 @@ def test_sync_creates_highlight_and_thought(session):
     assert "读书笔记" in thought.tags
     assert thought.source_locator["kind"] == "review"
 
+    # 两条都必须真的算过向量：漏传 embedding 时它们会停在 pending，
+    # 表现为「同步进来的知识搜不到」（真实踩过这个坑）
+    for item in items.values():
+        assert item.embed_status == "embedded"
+        assert item.embedding is not None
+
 
 def test_sync_handles_nested_review_wrapper(session):
     """想法回包的层级不稳定：真实接口是两层（reviewId 在外、正文在内），文档写的是一层。

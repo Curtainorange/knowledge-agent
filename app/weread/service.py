@@ -317,7 +317,15 @@ class WeReadSyncService:
         代价是每条都要过一次向量计算与 L2 触发检查；换来的是每条知识都有
         KNOWLEDGE_CREATED 埋点、embed_status 语义与手动录入完全一致。
         """
-        svc = IngestionService(self._session, self._embedding)
+        embedding = self._embedding
+        if embedding is None:
+            # 与 books/service 同款做法：没有显式注入就自己建。
+            # 这里漏过一步的后果是——条目能落库，但 embed_status 永远停在 pending，
+            # 语义检索拿不到它（表现为「同步进来的知识搜不到」）。
+            from app.retrieval.embedding import build_embedding
+
+            embedding = build_embedding()
+        svc = IngestionService(self._session, embedding)
         for cand in candidates:
             item = svc.add_knowledge(
                 user_id=user_id,
