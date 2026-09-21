@@ -31,6 +31,7 @@ from dataclasses import dataclass
 from sqlalchemy.orm import Session
 
 from app.agent.l1_orchestrator import L1Orchestrator, L1Result
+from app.agent.l3_orchestrator import L3Brief, L3Orchestrator
 from app.agent.orchestrator import Orchestrator
 from app.agent.router import CapabilityRoute, CapabilityRouter, capability_spec, parse_note
 from app.domain.repositories.conversation_repository import ConversationRepository
@@ -117,6 +118,38 @@ def _card_knowledge_created(item) -> dict:
         "tags": [str(tag) for tag in (item.tags or [])],
         "embed_status": item.embed_status,
         "href": f"/knowledge.html?item={item.id}",
+    }
+
+
+def _card_l3_brief(result: L3Brief) -> dict:
+    """L3 认知简报卡。
+
+    `state` 一并带出：`degraded` 时主题分布仍有效、只是追问生成失败，前端要能
+    **保留已有的部分**并把降级原因说清楚，而不是整张卡当成失败。
+    """
+    spec = capability_spec("l3")
+    return {
+        "kind": "l3_brief",
+        "state": result.state,                 # ok | empty | degraded
+        "analyzed_items": result.analyzed_items,
+        "topics": [
+            {"topic": stat.topic, "count": stat.count, "levels": dict(stat.levels)}
+            for stat in result.topics
+        ],
+        "patterns": list(result.patterns),
+        "questions": [
+            {
+                "question": q.question,
+                "why": q.why,
+                "evidence": q.evidence,
+                "next_step": q.next_step,
+            }
+            for q in result.questions
+        ],
+        "conflicts": dict(result.conflict_stats),
+        "overview": result.overview,
+        "note": result.note,
+        "href": spec.href if spec else "",
     }
 
 
@@ -227,6 +260,7 @@ class Copilot:
         """已接入的能力。未登记的能力一律走引导卡。"""
         return {
             "l1": self._l1,
+            "l3": self._l3,
             "knowledge_add": self._knowledge_add,
             "chat": self._chat,
         }
@@ -262,12 +296,24 @@ class Copilot:
         repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
         return reply, card
 
+    def _l3(self, repo, conversation, *, user_id, message, route):
+        """L3 认知简报：只读、无副作用，但**慢**（两次模型调用，通常十几秒）。
+
+        L3 自己不写任何消息，所以这里 user 与 assistant 两条都要本层补。
+        同步执行意味着请求会占住十几秒——之所以先按同步接，是为了让卡片形态先跑通；
+        异步回合协议就绪后，这个 handler 会整体挪到后台执行（见 `ASYNC_CAPABILITIES`）。
+        """
+        result = L3Orchestrator(self._gateway, self._session).brief(user_id=user_id)
+        card = _card_l3_brief(result)
+        reply = _brief_reply(result)
+        self._append_exchange(repo, conversation, message, reply, card)
+        return reply, card
+
     def _knowledge_add(self, repo, conversation, *, user_id, message, route):
         note = self._note_args(message, route)
         if not note["content"]:
             card = _card_note_empty()
-            repo.append_message(conversation, "user", message, source=SOURCE)
-            repo.append_message(conversation, "assistant", card["note"], source=SOURCE, card=card)
+            self._append_exchange(repo, conversation, message, card["note"], card)
             return card["note"], card
 
         service = IngestionService(self._session, self._embedding or build_embedding())
@@ -280,17 +326,27 @@ class Copilot:
         )
         card = _card_knowledge_created(item)
         reply = f"已记下：{item.title}"
-        repo.append_message(conversation, "user", message, source=SOURCE)
-        repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
+        self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
 
     def _guide(self, repo, conversation, *, user_id, message, route):
         card = _card_guide(route.capability)
-        repo.append_message(conversation, "user", message, source=SOURCE)
-        repo.append_message(conversation, "assistant", card["note"], source=SOURCE, card=card)
+        self._append_exchange(repo, conversation, message, card["note"], card)
         return card["note"], card
 
     # ---- 内部 ------------------------------------------------------------
+
+    @staticmethod
+    def _append_exchange(repo: ConversationRepository, conversation, message: str,
+                         reply: str, card: dict | None = None) -> None:
+        """给「自己什么都不写」的能力补上 user + assistant 两条消息。
+
+        与 `_l1` / `_chat` 的分工是互补的：那两个能力自己写了消息，本层就不插手；
+        这里的能力（L3、知识录入、引导卡）什么都没写，两条都得本层补。
+        写重了历史里会冒出两条一样的回复，写漏了历史就断片——两个方向都有测试锁着。
+        """
+        repo.append_message(conversation, "user", message, source=SOURCE)
+        repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
 
     @staticmethod
     def _load_or_create(repo: ConversationRepository, user_id: str, conversation_id: str | None):
@@ -367,3 +423,17 @@ def _located_reply(result: L1Result) -> str:
     if result.read_hint:
         reply = f"{reply}。{result.read_hint}"
     return reply
+
+
+def _brief_reply(result: L3Brief) -> str:
+    """简报那一句回复。
+
+    降级时**不要**说「失败」：`degraded` 表示主题分布仍然有效、只是追问那一步没成，
+    卡片里还有可用内容，一句「失败了」会让用户直接放弃看。
+    """
+    if result.state == "ok":
+        return (
+            f"分析了 {result.analyzed_items} 条，"
+            f"{len(result.topics)} 个主题，{len(result.questions)} 个值得想的问题"
+        )
+    return result.note or "简报没能完整生成，稍后再试一次。"

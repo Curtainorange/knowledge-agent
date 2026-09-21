@@ -119,6 +119,53 @@ check('已命中项被排除', filtered.indexOf('已命中') === -1);
 check('其他可能被保留', filtered.indexOf('其他') !== -1);
 check('无剩余候选时不渲染折叠块', CCA.candidatesHtml([{ item_id: 'i1' }], ['i1']) === '');
 
+console.log('\nL3 简报卡片：分布、结构信号、追问');
+const brief = CCA.renderCard({
+  kind: 'l3_brief',
+  state: 'ok',
+  analyzed_items: 12,
+  topics: [
+    { topic: '数据库', count: 9, levels: { 入门: 7, 进阶: 2 } },
+    { topic: XSS, count: 3, levels: { 未分类: 3 } }
+  ],
+  patterns: ['大量存在：入门层内容', '完全缺失：实战层内容'],
+  questions: [{ question: XSS, why: '只有原理', evidence: '12 篇里 0 篇实战', next_step: '做一次执行计划分析' }],
+  conflicts: { this_week: 3, last_week: 1, delta: 2 },
+  overview: '结构上有缺口',
+  note: '',
+  href: '/brief.html'
+});
+check('主题名与计数渲染', brief.indexOf('数据库') !== -1 && brief.indexOf('9 篇') !== -1);
+check('深度层级用徽标渲染', brief.indexOf('入门 7') !== -1);
+check('「大量存在」标为 abundant', brief.indexOf('pattern abundant') !== -1);
+check('「完全缺失」标为 missing', brief.indexOf('pattern missing') !== -1);
+check('追问渲染出数据依据', brief.indexOf('12 篇里 0 篇实战') !== -1);
+check('冲突同比渲染（含涨跌符号）', brief.indexOf('本周新增冲突 3 处') !== -1 && brief.indexOf('↑2') !== -1);
+check('保留回原页面的深链', brief.indexOf('href="/brief.html"') !== -1);
+check('简报里的用户数据被转义', brief.indexOf('<img src=x') === -1);
+
+const degraded = CCA.renderCard({
+  kind: 'l3_brief',
+  state: 'degraded',
+  analyzed_items: 5,
+  topics: [{ topic: '索引', count: 5, levels: { 入门: 5 } }],
+  patterns: [],
+  questions: [],
+  conflicts: {},
+  overview: '',
+  note: '追问生成失败（模型输出无法解析），主题分布仍然有效。',
+  href: '/brief.html'
+});
+check('降级时保留主题分布', degraded.indexOf('索引') !== -1 && degraded.indexOf('5 篇') !== -1);
+check('降级时说明原因', degraded.indexOf('主题分布仍然有效') !== -1);
+
+const briefEmpty = CCA.renderCard({
+  kind: 'l3_brief', state: 'empty', analyzed_items: 0, topics: [], patterns: [],
+  questions: [], conflicts: {}, overview: '', note: '知识库还是空的。', href: '/brief.html'
+});
+check('空知识库只给提示，不渲染空表格', briefEmpty.indexOf('知识库还是空的') !== -1
+  && briefEmpty.indexOf('topic-row') === -1);
+
 console.log('\n数值与徽标');
 check('pct 四舍五入', CCA.pct(0.567) === 57);
 check('pct 容错非数字', CCA.pct(null) === 0 && CCA.pct('x') === 0);

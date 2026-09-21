@@ -179,6 +179,92 @@ def test_l1_located_card_is_persisted_for_history(client, session, provider):
     assert last["card"]["kind"] == "l1_located"
 
 
+# ---- L3 认知简报 -----------------------------------------------------------
+
+BRIEF_TEXT = "生成认知简报"
+
+
+def _topic_payload(item_id: str, topic: str = "数据库", level: str = "进阶") -> str:
+    return json.dumps({
+        "assignments": [{"item_id": item_id, "topic": topic, "level": level}],
+        "overview": "整体偏入门",
+    })
+
+
+def _draft_payload() -> str:
+    return json.dumps({
+        "patterns": ["大量存在：入门层内容", "完全缺失：实战层内容"],
+        "questions": [{
+            "question": "你打算怎么把索引原理用到真实慢查询上？",
+            "why": "只有原理没有落地",
+            "evidence": "1 篇里 0 篇是实战层",
+            "next_step": "挑一条线上慢查询做一次执行计划分析",
+        }],
+        "overview": "结构上有明显缺口",
+    })
+
+
+def test_l3_brief_returns_full_card(client, session, provider):
+    headers = auth_headers(client, "agent_l3_ok")
+    item_id = _seed_item(client, headers, "数据库索引", "B+树与哈希索引的适用场景")
+    provider.rows.extend([_topic_payload(item_id), _draft_payload()])
+
+    body = _send(client, headers, BRIEF_TEXT)
+
+    assert body["capability"] == "l3"
+    assert body["decided_by"] == "local"          # 命令式说法，不花分流调用
+    card = body["card"]
+    assert card["kind"] == "l3_brief"
+    assert card["state"] == "ok"
+    assert card["topics"] == [{"topic": "数据库", "count": 1, "levels": {"进阶": 1}}]
+    assert card["questions"][0]["evidence"] == "1 篇里 0 篇是实战层"
+    assert card["href"] == "/brief.html"          # 卡片上留一条回原页面的深链
+    assert "值得想的问题" in body["reply"]
+
+
+def test_l3_brief_on_empty_knowledge_skips_the_model(client, provider):
+    """空知识库直接返回提示，不该为了「生成简报」白花两次模型调用。"""
+    headers = auth_headers(client, "agent_l3_empty")
+    body = _send(client, headers, BRIEF_TEXT)
+
+    assert body["card"]["state"] == "empty"
+    assert provider.task_types == []
+
+
+def test_l3_degraded_keeps_the_usable_part(client, session, provider):
+    """主题归类成功、追问生成失败 → 保留主题分布，并把降级原因说清楚。
+
+    这里最容易做错的是「一句失败就把整张卡丢掉」——实际上分布表仍然有效，
+    用户看得到东西；而且在回复文案里也不能说「失败」（那会让人直接不看了）。
+    """
+    headers = auth_headers(client, "agent_l3_degraded")
+    item_id = _seed_item(client, headers, "数据库索引", "B+树与哈希索引的适用场景")
+    provider.rows.extend([_topic_payload(item_id), "追问那一步我没输出 JSON"])
+
+    body = _send(client, headers, BRIEF_TEXT)
+
+    assert body["card"]["state"] == "degraded"
+    assert body["card"]["topics"], "降级时主题分布必须保留"
+    assert body["card"]["note"]
+    # 锁的是「必须说明还有哪部分可用」，而不是「不许出现失败二字」：
+    # 只丢一句「生成失败」会让用户直接不看，而分布表其实还是好的
+    assert "主题分布仍然有效" in body["reply"]
+
+
+def test_l3_writes_exactly_one_exchange(client, session, provider):
+    """L3 自己什么都不写，两条消息都要本层补——漏一条历史就断片。"""
+    headers = auth_headers(client, "agent_l3_hist")
+    item_id = _seed_item(client, headers, "数据库索引", "B+树与哈希索引的适用场景")
+    provider.rows.extend([_topic_payload(item_id), _draft_payload()])
+
+    body = _send(client, headers, BRIEF_TEXT)
+    messages = _messages(session, body["conversation_id"])
+
+    assert [m["role"] for m in messages] == ["user", "assistant"]
+    assert messages[-1]["card"]["kind"] == "l3_brief"
+    assert messages[-1]["source"] == "agent"
+
+
 # ---- 未接入的能力 -----------------------------------------------------------
 
 
@@ -275,6 +361,7 @@ def test_capabilities_endpoint_lists_wired_flags(client):
 
     items = {item["capability"]: item for item in resp.json()}
     assert items["l1"]["wired"] is True
+    assert items["l3"]["wired"] is True
     assert items["knowledge_add"]["wired"] is True
     assert items["l2"]["wired"] is False
     assert items["l2"]["href"] == "/conflicts.html"

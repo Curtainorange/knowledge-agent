@@ -528,4 +528,6 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 }
 .created .c-head{font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:5px}
 .created .c-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.brief .notice{margin-bottom:8px}
+.brief .patterns .meta{margin-bottom:2px}
 @media(max-width:700px){.agent-log{max-height:none}}

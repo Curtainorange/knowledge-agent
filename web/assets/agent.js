@@ -101,6 +101,84 @@ window.CCA = (function () {
     return '<div class="notice">' + esc(card.note) + '</div>';
   }
 
+  /* L3 认知简报：主题分布 + 结构信号 + 追问。
+     类名与 brief.html 共用（.topic-row / .patterns / .question-card），
+     所以同一份结果在对话里和原页面长得一样，不出现两套视觉语言。 */
+  var LEVELS = ['入门', '进阶', '实战', '未分类'];
+
+  function topicRowsHtml(topics) {
+    return (topics || []).map(function (t) {
+      var levels = LEVELS.filter(function (lv) {
+        return (t.levels || {})[lv];
+      }).map(function (lv) {
+        return '<span class="badge level">' + esc(lv) + ' ' + Number(t.levels[lv]) + '</span>';
+      }).join(' ');
+      return '<div class="topic-row">' +
+        '<div class="topic-name">' + esc(t.topic) + '</div>' +
+        '<div class="topic-levels"><span class="badge ok">' + Number(t.count) + ' 篇</span> ' + levels + '</div>' +
+      '</div>';
+    }).join('');
+  }
+
+  function patternListHtml(patterns) {
+    var rows = (patterns || []).map(function (p) {
+      var kind = String(p).indexOf('完全缺失') === 0 ? 'missing' : 'abundant';
+      return '<div class="pattern ' + kind + '">' + esc(p) + '</div>';
+    }).join('');
+    if (!rows) {
+      return '';
+    }
+    return '<div class="patterns"><div class="meta">结构信号</div>' + rows + '</div>';
+  }
+
+  function questionCardsHtml(questions) {
+    return (questions || []).map(function (q) {
+      var body = '<div class="q-head">' + esc(q.question) + '</div>';
+      if (q.why) {
+        body += '<div class="cf-block"><b>为什么问：</b>' + esc(q.why) + '</div>';
+      }
+      if (q.evidence) {
+        body += '<div class="cf-block"><b>数据依据：</b>' + esc(q.evidence) + '</div>';
+      }
+      if (q.next_step) {
+        body += '<div class="cf-block"><b>可以做什么：</b>' + esc(q.next_step) + '</div>';
+      }
+      return '<div class="question-card">' + body + '</div>';
+    }).join('');
+  }
+
+  function l3BriefHtml(card) {
+    var parts = [];
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    if (card.overview) {
+      parts.push('<div class="meta">' + esc(card.overview) + '</div>');
+    }
+
+    var body = topicRowsHtml(card.topics);
+    if (body) {
+      parts.push(body);
+    }
+    parts.push(patternListHtml(card.patterns));
+    parts.push(questionCardsHtml(card.questions));
+
+    var stats = card.conflicts || {};
+    if (typeof stats.this_week === 'number') {
+      var delta = Number(stats.delta || 0);
+      var arrow = delta > 0 ? ('↑' + delta) : (delta < 0 ? ('↓' + Math.abs(delta)) : '持平');
+      parts.push(
+        '<div class="meta">本周新增冲突 ' + Number(stats.this_week) + ' 处（上周 ' +
+        Number(stats.last_week || 0) + '，' + arrow + '）· 本次分析 ' +
+        Number(card.analyzed_items || 0) + ' 条</div>'
+      );
+    }
+    if (card.href) {
+      parts.push('<div class="card-actions"><a href="' + esc(card.href) + '">在原页面查看完整简报</a></div>');
+    }
+    return '<div class="brief">' + parts.join('') + '</div>';
+  }
+
   function guideHtml(card) {
     return '<div class="guide">' +
       '<div class="g-head">' + esc(card.label) + '</div>' +
@@ -113,6 +191,7 @@ window.CCA = (function () {
     l1_located: locatedHtml,
     l1_clarify: clarifyHtml,
     l1_empty: emptyHtml,
+    l3_brief: l3BriefHtml,
     knowledge_created: createdHtml,
     note_empty: noteEmptyHtml,
     guide: guideHtml

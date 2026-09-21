@@ -42,7 +42,7 @@ FALLBACK_CAPABILITY = "chat"
 
 # 目前已经真正接进对话的能力。其余能力路由层认得、但由 copilot 回一张「去哪儿」的引导卡，
 # 而不是假装做完了——「路由认得」与「能力已接入」必须分开，否则用户会以为功能坏了。
-WIRED_CAPABILITIES: frozenset[str] = frozenset({"l1", "knowledge_add", "chat"})
+WIRED_CAPABILITIES: frozenset[str] = frozenset({"l1", "l3", "knowledge_add", "chat"})
 
 
 @dataclass(frozen=True)
@@ -52,12 +52,15 @@ class CapabilitySpec:
     `example` 不只是文案——它是快捷入口发出的原文，**必须能被本地规则命中**，
     否则「点一下按钮」会退化成一次模型调用，结果还不确定。新增能力时先补规则，
     再把示例写进来（`tests/test_agent_router.py` 会逐条验证这件事）。
+
+    `href` 是该能力的**原页面**：未接入对话时它就是引导卡的落点；
+    已接入对话后仍留着，用作卡片上的「在原页面查看」深链（完整视图比卡片更全）。
     """
 
     capability: str
     label: str
     example: str
-    href: str = ""  # 尚未接入对话时，引导到哪个原页面
+    href: str = ""
 
 
 CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
