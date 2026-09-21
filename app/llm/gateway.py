@@ -46,6 +46,10 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     "l1_mining": Strategy("l1_mining", True, ""),  # L1 模糊意图→定位判断（reasoning=on）
     "batch_extraction": Strategy("batch_extraction", False, ""),
     "topic_analysis": Strategy("topic_analysis", False, ""),
+    # 对话入口的意图分流：**每轮都会跑**，且本地命令式规则已兜住高价值指令，
+    # 判不出来时回落通用对话也是安全行为——故 reasoning=off 控成本。
+    # 若实测分流质量不足，再单独把这行改成 on（比照 l1_mining）。
+    "capability_routing": Strategy("capability_routing", False, ""),
 }
 
 

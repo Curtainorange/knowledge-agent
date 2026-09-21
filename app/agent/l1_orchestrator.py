@@ -125,15 +125,28 @@ class L1Orchestrator:
 
     @staticmethod
     def _l1_turn_count(conv) -> int:
-        """已进行的 L1 追问轮次。
+        """本轮挖掘已经追问了几轮 —— 只数**末尾连续的** L1 澄清。
 
-        只统计带 `source="l1"` 标记的 assistant 消息：同一会话若混用过通用对话，
-        那些回复不该计入 L1 的追问上限（旧实现数了所有 assistant 消息，会提前触发兜底）。
+        两层含义都不能少：
+
+        1. 只统计带 `source="l1"` 标记的 assistant 消息，其它来源的回复不算
+           （旧实现数了所有 assistant 消息，闲聊会把计数顶到上限、第一轮就兜底）。
+        2. 必须是**末尾连续的一段**。对话入口把会话拧成一条长线程后，用户会在同一个
+           会话里做很多次挖掘；若按总数累加，第 N 次挖掘一开口就背着前面所有澄清轮，
+           几轮之后「第一句话就被判为追问超限、直接兜底给一条最可能的候选」——
+           追问环节等于消失了。上下文边界（用户自己的新输入、别的能力的结果卡）
+           会把这段连续计数归零。
         """
-        return sum(
-            1 for m in (conv.messages or [])
-            if m.get("role") == "assistant" and m.get("source") == "l1"
-        )
+        count = 0
+        for message in reversed(conv.messages or []):
+            role = message.get("role")
+            if role == "user":
+                continue  # 本次 L1 的输入，跳过继续往前看
+            if role == "assistant" and message.get("source") == "l1":
+                count += 1
+                continue
+            break  # 遇到非 L1 澄清的消息 → 上一轮挖掘已结束，计数归零
+        return count
 
     @staticmethod
     def _candidate_details(

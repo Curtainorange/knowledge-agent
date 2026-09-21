@@ -16,7 +16,7 @@
   <div class="auth-wrap">
     <div class="card auth-card">
       <h1 id="auth-title">登录</h1>
-      <p class="lead">登录后进入你的知识库与 L1 认知挖掘</p>
+      <p class="lead">登录后进入对话工作台，用一句话调用全部能力</p>
       <div class="field">
         <input id="auth-username" placeholder="用户名（3-64 位，字母数字 _ . -）" autocomplete="username">
       </div>
@@ -39,7 +39,7 @@
   var $ = CC.$;
   var mode = 'login';
   var params = new URLSearchParams(location.search);
-  var next = params.get('next') || '/knowledge.html';           // 登录成功后回跳的目标页
+  var next = params.get('next') || '/app.html';                 // 登录成功后回跳的目标页（默认进对话工作台）
   var initMode = params.get('mode') === 'register' ? 'register' : 'login';
 
   function setMode(next) {

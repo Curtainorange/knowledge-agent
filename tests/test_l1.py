@@ -203,6 +203,38 @@ def test_turn_count_is_not_polluted_by_other_messages(session):
     assert result.turn == 1
 
 
+def test_turn_count_counts_consecutive_clarifies(session):
+    """末尾连续的 L1 澄清轮才算数（一次挖掘内部的追问次数）。"""
+    repo = ConversationRepository(session, user_id="u1")
+    conversation = repo.create("u1")
+    repo.append_message(conversation, "user", "线索", source="l1")
+    repo.append_message(conversation, "assistant", "再具体一点？", source="l1")
+    repo.append_message(conversation, "user", "补充", source="l1")
+    session.flush()
+
+    assert L1Orchestrator._l1_turn_count(conversation) == 1
+
+
+def test_turn_count_resets_after_a_finished_round(session):
+    """一轮挖掘出结果后，下一轮要从零开始算追问轮次。
+
+    对话入口把会话拧成一条长线程，用户会在同一个会话里反复挖掘。结果消息
+    （source=agent，不是 l1）就是「上一轮已结束」的分界。若按 L1 追问消息的
+    **总数**累加，第 N 次挖掘一开口就背着前面所有澄清轮，几轮之后第一句话就被
+    判为追问超限、直接兜底给一条最可能的候选——追问环节等于消失了。
+    """
+    repo = ConversationRepository(session, user_id="u1")
+    conversation = repo.create("u1")
+    repo.append_message(conversation, "user", "线索一", source="l1")
+    repo.append_message(conversation, "assistant", "再具体一点？", source="l1")
+    repo.append_message(conversation, "user", "线索二", source="l1")
+    # 命中结果由对话层追加，来源是 agent —— 这就是那一刀分界
+    repo.append_message(conversation, "assistant", "找到 1 条：数据库索引", source="agent")
+    session.flush()
+
+    assert L1Orchestrator._l1_turn_count(conversation) == 0
+
+
 def test_unresolvable_ids_fall_back_to_clarify(session):
     """模型给出的 id 全部无效时，应降级为追问而不是返回空命中。"""
     _ingest_one(session)

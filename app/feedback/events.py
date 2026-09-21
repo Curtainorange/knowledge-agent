@@ -50,6 +50,9 @@ PUSH_SENT = "push.sent"
 PUSH_FEEDBACK = "push.feedback"
 # 认证（L5 需要区分「活跃但无产出」与「根本不活跃」）
 AUTH_LOGIN = "auth.login"
+# 统一对话入口（对话即入口）
+AGENT_TURN = "agent.turn"          # 一轮对话最终落到哪个能力上
+AGENT_ROUTE_MISSED = "agent.route.missed"  # 分流失败回落通用对话——规则该补的信号
 
 
 def record(session: Session, *, user_id: str, event_type: str, payload: dict | None = None) -> None:

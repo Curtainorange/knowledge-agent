@@ -16,7 +16,7 @@
 <main class="single home">
   <section class="hero">
     <h1>把散落的知识，连成你的认知网络</h1>
-    <p class="lead">录入、阅读、挖掘、辨冲突、问自己该问的问题——一个围绕「你」的知识学习智能体。</p>
+    <p class="lead">一个对话入口，覆盖录入、阅读、挖掘、辨冲突、问自己该问的问题——围绕「你」的知识学习智能体。</p>
     <div class="hero-actions">
       <button class="primary lg" id="btn-start">开始使用</button>
       <a class="ghost" href="#features">看看能做什么</a>
@@ -24,6 +24,11 @@
   </section>
 
   <section id="features" class="feature-grid">
+    <div class="feature" data-path="/app.html" data-icon="话">
+      <div class="feature-icon"></div>
+      <h3>对话工作台</h3>
+      <p>说一句话就行，系统自己判断该用哪个能力——找回、记录、辨析、诊断都在这里。</p>
+    </div>
     <div class="feature" data-path="/knowledge.html" data-icon="知">
       <div class="feature-icon"></div>
       <h3>知识库</h3>
@@ -94,13 +99,13 @@
       box.innerHTML = '<span class="who-name">' + esc(CC.username()) + '</span>' +
         '<button id="btn-enter" class="primary sm">进入工作台</button>' +
         '<button id="btn-logout" class="sm">退出</button>';
-      $('#btn-enter').addEventListener('click', function () { location.href = '/knowledge.html'; });
+      $('#btn-enter').addEventListener('click', function () { location.href = '/app.html'; });
       $('#btn-logout').addEventListener('click', function () { CC.clearSession(); location.reload(); });
     } else {
       box.innerHTML = '<a href="/login.html" class="login-link">登录</a>' +
         '<button id="btn-register" class="primary sm">免费注册</button>';
       $('#btn-register').addEventListener('click', function () {
-        location.href = '/login.html?mode=register&next=' + encodeURIComponent('/knowledge.html');
+        location.href = '/login.html?mode=register&next=' + encodeURIComponent('/app.html');
       });
     }
   }
@@ -117,9 +122,9 @@
 
   $('#btn-start').addEventListener('click', function () {
     if (hasToken()) {
-      location.href = '/knowledge.html';
+      location.href = '/app.html';
     } else {
-      location.href = '/login.html?mode=register&next=' + encodeURIComponent('/knowledge.html');
+      location.href = '/login.html?mode=register&next=' + encodeURIComponent('/app.html');
     }
   });
 

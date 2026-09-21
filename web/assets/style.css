@@ -481,3 +481,51 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
   box-shadow:0 24px 64px rgba(0,0,0,.5);
 }
 @keyframes lb-in{from{opacity:0}to{opacity:1}}
+
+/* ============ 对话工作台（统一入口 app.html） ============
+   复用 L1 挖掘那套消息流的类（.log/.msg/.bubble/.composer），只补两件事：
+   快捷入口 chips，以及「文本气泡 + 满宽结果卡」的上下结构。
+   卡片本身沿用各自的既有样式（.hit/.guide/.created…），不改视觉语言。 */
+.agent-wrap{max-width:880px;margin:0 auto;width:100%}
+.agent-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
+.agent-head h2{margin:0}
+.agent-tools{display:flex;align-items:center;gap:8px}
+.chips{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:10px}
+.chip{
+  font:inherit;font-size:12.5px;padding:5px 11px;border-radius:999px;cursor:pointer;
+  border:1px solid var(--border-strong);background:#fff;color:var(--text-2);
+  transition:border-color .15s,color .15s,background .15s;
+}
+.chip:hover:not(:disabled){border-color:var(--accent);color:var(--accent);background:var(--accent-weak)}
+.chip:disabled{cursor:default;color:var(--muted-2);border-style:dashed}
+.agent-log{min-height:320px;max-height:62vh}
+.agent-log .msg:last-child{margin-bottom:0}
+
+/* 「文本气泡 + 卡片」：卡片要满宽（候选列表塞进 84% 的宽度会挤成一团） */
+.msg.has-card{display:flex;flex-direction:column;align-items:flex-start}
+.msg.user.has-card{align-items:flex-end}
+.msg .card-slot{width:100%;margin-top:8px}
+
+.card-actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center;margin-top:10px}
+.card-actions a{
+  font-size:13px;color:var(--accent);text-decoration:none;
+  border:1px solid var(--border-strong);border-radius:8px;padding:4px 11px;
+  transition:border-color .15s,background .15s;
+}
+.card-actions a:hover{border-color:var(--accent);background:var(--accent-weak)}
+.notice{
+  border:1px solid var(--border);background:var(--warn-weak);color:var(--warn);
+  border-radius:var(--radius-sm);padding:11px 13px;font-size:13px;
+}
+.guide{
+  border:1px solid var(--border);border-left:4px solid var(--accent);
+  border-radius:var(--radius-sm);padding:13px;background:#fff;box-shadow:var(--shadow-xs);
+}
+.guide .g-head{font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:5px}
+.guide .g-note{font-size:13px;color:var(--muted);line-height:1.6}
+.created{
+  border:1px solid #bfe8d7;background:var(--ok-weak);border-radius:var(--radius-sm);padding:12px;
+}
+.created .c-head{font-weight:600;font-size:13.5px;color:var(--text);margin-bottom:5px}
+.created .c-tags{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+@media(max-width:700px){.agent-log{max-height:none}}

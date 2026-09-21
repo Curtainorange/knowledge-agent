@@ -25,17 +25,31 @@ class ConversationRepository(BaseRepository[Conversation]):
         return conv
 
     def append_message(
-        self, conversation: Conversation, role: str, content: str, source: str | None = None
+        self,
+        conversation: Conversation,
+        role: str,
+        content: str,
+        source: str | None = None,
+        card: dict | None = None,
     ) -> None:
         """追加一条消息。
 
         `source` 标记消息来源（如 "l1"）：同一会话可能既走通用对话又走 L1 澄清，
         带上来源才能把「本轮 L1 追问次数」与其它消息区分开，避免相互污染计数。
+
+        `card` 承载结构化结果（命中条目、冲突列表、计划表…）：对话入口用一张卡片
+        代替一段散文，前端才能把「采纳 / 忽略 / 查看全文」这类操作摆在结果旁边。
+        只挂在**有结果的回合**上；追问、闲聊这类纯文本回合不带卡。
+
+        注意 `messages` 是 JSON 列且此处整体重新赋值——SQLAlchemy 不会追踪 JSON 内部
+        的原地修改，只有重新赋值才会落库。
         """
         messages = list(conversation.messages or [])
         message: dict = {"role": role, "content": content}
         if source:
             message["source"] = source
+        if card:
+            message["card"] = card
         messages.append(message)
         conversation.messages = messages
 

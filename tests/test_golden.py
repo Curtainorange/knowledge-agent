@@ -27,6 +27,7 @@ from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult
 from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
+from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
 from app.llm.structure import parse_structured
 
@@ -78,6 +79,7 @@ def test_prompt_fingerprints_match_golden():
 
 def _validator_for(name: str):
     return {
+        "agent_route": lambda d: CapabilityRoute(**d),
         "l1_route": lambda d: L1Route(**d),
         "l2_extract": lambda d: ExtractionResult(**d),
         "l2_judge": lambda d: ConflictJudgment(**d),
@@ -92,7 +94,13 @@ def _validator_for(name: str):
 
 def _check(name: str, parsed) -> None:
     """关键业务字段存在性断言（解析成功只是下限，字段才决定产出可用）。"""
-    if name == "l1_route":
+    if name == "agent_route":
+        # 分流是「每轮都跑」的链路，产出必须永远能收敛成一个合法能力名——
+        # 模型编一个新名字、confidence 写成中文、args 给成数组，都不能让整轮对话失败
+        assert parsed.capability in KNOWN_CAPABILITIES, parsed.capability
+        assert isinstance(parsed.args, dict)
+        assert 0.0 <= parsed.confidence <= 1.0, parsed.confidence
+    elif name == "l1_route":
         assert parsed.decision in ("located", "clarify")
     elif name == "l2_extract":
         assert isinstance(parsed.claims, list)

@@ -11,7 +11,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.endpoints import (
-    auth, books, chat, events, health, knowledge, l1, l2, l3, l4, l5, preferences, push, weread,
+    agent, auth, books, chat, events, health, knowledge, l1, l2, l3, l4, l5, preferences, push,
+    weread,
 )
 from app.core import logging as core_logging
 from app.core import trace
@@ -132,6 +133,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 app.include_router(health.router)
 app.include_router(auth.router)
+app.include_router(agent.router)
 app.include_router(chat.router)
 app.include_router(knowledge.router)
 app.include_router(books.router)
@@ -147,7 +149,11 @@ app.include_router(events.router)
 
 WEB_DIR = Path(__file__).resolve().parents[1] / "web"
 
-# 前端按功能拆成独立页面：登录 / 知识库 / L1 挖掘，共享 assets 下的样式与脚本。
+# 前端以「对话工作台」为主入口（app.html），其余页面按功能拆分、共享 assets 下的样式与脚本：
+#   对话入口 —— app.html（登录后的默认落地页，能力都从对话进）
+#   基础页   —— index（公开介绍）/ login
+#   专项页   —— knowledge / books / reader / reading_log / conflicts / brief / l4 / l5 / notify
+# 专项页保留独立 URL：阅读器这类深度交互不适合塞进消息流，且对话卡片需要深链回原页面。
 # 同源托管（无需 CORS，也避免用 file:// 打开时的跨域限制）。
 app.mount("/assets", StaticFiles(directory=WEB_DIR / "assets"), name="assets")
 
@@ -165,6 +171,12 @@ def index() -> FileResponse:
 @app.get("/index.html", include_in_schema=False)
 def index_page() -> FileResponse:
     return _page("index.html")
+
+
+@app.get("/app.html", include_in_schema=False)
+def app_page() -> FileResponse:
+    """对话工作台：登录后的默认落地页，已有能力都从这里进。"""
+    return _page("app.html")
 
 
 @app.get("/login.html", include_in_schema=False)

@@ -1,0 +1,56 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>对话 · 认知副驾</title>
+<link rel="stylesheet" href="/assets/style.css">
+</head>
+<body data-page="app">
+
+<header class="topbar">
+  <div class="brand">认知副驾<span class="sub">对话工作台</span></div>
+  <nav class="nav">
+    <a href="/app.html" data-nav="app">对话</a>
+    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="/books.html" data-nav="books">书籍</a>
+    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="/brief.html" data-nav="brief">认知简报</a>
+    <a href="/l4.html" data-nav="l4">路径修正</a>
+    <a href="/l5.html" data-nav="l5">健康诊断</a>
+    <a href="/notify.html" data-nav="notify">通知</a>
+  </nav>
+  <div class="who">
+    <span class="who-name" id="who-name"></span>
+    <button id="btn-logout">退出</button>
+  </div>
+</header>
+
+<main class="single">
+  <div class="agent-wrap">
+    <div class="card">
+      <div class="agent-head">
+        <h2>说话就行</h2>
+        <div class="agent-tools">
+          <span class="meta" id="agent-status"></span>
+          <button id="btn-new" class="sm">新会话</button>
+        </div>
+      </div>
+      <div class="chips" id="agent-chips"></div>
+      <div class="log agent-log" id="agent-log"></div>
+      <div class="composer">
+        <textarea id="agent-input" placeholder="例如：之前存的那段讲查询优化的内容&#10;例如：记一下：B+树更适合范围查询 #数据库&#10;Ctrl + Enter 发送"></textarea>
+        <button id="agent-send" class="primary">发送</button>
+      </div>
+      <div class="meta">
+        说一句就行，系统自己判断该用哪个能力。线索不够会追问（最多 3 轮），命中后给出条目摘要与阅读提醒，并列出其他候选供你判断。
+      </div>
+    </div>
+  </div>
+</main>
+
+<div id="toast"></div>
+<script src="/assets/app.js"></script>
+<script src="/assets/agent.js"></script>
+</body>
+</html>

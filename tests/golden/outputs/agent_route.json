@@ -1,0 +1,14 @@
+[
+  {
+    "name": "记一条：带 args 与标签",
+    "text": "{\"capability\":\"knowledge_add\",\"args\":{\"title\":\"B+树更适合范围查询\",\"content\":\"B+树更适合范围查询，哈希索引只适合等值\",\"tags\":[\"数据库\"]},\"confidence\":0.92,\"reason\":\"用户明确要新记一条内容\"}"
+  },
+  {
+    "name": "普通提问回落 chat",
+    "text": "```json\n{\"capability\":\"chat\",\"args\":{},\"confidence\":0.8,\"reason\":\"只是提问，不属于任何能力\"}\n```"
+  },
+  {
+    "name": "前后夹带解释文字 + 未知能力名被收敛成 chat",
+    "text": "我判断这句话的意图是：{\"capability\":\"recall_something\",\"args\":[],\"confidence\":\"高\",\"reason\":\"线索模糊\"} 以上是路由结果。"
+  }
+]

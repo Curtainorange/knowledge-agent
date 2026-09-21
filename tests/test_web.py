@@ -4,7 +4,7 @@ from __future__ import annotations
 from tests.helpers import auth_headers
 
 PAGES = (
-    "/", "/index.html", "/login.html", "/knowledge.html", "/mine.html",
+    "/", "/index.html", "/login.html", "/app.html", "/knowledge.html", "/mine.html",
     "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
     "/books.html", "/reader.html", "/reading_log.html",
 )
@@ -59,11 +59,44 @@ def test_shared_assets_served(client):
 def test_static_assets_are_revalidated(client):
     """前端静态资源必须「先校验再使用」，否则用户会拿着旧版 JS 跑新后端——
     表现为「BUG 修了却没生效」。本项目已为此误判多次。"""
-    for path in ("/knowledge.html", "/assets/app.js", "/assets/style.css"):
+    for path in ("/knowledge.html", "/assets/app.js", "/assets/agent.js", "/assets/style.css"):
         resp = client.get(path)
         assert resp.headers.get("cache-control") == "no-cache", path
     # 接口响应不该被加上这个头（它们是动态内容，缓存策略另说）
     assert client.get("/health").headers.get("cache-control") != "no-cache"
+
+
+def test_workbench_page_is_conversational_only(client):
+    """对话工作台只做对话：消息流 + 输入框 + 快捷入口，不内嵌任何能力的表单。"""
+    body = client.get("/app.html").text
+    assert "agent-log" in body            # 消息流
+    assert "agent-input" in body          # 输入框
+    assert "agent-send" in body
+    assert "agent-chips" in body          # 能力快捷入口
+    assert "/assets/agent.js" in body
+    # 别的能力各自的表单不该出现在这里（否则又变成「一页堆所有功能」）
+    assert "k-submit" not in body
+    assert "auth-submit" not in body
+    assert "btn-scan" not in body
+    assert "brief-generate" not in body
+
+
+def test_workbench_is_the_landing_after_login(client):
+    """登录后落到对话工作台，而不是散落的功能页。"""
+    assert "/app.html" in client.get("/login.html").text
+
+
+def test_every_feature_page_links_back_to_workbench(client):
+    """改造后原页面全部保留，但每一个都要能回到对话入口——否则越走越散。"""
+    for path in (
+        "/knowledge.html", "/mine.html", "/books.html", "/reading_log.html",
+        "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
+    ):
+        assert "/app.html" in client.get(path).text, path
+
+
+def test_landing_offers_the_workbench(client):
+    assert "/app.html" in client.get("/").text
 
 
 def test_conflicts_page_is_isolated(client):

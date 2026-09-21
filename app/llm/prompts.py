@@ -166,8 +166,34 @@ L5_DIAGNOSE = PromptSpec(
 )
 
 
+# ---- 统一对话入口：能力路由 ------------------------------------------------
+
+AGENT_ROUTE = PromptSpec(
+    name="agent_route",
+    version="v1",
+    text=(
+        "你是「认知副驾」对话入口的意图分流器。把用户这一句话归到**恰好一个**能力上，"
+        "并抽出该能力需要的参数。输出严格 JSON："
+        '{"capability":"l1|l2|l3|l4|l5|knowledge_add|weread_sync|books|chat",'
+        '"args":{},"confidence":0..1,"reason":""}。'
+        "各能力语义："
+        "l1=用模糊线索找回知识库里某条已有内容，args 留空；"
+        "l2=检测知识之间的矛盾或冲突，args 留空；"
+        "l3=生成认知简报、指出该问但没问的问题，args 留空；"
+        "l4=定学习目标、拆周计划、检查执行偏离，args 可带 {goal}；"
+        "l5=诊断学习行为问题、做健康归因，args 留空；"
+        "knowledge_add=用户要新记一条内容，args 必带 {title, content}，tags 可选数组；"
+        "weread_sync=同步微信读书的划线与想法，args 留空；"
+        "books=查看书架或阅读记录，args 留空。"
+        "判定不明确、或只是提问、闲聊、道谢 → chat，**不要**硬塞进某个能力。"
+        "args 只填该能力真正用得到的字段，用不到就给空对象。"
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
+    AGENT_ROUTE,
     L1_ROUTE,
     L2_EXTRACT,
     L2_JUDGE,
@@ -191,6 +217,7 @@ def prompt_by_name(name: str) -> PromptSpec | None:
 # task_type → 默认提示词版本（成本落库时反查；一个 task_type 对应多个提示词的
 # 场景——如 cognitive_brief——由调用方在 chat 时显式传 prompt_version 覆盖）。
 PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
+    "capability_routing": AGENT_ROUTE.version,
     "l1_mining": L1_ROUTE.version,
     "batch_extraction": L2_EXTRACT.version,
     "conflict_detection": L2_JUDGE.version,
