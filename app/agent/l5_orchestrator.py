@@ -106,7 +106,7 @@ def calibrate_confidence(model_confidence: float, *, event_count: int, signal_co
 
 
 class L5Orchestrator:
-    def __init__(self, gateway: ModelGateway | None = None, session: Session = None):
+    def __init__(self, gateway: ModelGateway | None = None, session: Session | None = None):
         self._gateway = gateway
         self._session = session
         self._repo = CognitiveDiagnosisRepository(session)

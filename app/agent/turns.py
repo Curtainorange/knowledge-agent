@@ -393,7 +393,9 @@ def _set_conflict_state(session: Session, *, user_id: str, conflict_id: str, sta
 
 def _decide_diagnosis(session: Session, *, user_id: str, diagnosis_id: str, value: str) -> str:
     accepted = value == "accepted"
-    ok, message = L5Orchestrator(ModelGateway(), session).decide(
+    # 不传 gateway：采纳/拒绝只改状态（必要时挂一条计划任务），不调模型——
+    # 传进去只会白白构造一个 provider。
+    ok, message = L5Orchestrator(session=session).decide(
         user_id=user_id, diagnosis_id=diagnosis_id, accepted=accepted
     )
     if not ok:
