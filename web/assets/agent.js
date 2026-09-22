@@ -708,36 +708,27 @@ window.CCA = (function () {
     }
   }
 
-  /* 快捷入口。文案与「是否已接入」都来自服务端（/agent/capabilities）——
-     前端硬编码一份必然与路由规则漂移：示例话术改了、本地规则没同步，点按钮就变成
-     一次模型调用甚至兜底成闲聊。 */
-  async function loadChips() {
-    var box = document.getElementById('agent-chips');
-    if (!box) {
-      return;
-    }
-    var items = [];
+  /* 进工作台只调一次 `/start`：新会话由副驾主动开场，已有会话把历史读回来。
+
+     两件事共用一条路径，是因为它们本来就是同一件事的两面——分开写的话，
+     「恢复历史」与「插入开场」迟早会对不上（开场重复插、或历史丢卡片）。
+
+     这里原本还有一个 `loadChips()`：拉 /agent/capabilities 渲染一排能力按钮。
+     已移除——把「能做什么」摊成一排按钮，等于要用户先学会这个产品的功能分类再点下去，
+     那还是「点功能」而不是对话。现在「能做什么」由副驾主动说出来。 */
+  async function startConversation() {
+    var saved = savedConversation();
     try {
-      items = await CC.api('GET', '/api/v1/agent/capabilities');
-    } catch (err) {
-      return;  // 快捷入口是便利功能，拿不到就不显示，不该拦着用户打字
-    }
-    box.innerHTML = '';
-    items.forEach(function (item) {
-      var btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'chip' + (item.wired ? '' : ' pending');
-      btn.textContent = item.wired ? item.label : item.label + '（去原页面）';
-      btn.title = item.example;
-      btn.addEventListener('click', function () {
-        if (item.wired) {
-          send(item.example);
-        } else if (item.href) {
-          location.href = item.href;
-        }
+      var data = await CC.api('POST', '/api/v1/agent/start', {
+        conversation_id: saved || null
       });
-      box.appendChild(btn);
-    });
+      rememberConversation(data.conversation_id);
+      state.messages = data.messages || [];
+      state.polls = 0;
+      syncMessages();
+    } catch (err) {
+      pushNotice('连不上服务：' + ((err && err.message) || err));
+    }
   }
 
   async function send(text) {
@@ -850,26 +841,10 @@ window.CCA = (function () {
       syncMessages();
       setStatus('');
       CC.toast('已开启新会话');
+      // 新会话同样要副驾先开口，否则用户面对的又是一块空白
+      startConversation();
       document.getElementById('agent-input').focus();
     });
-  }
-
-  /* 刷新页面后恢复上一条会话：消息与卡片都在服务端，不需要前端自己存历史。
-     会话已被删除（或换了账号）时静默开新会话，不打扰用户。 */
-  async function restore() {
-    var saved = savedConversation();
-    if (!saved) {
-      return;
-    }
-    try {
-      var data = await CC.api('GET', '/api/v1/agent/conversation/' + encodeURIComponent(saved));
-      rememberConversation(data.conversation_id);
-      state.messages = data.messages || [];
-      state.polls = 0;
-      syncMessages();
-    } catch (err) {
-      rememberConversation(null);
-    }
   }
 
   (async function boot() {
@@ -877,8 +852,7 @@ window.CCA = (function () {
       return;
     }
     bind();
-    loadChips();
-    restore();
+    startConversation();   // 开场 or 恢复历史（含会话已失效时静默开新会话）
     document.getElementById('agent-input').focus();
   })();
 })();

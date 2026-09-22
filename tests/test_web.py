@@ -67,12 +67,13 @@ def test_static_assets_are_revalidated(client):
 
 
 def test_workbench_page_is_conversational_only(client):
-    """对话工作台只做对话：消息流 + 输入框 + 快捷入口，不内嵌任何能力的表单。"""
+    """对话工作台只做对话：消息流 + 输入框，不内嵌任何能力的表单，
+    也不摆一排「功能按钮」——能力识别由分流层负责，用户只管说话。"""
     body = client.get("/app.html").text
     assert "agent-log" in body            # 消息流
     assert "agent-input" in body          # 输入框
     assert "agent-send" in body
-    assert "agent-chips" in body          # 能力快捷入口
+    assert "agent-chips" not in body      # 能力快捷入口已移除（见 agent.js 的说明）
     assert "/assets/agent.js" in body
     # 别的能力各自的表单不该出现在这里（否则又变成「一页堆所有功能」）
     assert "k-submit" not in body

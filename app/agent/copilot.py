@@ -50,6 +50,7 @@ from app.agent.cards import (
     located_reply,
     note_empty_card,
 )
+from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
 from app.agent.orchestrator import Orchestrator
 from app.agent.router import CapabilityRoute, CapabilityRouter, parse_note
@@ -105,6 +106,29 @@ class Copilot:
         self._embedding = embedding
 
     # ---- 对外 ------------------------------------------------------------
+
+    def start(self, *, user_id: str, conversation_id: str | None) -> str:
+        """开启或恢复一个会话，返回会话 id。
+
+        **新会话由副驾先开口**（见 `greeting`）——用户还没说话就先接上话题，
+        而不是对着一个空白输入框等人下指令。
+
+        已经有消息的会话原样返回：刷新一次页面就多问候一句，是最容易被一眼看穿的
+        「假智能」。判断「是不是新会话」用「有没有消息」而不是「有没有 id」——
+        前端拿的 id 可能是过期或越权的，`_load_or_create` 会把它降级成新会话，
+        那种情况同样是新会话、同样该开场。
+        """
+        repo = ConversationRepository(self._session, user_id=user_id)
+        conversation = self._load_or_create(repo, user_id, conversation_id)
+        if not (conversation.messages or []):
+            repo.append_message(
+                conversation,
+                "assistant",
+                opening_for(self._session, user_id=user_id),
+                source=SOURCE,
+            )
+            self._session.commit()
+        return conversation.id
 
     def handle(self, *, user_id: str, conversation_id: str | None, message: str) -> CopilotTurn:
         repo = ConversationRepository(self._session, user_id=user_id)

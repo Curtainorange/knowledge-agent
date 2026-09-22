@@ -4,12 +4,15 @@
 用户说什么都往这里发，由 `Copilot` 决定交给哪个能力。原 /chat 保留不动，
 旧调用方与既有测试不受影响。
 
-四个端点各管一件事：
+五个端点各管一件事：
 
+- `POST /start`        开启 / 恢复会话——**新会话由副驾主动开场**（进工作台只调它）
 - `POST /chat`         一轮对话（可能同步返回结果，也可能返回一张 pending 卡）
-- `GET  /conversation` 读会话（前端渲染 + 轮询 pending 卡 + 刷新页面恢复历史）
+- `GET  /conversation` 读会话（前端轮询 pending 卡 + 刷新页面恢复历史）
 - `POST /actions`      卡片内操作（采纳/忽略）——**不写新消息**，只更新卡片状态
-- `GET  /capabilities` 能力目录（快捷入口与「是否已接入」由服务端给）
+- `GET  /capabilities` 能力清单（「是否已接入」由服务端给，供外部集成与测试用；
+                      前端**不再**据此渲染快捷入口按钮——理由见 `web/assets/agent.js`
+                      的 `startConversation()`，与 `dev_logs/设计决策与经验.md` 第十八节）
 """
 from __future__ import annotations
 
@@ -27,6 +30,10 @@ from app.core import trace
 from app.llm.gateway import ModelGateway
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
+
+
+class AgentStartRequest(BaseModel):
+    conversation_id: str | None = None
 
 
 class AgentChatRequest(BaseModel):
@@ -81,6 +88,28 @@ class CapabilityOut(BaseModel):
     example: str
     wired: bool
     href: str = ""
+
+
+@router.post("/start", response_model=ConversationOut)
+def agent_start(
+    body: AgentStartRequest,
+    user_id: str = Depends(get_user_id),
+    gateway: ModelGateway = Depends(get_gateway),
+    session: Session = Depends(get_session),
+) -> ConversationOut:
+    """开启 / 恢复会话：新会话由副驾主动开场。
+
+    与 `GET /conversation` 的分工：那个是纯读（轮询 pending 卡、恢复历史），
+    这个会在**新会话**上写一条开场消息，所以是 POST。
+
+    前端进工作台只调这一个就够——「恢复历史」与「新会话开场」本就是同一件事的两面。
+    已有消息的会话不会被重新开场：刷新一次页面就多一句问候，是最容易被看穿的假智能。
+    """
+    conversation_id = Copilot(gateway, session).start(
+        user_id=user_id, conversation_id=body.conversation_id
+    )
+    data = turns.read_conversation(session, user_id=user_id, conversation_id=conversation_id)
+    return ConversationOut(**data, request_id=trace.get_request_id() or "")
 
 
 @router.post("/chat", response_model=AgentChatResponse)

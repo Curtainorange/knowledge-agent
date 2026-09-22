@@ -55,15 +55,32 @@ def test_send_is_mutually_exclusive():
     assert "if (!message || state.sending)" in js
 
 
-def test_quick_entries_come_from_server():
-    """快捷入口的文案与「是否已接入」必须由服务端给。
+def test_workbench_has_no_capability_buttons():
+    """工作台不再摆「能力快捷入口」按钮，改为由副驾主动开场。
 
-    前端硬编码一份必然与路由规则漂移：示例话术改了、本地规则没同步，
-    点按钮就变成一次模型调用甚至兜底成闲聊，而且是静默退化。
+    把「能做什么」摊成一排按钮，等于要用户先学会这个产品的功能分类、再挑一个点下去——
+    那还是「点功能」，不是对话。所以这里反过来钉死：**不许**把快捷入口加回来，
+    连它的取数接口也不该出现在前端。
     """
     js = _agent_js()
-    assert "/api/v1/agent/capabilities" in js
-    assert "item.wired" in js
+    assert "agent-chips" not in js
+    # 查「函数定义」而不是名字本身：注释里提一句它的来历是有价值的，
+    # 但那不构成把快捷入口加回来。真正要拦的是代码。
+    assert "function loadChips" not in js
+    assert "/api/v1/agent/capabilities" not in js
+
+
+def test_workbench_opens_with_proactive_greeting():
+    """进工作台只调一次 `/start`：新会话由副驾先开口，已有会话把历史读回来。
+
+    这条同时锁住「恢复历史」与「开场」走**同一条路径**——分成两条的话，
+    迟早出现「开场重复插入」或「刷新后历史丢卡片」，而且都不报错。
+    """
+    js = _agent_js()
+    assert "/api/v1/agent/start" in js
+    assert "function startConversation()" in js
+    # 开场消息必须来自服务端返回值，前端不许自己编一句问候
+    assert "state.messages = data.messages" in js
 
 
 # ---------- 异步回合与操作回流的前端不变量 --------------------------------
