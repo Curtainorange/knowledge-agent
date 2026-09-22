@@ -188,6 +188,35 @@ window.CCA = (function () {
     return '<div class="l4-card">' + parts.join('') + '</div>';
   }
 
+  /* 微信读书同步结果：数字用统计块摆出来。
+     同步是「一次性拉一批」的动作，用户最关心的是「拉进来多少、还剩多少」。 */
+  function wereadSyncHtml(card) {
+    var r = card.result || {};
+    var stats = [
+      { label: '有笔记的书', value: r.total_books },
+      { label: '本次扫描', value: r.scanned_books },
+      { label: '新增知识', value: r.created },
+      { label: '已存在跳过', value: r.skipped }
+    ];
+    if (r.failed_books) {
+      stats.push({ label: '拉取失败', value: r.failed_books });
+    }
+    var parts = ['<div class="stats">' + stats.map(function (s) {
+      return '<div class="stat"><div class="stat-num">' + Number(s.value || 0) + '</div>' +
+        '<div class="stat-label">' + esc(s.label) + '</div></div>';
+    }).join('') + '</div>'];
+
+    if (Number(r.pending_books || 0) > 0) {
+      parts.push('<div class="meta">还有 ' + Number(r.pending_books) +
+        ' 本没扫完（单次有上限），点下面的按钮接着扫。</div>');
+    }
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    parts.push(actionsRow(card));
+    return '<div class="weread-card">' + parts.join('') + '</div>';
+  }
+
   var TASK_STATE_LABEL = { done: '已完成', pending: '待办' };
 
   function l4PlanHtml(card) {
@@ -469,6 +498,7 @@ window.CCA = (function () {
     knowledge_created: createdHtml,
     note_empty: noteEmptyHtml,
     notice: noticeHtml,
+    weread_sync: wereadSyncHtml,
     guide: guideHtml
   };
 

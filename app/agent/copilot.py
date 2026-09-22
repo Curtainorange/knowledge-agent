@@ -116,10 +116,17 @@ class Copilot:
         route = self._router.route(message, user_id=user_id, allow_model=not clarifying)
 
         if self._runs_async(route.capability):
-            reply, card = turns.start_turn(
-                self._session, user_id=user_id, conversation=conversation,
-                capability=route.capability, message=message, args=route.args,
-            )
+            # 开跑前先确认这事现在做得成：前提不满足就同步回提示卡，
+            # 别先发 pending 卡、让后台跑一趟才发现做不了（用户会白等一个轮询周期）
+            ready = turns.preflight(route.capability, user_id=user_id, session=self._session)
+            if ready is not None:
+                reply, card = ready
+                self._append_exchange(repo, conversation, message, reply, card)
+            else:
+                reply, card = turns.start_turn(
+                    self._session, user_id=user_id, conversation=conversation,
+                    capability=route.capability, message=message, args=route.args,
+                )
         else:
             method = self._handlers().get(route.capability)
             if method is None:
@@ -166,6 +173,7 @@ class Copilot:
             "l4_plan": self._execute,
             "l5": self._execute,
             "knowledge_add": self._knowledge_add,
+            "weread_sync": self._execute,
             "chat": self._chat,
         }
 

@@ -53,6 +53,9 @@ from app.agent.cards import (
     pending_card,
     plan_reply,
     scan_reply,
+    sync_reply,
+    weread_not_configured_card,
+    weread_sync_card,
 )
 from app.agent.l2_orchestrator import L2Orchestrator
 from app.agent.l3_orchestrator import L3Orchestrator
@@ -80,7 +83,7 @@ TASK_KEY_PREFIX = "agent:"
 # 而「定目标」（本地写库）与「偏离检查」（reasoning=on）差了一个数量级，
 # 合成一个能力就没法给它们各自选同步还是异步。
 ASYNC_CAPABILITIES: frozenset[str] = frozenset({
-    "l2", "l3", "l5", "l4_plan", "l4_deviation",
+    "l2", "l3", "l5", "l4_plan", "l4_deviation", "weread_sync",
 })
 
 # 慢的卡片操作：跑模型、要十几秒，走后台，不在请求里等。
@@ -93,11 +96,35 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "l5": ("正在做归因诊断", "要结合行为统计做链式归因，通常十几秒。"),
     "l4_plan": ("正在拆解周计划", "要结合你的知识结构排任务，通常十几秒。"),
     "l4_deviation": ("正在检查计划执行", "先做本地统计，确认有偏离才做归因，通常十几秒。"),
+    "weread_sync": ("正在同步微信读书", "逐本拉取划线与想法并逐条向量化，通常半分钟以内。"),
 }
 
 _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
     "l4.adjustment.apply": ("正在按建议重排计划", "要重新拆一遍周任务，通常十几秒。"),
 }
+
+
+# ---- 前提检查 --------------------------------------------------------------
+#
+# 异步回合开跑**之前**要确认这件事现在做得成。前提不满足时同步回一张提示卡，
+# 而不是先发 pending 卡、让后台跑一趟才发现做不了——那样用户会白等一个轮询周期，
+# 先看到「正在同步…」再被告知「没配 Key」。
+
+
+def preflight(capability: str, *, user_id: str, session: Session) -> tuple[str, dict] | None:
+    """返回 (回复, 卡片) 表示「前提不满足，别开回合」；返回 None 表示可以开跑。"""
+    if capability == "weread_sync":
+        if not (settings.weread_api_key or "").strip():
+            card = weread_not_configured_card()
+            return card["note"], card
+
+    if capability == "l4_plan":
+        goals = LearningGoalRepository(session, user_id=user_id).list_active(user_id)
+        if not goals:
+            card = no_goal_card()
+            return card["note"], card
+
+    return None
 
 
 def task_key(turn_id: str) -> str:
@@ -152,6 +179,9 @@ def execute_capability(
 
     if capability == "l4_deviation":
         return _execute_l4_deviation(user_id=user_id, session=session, gateway=gateway, key=key)
+
+    if capability == "weread_sync":
+        return _execute_weread_sync(user_id=user_id, session=session, key=key)
 
     raise ValueError(f"不支持执行的能力：{capability}")
 
@@ -266,6 +296,22 @@ def _execute_l4_deviation(
         report.state, reasons=signals.get("reasons", []), analysis=analysis, note=report.note
     )
     return reply, card
+
+
+def _execute_weread_sync(*, user_id: str, session: Session, key: str) -> tuple[str, dict]:
+    """把微信读书的划线 / 想法同步进知识库。
+
+    幂等由同步服务自己保证（`source_item_id` 去重，且**软删的条目也算已存在**），
+    所以「再同步一次」永远是安全的——卡上那个「继续同步剩下的 N 本」按钮就靠这一点。
+    """
+    from app.weread.service import WeReadSyncService
+
+    if not (settings.weread_api_key or "").strip():
+        card = weread_not_configured_card()
+        return card["note"], card
+
+    result = WeReadSyncService(session).sync(user_id=user_id).as_dict()
+    return sync_reply(result), weread_sync_card(key=key, result=result)
 
 
 def execute_action(

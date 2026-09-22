@@ -346,6 +346,29 @@ check('提示卡可以带「接下来做什么」的按钮',
 const noticeBare = CCA.renderCard({ kind: 'notice', title: 't', note: 'n', href: '', sends: [] });
 check('提示卡没有按钮时不渲染空的按钮行', noticeBare.indexOf('cf-actions') === -1);
 
+console.log('\n微信读书同步结果');
+const weread = CCA.renderCard({
+  kind: 'weread_sync', key: 'w1',
+  result: { total_books: 12, scanned_books: 5, created: 37, skipped: 8, pending_books: 7, failed_books: 1 },
+  note: '', href: '/books.html',
+  sends: [{ label: '继续同步剩下的 7 本', message: '同步微信读书' }]
+});
+check('四个核心数字都渲染',
+  weread.indexOf('有笔记的书') !== -1 && weread.indexOf('37') !== -1
+  && weread.indexOf('已存在跳过') !== -1);
+check('有失败书目时单独列一项', weread.indexOf('拉取失败') !== -1);
+check('还有未扫完的书时给出继续按钮',
+  weread.indexOf('data-agent-send="同步微信读书"') !== -1
+  && weread.indexOf('还有 7 本没扫完') !== -1);
+
+const wereadDone = CCA.renderCard({
+  kind: 'weread_sync', key: 'w2',
+  result: { total_books: 3, scanned_books: 3, created: 0, skipped: 5, pending_books: 0, failed_books: 0 },
+  note: '', href: '/books.html', sends: []
+});
+check('全部扫完时不出现继续按钮', wereadDone.indexOf('data-agent-send') === -1);
+check('没有失败书目时不渲染那一项', wereadDone.indexOf('拉取失败') === -1);
+
 console.log('\n数值与徽标');
 check('pct 四舍五入', CCA.pct(0.567) === 57);
 check('pct 容错非数字', CCA.pct(null) === 0 && CCA.pct('x') === 0);

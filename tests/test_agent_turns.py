@@ -395,13 +395,12 @@ def test_l5_diagnosis_action_decides_and_refreshes(client, session):
     assert session.get(CognitiveDiagnosis, diagnosis.id).status == "accepted"
 
 
-def test_card_kinds_have_no_stray_unwired_markers(client):
-    """未接入的能力仍要回引导卡（用一条确定还没接的路径验证，避免回归）。"""
-    headers = auth_headers(client, "turns_guide_again")
+def test_weread_is_no_longer_a_guide_card(client):
+    """微信读书接入后不该再回引导卡——漏改 WIRED 的表现是「点了没反应」。"""
+    headers = auth_headers(client, "turns_weread_wired")
     body = _send(client, headers, "同步微信读书")
     assert body["capability"] == "weread_sync"
-    assert body["card"]["kind"] == "guide"
-    assert body["card"]["href"] == "/books.html"
+    assert body["card"]["kind"] != "guide"
 
 
 def test_no_books_written_by_guide_path(client, session):

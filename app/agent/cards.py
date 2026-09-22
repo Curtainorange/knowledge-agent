@@ -124,6 +124,59 @@ def no_goal_card() -> dict:
     )
 
 
+# ---- 微信读书同步 ----------------------------------------------------------
+
+
+def weread_sync_card(*, key: str, result: dict) -> dict:
+    """同步结果卡。
+
+    `pending_books > 0` 说明这次到量即停、还有书没扫完（同步服务本身有单次上限），
+    卡上给一个「继续」按钮把剩下的扫完——这比让用户自己再打一遍「同步微信读书」友好，
+    也让「没同步完」这件事有个明确的出口，而不是看起来像漏了数据。
+    """
+    spec = capability_spec("weread_sync")
+    pending = int(result.get("pending_books") or 0)
+    return {
+        "kind": "weread_sync",
+        "key": key,
+        "result": dict(result),
+        "note": "",
+        "href": spec.href if spec else "",
+        "sends": (
+            [_send(f"继续同步剩下的 {pending} 本", "同步微信读书")] if pending else []
+        ),
+    }
+
+
+def sync_reply(result: dict) -> str:
+    created = int(result.get("created") or 0)
+    scanned = int(result.get("scanned_books") or 0)
+    skipped = int(result.get("skipped") or 0)
+    parts = [f"扫了 {scanned} 本，新增 {created} 条知识"]
+    if skipped:
+        parts.append(f"跳过 {skipped} 条已存在的")
+    failed = int(result.get("failed_books") or 0)
+    if failed:
+        parts.append(f"{failed} 本拉取失败（下次同步会重试）")
+    pending = int(result.get("pending_books") or 0)
+    if pending:
+        parts.append(f"还有 {pending} 本没扫完，点按钮继续")
+    elif created == 0:
+        parts.append("没有新的划线与想法")
+    return "，".join(parts) + "。"
+
+
+def weread_not_configured_card() -> dict:
+    """没配 Key 时**不能**发 pending 卡去后台试一遍：那会让用户白等一个轮询周期，
+    看到「正在同步…」之后才被告知「没配 Key」。前提检查放在发卡之前。"""
+    spec = capability_spec("weread_sync")
+    return notice_card(
+        title="还没配置微信读书的 API Key",
+        note="同步需要先在微信读书官方页面获取 Key，再填到本地配置里。这一步要扫码，对话里做不了。",
+        href=spec.href if spec else "/books.html",
+    )
+
+
 # ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
 #
 # L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。
