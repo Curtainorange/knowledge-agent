@@ -75,3 +75,27 @@ def parse_structured(text: str, validator: callable | None = None) -> Any:
     except json.JSONDecodeError as exc:
         raise JsonParseError(f"模型输出非 JSON: {exc}") from exc
     return validate(data, validator)
+
+
+# 修复回合的追加指令。措辞针对实测的两种破损：把 JSON 包在解释性文字里、
+# 以及字符串值里的引号没转义——都要求「完整重出」而不是「打补丁」。
+_REPAIR_INSTRUCTION = (
+    "你上一条回复没有通过 JSON 结构校验。失败原因：{err}。\n"
+    "请重新输出**完整**的修正结果：只输出一个 JSON 对象，不要任何解释文字、不要 markdown 代码围栏，"
+    "字段必须齐全、类型正确，字符串里的引号按 JSON 规则转义。"
+)
+
+
+def build_repair_messages(messages: list[dict], broken_text: str, error: str) -> list[dict]:
+    """构造「修复回合」的消息：把破损输出当作上一轮回复，再要求模型只输出修正后的结果。
+
+    为什么值得多花一次调用：结构化输出失败的下游代价是**整条能力降级**——L3 简报退化成
+    空简报、L2 判定直接丢弃该候选对、分流回落通用对话——而修复回合只是一次短调用。
+    实测 MiMo 在自由文本模式下约 1/6 概率吐出破损 JSON（详见 dev_logs/复盘与教训.md #16）。
+    """
+    instruction = _REPAIR_INSTRUCTION.replace("{err}", (error or "未知")[:300])
+    return [
+        *messages,
+        {"role": "assistant", "content": broken_text},
+        {"role": "user", "content": instruction},
+    ]

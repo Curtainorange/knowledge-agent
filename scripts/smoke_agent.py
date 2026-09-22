@@ -20,6 +20,9 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.core.config import settings  # noqa: E402
 
 _db = os.path.join(tempfile.mkdtemp(prefix="cc_smoke_agent_"), "smoke.db")
+# 两个 key 都要清：`model_provider` 的优先级是 mimo > deepseek > mock，只清 deepseek
+# 而本机 .env 里配了 MIMO_API_KEY 时会走真实 MiMo——既不必要地花钱，也破坏「全程不触网」的确定性。
+settings.mimo_api_key = ""
 settings.deepseek_api_key = ""
 settings.embedding_backend = "hash"
 settings.weread_api_key = ""

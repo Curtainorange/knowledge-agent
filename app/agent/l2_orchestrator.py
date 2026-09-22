@@ -289,7 +289,7 @@ class L2Orchestrator:
         try:
             completion = self._gateway.chat(
                 task_type="batch_extraction", messages=messages, user_id=user_id, session=self._session,
-                prompt_version=L2_EXTRACT.version,
+                prompt_version=L2_EXTRACT.version, json_model=ExtractionResult,
             )
             data = parse_structured(completion.text, validator=lambda d: ExtractionResult(**d))
         except JsonParseError as exc:
@@ -385,7 +385,7 @@ class L2Orchestrator:
         try:
             completion = self._gateway.chat(
                 task_type="conflict_detection", messages=messages, user_id=user_id, session=self._session,
-                prompt_version=L2_JUDGE.version,
+                prompt_version=L2_JUDGE.version, json_model=ConflictJudgment,
             )
             return parse_structured(completion.text, validator=lambda d: ConflictJudgment(**d))
         except JsonParseError as exc:

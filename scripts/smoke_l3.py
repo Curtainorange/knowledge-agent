@@ -46,7 +46,9 @@ def main() -> int:
             ok = False
 
     client = TestClient(app)
-    check("供应商为真实 DeepSeek", settings.model_provider == "deepseek")
+    # 供应商无关：MiMo / DeepSeek 都算「真实」，只有 Mock 时冒烟无意义。
+    check("供应商为真实模型（非 Mock）", settings.model_provider != "mock",
+          f"当前={settings.model_provider} / {settings.active_model}")
 
     username = f"smoke_l3_{uuid.uuid4().hex[:8]}"
     r = client.post("/api/v1/auth/register", json={"username": username, "password": "smoke12345"})
@@ -59,7 +61,7 @@ def main() -> int:
         )
         check(f"录入「{title}」", resp.status_code == 200)
 
-    print("\n→ 触发 L3 认知简报（真实 DeepSeek：归类 + 生成追问，请稍候）...")
+    print(f"\n→ 触发 L3 认知简报（真实模型 {settings.active_model}：归类 + 生成追问，请稍候）...")
     r = client.post("/api/v1/l3/brief", headers=headers)
     check("POST /l3/brief", r.status_code == 200, r.text[:300] if r.status_code != 200 else "")
     body = r.json()

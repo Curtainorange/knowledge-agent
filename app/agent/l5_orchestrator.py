@@ -267,6 +267,7 @@ class L5Orchestrator:
                 user_id=user_id,
                 session=self._session,
                 prompt_version=L5_DIAGNOSE.version,
+                json_model=DiagnosisDraft,
             )
             return parse_structured(completion.text, validator=lambda d: DiagnosisDraft(**d))
         except JsonParseError as exc:

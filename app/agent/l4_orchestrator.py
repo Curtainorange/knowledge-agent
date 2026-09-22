@@ -351,6 +351,7 @@ class L4Orchestrator:
                 user_id=user_id,
                 session=self._session,
                 prompt_version=L4_PLAN.version,
+                json_model=GeneratedPlan,
             )
             return parse_structured(completion.text, validator=lambda d: GeneratedPlan(**d))
         except JsonParseError as exc:
@@ -380,6 +381,7 @@ class L4Orchestrator:
                 user_id=user_id,
                 session=self._session,
                 prompt_version=L4_DEVIATE.version,
+                json_model=DeviationAnalysis,
             )
             return parse_structured(completion.text, validator=lambda d: DeviationAnalysis(**d))
         except JsonParseError as exc:

@@ -36,6 +36,36 @@ class Settings(BaseSettings):
     # 高峰时段（北京时间，周一至周五），格式 "9-12,14-18"
     deepseek_peak_hours: str = "9-12,14-18"
 
+    # --- 小米 MiMo（OpenAI 兼容协议；与 DeepSeek 二选一，MiMo 优先）---
+    # 未配置 MIMO_API_KEY → 回落到 DeepSeek（或 Mock）。
+    # Key 在 https://platform.xiaomimimo.com 控制台获取，按量付费为 sk- 前缀；
+    # 订阅版 Token Plan 是 tp- 前缀且 base_url 不同，两者不可混用。
+    mimo_api_key: str = ""
+    mimo_base_url: str = "https://api.xiaomimimo.com/v1"
+    # 官方模型名（2026-09 经 GET /v1/models 实测确认）：
+    #   快档（对应 deepseek-flash）：mimo-v2.6-flash
+    #   强档：mimo-v2.6-pro / mimo-v2.6-pro-ultraspeed / mimo-v2.5-pro
+    # ★ 注意：mimo-v2-flash / mimo-v2.5-flash 均**不存在**，误填会返回 400 Unsupported model。
+    # 另有 asr / tts / tts-voiceclone / tts-voicedesign 音频类模型，非本场景使用。
+    mimo_model: str = "mimo-v2.6-flash"
+    mimo_timeout_seconds: float = 60.0
+
+    # MiMo 单价（每百万 token，人民币）—— ⚠️ 待核对官方定价后回填；
+    # 填 0 表示成本统计暂不准确（只影响成本日志，不影响功能）。
+    mimo_price_input_per_1m: float = 0.0
+    mimo_price_output_per_1m: float = 0.0
+    # MiMo 是否有自动上下文缓存折扣待官方确认；暂按 0（与输入同价，见 cost.py 兜底）
+    mimo_price_cache_hit_per_1m: float = 0.0
+
+    # --- 模型调用健壮性（供应商回退 / 结构化输出修复）---
+    # 供应商回退：主供应商重试耗尽（限流、超时、5xx）或不可重试失败（鉴权、模型名错、
+    # 配额耗尽）时，自动切到链上下一个已配 KEY 的供应商继续完成这次调用。
+    # 需两个 KEY 都配才生效；置 false 可关闭（失败即上抛，便于把问题暴露出来）。
+    llm_fallback_enabled: bool = True
+    # 结构化输出修复：JSON 任务本地校验失败时，把「破损输出 + 失败原因」回灌给模型再要一次
+    # （只修复一轮）。代价是一次调用，收益是避免整条能力降级（L3 简报退化 / L2 判定丢弃）。
+    llm_json_repair_enabled: bool = True
+
     # --- Embedding（语义检索；独立于 LLM，DeepSeek 无标准 embedding 接口）---
     # backend: local（本地 ONNX 目录，离线可用，推荐）| bge（fastembed 自动下载）
     #          | hash（确定性零依赖，测试/离线兜底）
@@ -122,8 +152,23 @@ class Settings(BaseSettings):
 
     @property
     def model_provider(self) -> str:
-        """当前启用的供应商：有 KEY 走 deepseek，否则 mock。"""
-        return "deepseek" if self.deepseek_api_key else "mock"
+        """当前启用的供应商：mimo > deepseek > mock。"""
+        if self.mimo_api_key:
+            return "mimo"
+        if self.deepseek_api_key:
+            return "deepseek"
+        return "mock"
+
+    @property
+    def active_model(self) -> str:
+        """当前供应商的默认模型名（网关路由回落用）。"""
+        provider = self.model_provider
+        if provider == "mimo":
+            return self.mimo_model
+        if provider == "deepseek":
+            return self.deepseek_model
+        # Mock：名字只进日志与成本表，写实比借用别的供应商模型名更清楚
+        return "mock"
 
 
 settings = Settings()

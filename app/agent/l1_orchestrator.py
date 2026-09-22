@@ -192,7 +192,7 @@ class L1Orchestrator:
         messages = self._prompt(conv, message, candidates, items)
         completion = self._gateway.chat(
             task_type="l1_mining", messages=messages, user_id=user_id, session=self._session,
-            prompt_version=L1_ROUTE.version,
+            prompt_version=L1_ROUTE.version, json_model=L1Route,
         )
         try:
             return parse_structured(completion.text, validator=lambda d: L1Route(**d))

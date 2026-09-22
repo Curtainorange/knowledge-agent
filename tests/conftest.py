@@ -1,7 +1,7 @@
 """测试夹具：临时 SQLite + 内存引擎 + MockProvider，全程不触发真实 API。
 
-按测试铁律，禁止调用真实 DeepSeek；通过 settings.model_provider 空 KEY 保证
-网关路由到 MockProvider。
+按测试铁律，禁止调用真实模型；通过把 MIMO/DEEPSEEK 两个 KEY 都置空，
+保证网关路由到 MockProvider。
 """
 from __future__ import annotations
 
@@ -18,8 +18,10 @@ from app.core.config import settings
 from app.domain.models.base import Base
 from app.main import app
 
-# 测试强制走 Mock（即便本机配了 .env）
+# 测试强制走 Mock（即便本机 .env 配了真 key）——两个都要清：
+# model_provider 的优先级是 mimo > deepseek > mock
 settings.deepseek_api_key = ""
+settings.mimo_api_key = ""
 # 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
 settings.embedding_backend = "hash"
 # 微信读书同步：强制「未配置 API Key」，避免本机 .env 里的真实 Key 影响断言
@@ -42,6 +44,11 @@ settings.register_max_attempts_per_ip = 100000
 # 重试退避设为 0，便于在一个用例内验证「失败 → 重试 → 成功 / 死信」
 settings.worker_enabled = False
 settings.task_retry_backoff_seconds = 0.0
+
+# 结构化输出修复回合：测试里默认关。它会在「模型输出破损」时多打一次调用，
+# 而既有多处用例按调用次数/成本行数做精确断言（如 router 的 task_types 列表）。
+# 该功能的专项用例在 tests/test_gateway.py 里用 monkeypatch 显式打开验证。
+settings.llm_json_repair_enabled = False
 
 # 覆盖 DATABASE_URL，使用内存 SQLite（StaticPool 共享同一连接）
 settings.database_url = "sqlite://"

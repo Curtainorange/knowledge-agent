@@ -51,16 +51,48 @@ def is_peak_time(now: datetime | None = None) -> bool:
     return any(start <= local.hour < end for start, end in _peak_windows())
 
 
-def _estimate_cost(prompt_tokens: int, completion_tokens: int, cached_tokens: int = 0) -> float:
-    """按每百万 token 单价估算人民币费用（输入区分缓存命中 / 未命中）。"""
-    multiplier = settings.deepseek_peak_multiplier if is_peak_time() else 1.0
+def _price_provider(model: str = "") -> str:
+    """该用哪套单价：优先按**实际服务的模型名**判断，判不出来才退回当前配置的供应商。
+
+    为什么要按模型名判：供应商回退（MiMo 失败自动切 DeepSeek）时，这一次调用是 DeepSeek
+    在干活，却按 MiMo 的单价记账——成本会整笔错记（MiMo 单价未回填时甚至记成 0）。
+    """
+    if settings.mimo_model and model == settings.mimo_model:
+        return "mimo"
+    if settings.deepseek_model and model == settings.deepseek_model:
+        return "deepseek"
+    return settings.model_provider
+
+
+def _estimate_cost(
+    prompt_tokens: int,
+    completion_tokens: int,
+    cached_tokens: int = 0,
+    model: str = "",
+) -> float:
+    """按每百万 token 单价估算人民币费用（输入区分缓存命中 / 未命中）。
+
+    按实际服务的模型取价：MiMo 无高峰/空闲分时计价（倍率恒为 1），且缓存命中单价为 0
+    （未确认折扣）时按输入价兜底——宁可按原价算，也不把命中 token 算成免费。
+    """
+    if _price_provider(model) == "mimo":
+        multiplier = 1.0
+        input_price = settings.mimo_price_input_per_1m
+        output_price = settings.mimo_price_output_per_1m
+        cache_hit_price = settings.mimo_price_cache_hit_per_1m or input_price
+    else:
+        multiplier = settings.deepseek_peak_multiplier if is_peak_time() else 1.0
+        input_price = settings.deepseek_price_input_per_1m
+        output_price = settings.deepseek_price_output_per_1m
+        cache_hit_price = settings.deepseek_price_cache_hit_per_1m
+
     cached = max(0, min(int(cached_tokens), int(prompt_tokens)))
     uncached = max(0, int(prompt_tokens) - cached)
 
     cost = (
-        uncached * settings.deepseek_price_input_per_1m
-        + cached * settings.deepseek_price_cache_hit_per_1m
-        + int(completion_tokens) * settings.deepseek_price_output_per_1m
+        uncached * input_price
+        + cached * cache_hit_price
+        + int(completion_tokens) * output_price
     )
     return cost * multiplier / 1_000_000
 
@@ -77,7 +109,8 @@ def record_cost(
 ) -> float:
     """记录一次模型调用的 token 与估算费用。无 session 时仅记日志（回退）。"""
     cost = _estimate_cost(
-        completion.prompt_tokens, completion.completion_tokens, completion.cached_tokens
+        completion.prompt_tokens, completion.completion_tokens, completion.cached_tokens,
+        model=model or completion.model,
     )
     rid = trace.get_request_id() or "-"
     if session is not None:

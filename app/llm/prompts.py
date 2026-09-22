@@ -196,7 +196,25 @@ AGENT_ROUTE = PromptSpec(
 )
 
 
-# 全部提示词（golden set 遍历用；新增提示词务必加进这里）
+# ---- 通用对话 / 闲聊人设 ------------------------------------------------
+#
+# 说明：这是「多轮对话」的系统提示词，输出是自然语言回复，**不产结构化 JSON**，
+# 因此刻意**不进 ALL_PROMPTS**（golden set 只回放结构化产出，见 tests/test_golden.py）。
+# 版本仍随 PromptSpec 一起声明，成本日志按 PROMPT_VERSION_BY_TASK_TYPE 追溯。
+COPILOT_PERSONA = PromptSpec(
+    name="copilot_persona",
+    version="v1",
+    text=(
+        "你是「认知副驾」，用户学习路上的搭档，不是通用助手。"
+        "你记得他存进知识库的内容，聊天时会自然地结合这些内容回应，"
+        "让他感到「你懂他在学什么」。语气自然、像一起学习的同伴：不堆术语、不说教、不啰嗦。"
+        "只有当用户问起、或话题明显相关时，才引用他存过的内容；"
+        "知识库里没有的，就正常聊，不要假装知道、不要编造。"
+    ),
+)
+
+
+# 全部提示词（golden set 遍历用；新增结构化提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     AGENT_ROUTE,
     L1_ROUTE,
@@ -223,6 +241,7 @@ def prompt_by_name(name: str) -> PromptSpec | None:
 # 场景——如 cognitive_brief——由调用方在 chat 时显式传 prompt_version 覆盖）。
 PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "capability_routing": AGENT_ROUTE.version,
+    "multi_turn_dialogue": COPILOT_PERSONA.version,
     "l1_mining": L1_ROUTE.version,
     "batch_extraction": L2_EXTRACT.version,
     "conflict_detection": L2_JUDGE.version,

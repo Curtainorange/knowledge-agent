@@ -166,6 +166,7 @@ class L3Orchestrator:
                 user_id=user_id,
                 session=self._session,
                 prompt_version=L3_ITEM.version,
+                json_model=BriefDraft,
             )
             draft = parse_structured(completion.text, validator=lambda d: BriefDraft(**d))
         except JsonParseError as exc:
@@ -194,7 +195,7 @@ class L3Orchestrator:
         try:
             completion = self._gateway.chat(
                 task_type="topic_analysis", messages=messages, user_id=user_id, session=self._session,
-                prompt_version=L3_ANALYZE.version,
+                prompt_version=L3_ANALYZE.version, json_model=TopicAnalysisResult,
             )
             result = parse_structured(completion.text, validator=lambda d: TopicAnalysisResult(**d))
         except JsonParseError as exc:
@@ -264,6 +265,7 @@ class L3Orchestrator:
                 user_id=user_id,
                 session=self._session,
                 prompt_version=L3_BRIEF.version,
+                json_model=BriefDraft,
             )
             return parse_structured(completion.text, validator=lambda d: BriefDraft(**d))
         except JsonParseError as exc:

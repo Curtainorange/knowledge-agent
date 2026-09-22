@@ -322,6 +322,7 @@ class CapabilityRouter:
             user_id=user_id,
             session=self._session,
             prompt_version=AGENT_ROUTE.version,
+            json_model=CapabilityRoute,
         )
         try:
             route = parse_structured(completion.text, validator=lambda d: CapabilityRoute(**d))

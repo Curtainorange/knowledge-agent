@@ -1,12 +1,13 @@
-"""L2 真实链路冒烟：真实 DeepSeek 完整跑通「录入 → 主张提取 → 冲突判定 → 反馈」。
+"""L2 真实链路冒烟：真实模型完整跑通「录入 → 主张提取 → 冲突判定 → 反馈」。
 
-用法（在项目根目录）：
-    DEEPSEEK_API_KEY=sk-xxx python scripts/smoke_l2.py
+用法（在项目根目录；key 写在 .env 里即可，不必在这里传环境变量）：
+    python scripts/smoke_l2.py
 
 - 使用独立临时库 smoke_l2_tmp.db（*.db 已在 .gitignore），不污染 dev.db；
   跑完可手动删除。
-- 未配置 DEEPSEEK_API_KEY 时网关路由到 MockProvider，只能验证链路连通性，
-  验证不了真实判定质量——脚本会显式失败提醒。
+- 供应商自动跟随后端配置（MIMO_API_KEY 优先，其次 DEEPSEEK_API_KEY）；
+  两个都没配则网关路由到 MockProvider，只能验证链路连通性、验证不了真实判定
+  质量——脚本会显式失败提醒。
 """
 from __future__ import annotations
 
@@ -37,8 +38,10 @@ def main() -> int:
             ok = False
 
     client = TestClient(app)
-    check("供应商为真实 DeepSeek", settings.model_provider == "deepseek",
-          "未配置 DEEPSEEK_API_KEY，当前走 Mock，冒烟无意义" if settings.model_provider != "deepseek" else "")
+    # 供应商无关：MiMo / DeepSeek 都算「真实」，只有 Mock 时冒烟无意义。
+    check("供应商为真实模型（非 Mock）", settings.model_provider != "mock",
+          f"当前走 {settings.model_provider}（未配 MIMO/DEEPSEEK key 时走 Mock，冒烟无意义）"
+          if settings.model_provider == "mock" else f"当前={settings.model_provider} / {settings.active_model}")
 
     # 1) 注册（随机用户名，幂等不依赖库状态）
     username = f"smoke_l2_{uuid.uuid4().hex[:8]}"
@@ -66,7 +69,7 @@ def main() -> int:
         )
 
     # 3) 触发 L2 扫描（真实模型调用：2 次提取 + N 次判定，需数十秒）
-    print("\n→ 触发 L2 扫描（真实 DeepSeek，请稍候）...")
+    print(f"\n→ 触发 L2 扫描（真实模型 {settings.active_model}，请稍候）...")
     r = client.post("/api/v1/l2/scan", headers=headers)
     check("POST /l2/scan", r.status_code == 200, r.text[:300] if r.status_code != 200 else "")
     body = r.json()
