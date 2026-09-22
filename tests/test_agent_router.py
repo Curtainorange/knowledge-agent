@@ -74,6 +74,13 @@ def test_catalog_and_wiring_are_consistent(session):
     assert WIRED_CAPABILITIES <= dispatchable, (
         f"标为已接入但没实现分发：{WIRED_CAPABILITIES - dispatchable}"
     )
+    # 目录覆盖除 chat 以外的全部已知能力（chat 不需要快捷入口）
+    catalogued = {spec.capability for spec in CAPABILITY_CATALOG}
+    expected = set(KNOWN_CAPABILITIES) - {"chat"}
+    assert catalogued == expected, (
+        f"目录与能力清单不一致：多 {catalogued - expected}，缺 {expected - catalogued}"
+    )
+    # 目前全部已接入；仍留这条是为了「将来新增能力时忘了接线」能被拦住
     for spec in CAPABILITY_CATALOG:
         if spec.capability not in WIRED_CAPABILITIES:
             assert spec.href, f"{spec.label} 未接入对话，又没给原页面地址，引导卡会指向空"

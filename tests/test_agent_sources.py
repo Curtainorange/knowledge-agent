@@ -211,3 +211,67 @@ def test_sync_failure_degrades_to_a_failed_card(client, session, monkeypatch):
     ).json()["messages"][-1]["card"]
     assert card["kind"] == "failed", card
     assert "可以再试一次" in card["note"]
+
+
+# ---- 书架 ------------------------------------------------------------------
+
+
+def _seed_book(session, user_id: str, *, title: str, progress: float) -> str:
+    from app.domain.repositories.book_repository import BookRepository
+
+    book = BookRepository(session, user_id=user_id).create(
+        user_id=user_id, title=title, author="某作者", format="epub",
+        file_path="data/books/x.epub",
+        chapters=[{"index": 0, "title": "第一章", "char_start": 0, "char_end": 100}],
+        full_text="正文", total_chars=100,
+    )
+    book.read_progress = progress
+    session.commit()
+    return book.id
+
+
+def test_books_lists_the_shelf_with_progress_and_reader_link(client, session):
+    user = sign_in(client, "bk_list")
+    book_id = _seed_book(session, user.user_id, title="剑来", progress=0.42)
+
+    body = _send(client, user.headers, "我的书架里有什么")
+
+    assert body["capability"] == "books"
+    card = body["card"]
+    assert card["kind"] == "books"
+    assert card["books"][0]["title"] == "剑来"
+    assert card["books"][0]["read_progress"] == 0.42
+    # 阅读器的入口参数是 ?book=，写错就点不进去
+    assert card["books"][0]["href"] == f"/reader.html?book={book_id}"
+    assert card["books"][0]["chapter_count"] == 1
+    assert "1 本在读" in body["reply"]
+
+
+def test_empty_shelf_points_at_where_to_upload(client, session):
+    """上传要选本地文件，对话里做不到——那就明说，并把人送到书架页。"""
+    headers = auth_headers(client, "bk_empty")
+    body = _send(client, headers, "我的书架里有什么")
+
+    assert body["card"]["kind"] == "books"
+    assert body["card"]["books"] == []
+    assert "上传" in body["card"]["note"]
+    assert body["reply"] and "书架" in body["reply"]
+
+
+def test_books_is_synchronous(client, session, monkeypatch):
+    """书架是纯本地查询，不该走后台——为一次列表查询绕一圈任务队列没有意义。"""
+    monkeypatch.setattr(settings, "worker_enabled", True)
+    user = sign_in(client, "bk_sync")
+    _seed_book(session, user.user_id, title="剑来", progress=1.0)
+
+    body = _send(client, user.headers, "我的书架里有什么")
+
+    assert body["card"]["kind"] == "books"
+    session.flush()
+    assert session.query(TaskRun).filter(TaskRun.task_name == turns.TASK_NAME).count() == 0
+
+
+def test_books_no_longer_a_guide_card(client, session):
+    headers = auth_headers(client, "bk_wired")
+    body = _send(client, headers, "我的书架里有什么")
+    assert body["card"]["kind"] != "guide"

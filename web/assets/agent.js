@@ -219,6 +219,37 @@ window.CCA = (function () {
 
   var TASK_STATE_LABEL = { done: '已完成', pending: '待办' };
 
+  /* 书架：每本一行，带进度与「继续读」深链。
+     阅读器是独立页面——正文阅读这种深度交互不适合塞进消息流。 */
+  function booksHtml(card) {
+    var parts = [];
+    var books = card.books || [];
+    if (!books.length) {
+      parts.push('<div class="notice">' + esc(card.note || '书架还是空的。') + '</div>');
+    } else {
+      parts.push(books.map(function (b) {
+        var pct = Math.round(Number(b.read_progress || 0) * 100);
+        var label = pct >= 100 ? '已读完' : (pct > 0 ? '已读 ' + pct + '%' : '未开始');
+        return '<div class="book-row">' +
+          '<div class="book-main">' +
+            '<div class="book-title">' + esc(b.title) + '</div>' +
+            '<div class="book-meta">' + esc(b.author || '佚名') +
+              (b.chapter_count ? ' · ' + Number(b.chapter_count) + ' 章' : '') + '</div>' +
+          '</div>' +
+          '<div class="book-side">' +
+            '<span class="badge' + (pct >= 100 ? ' ok' : '') + '">' + esc(label) + '</span>' +
+            '<a href="' + esc(b.href) + '">' + (pct > 0 && pct < 100 ? '继续读' : '打开') + '</a>' +
+          '</div>' +
+        '</div>';
+      }).join(''));
+    }
+    if (card.note && books.length) {
+      parts.push('<div class="meta">' + esc(card.note) + '</div>');
+    }
+    parts.push(actionsRow(card));
+    return '<div class="books-card">' + parts.join('') + '</div>';
+  }
+
   function l4PlanHtml(card) {
     var parts = [];
     if (card.state !== 'ok') {
@@ -493,6 +524,7 @@ window.CCA = (function () {
     l4_plan: l4PlanHtml,
     l4_deviation: l4DeviationHtml,
     l5_diagnosis: l5DiagnosisHtml,
+    books: booksHtml,
     pending: pendingHtml,
     failed: failedHtml,
     knowledge_created: createdHtml,

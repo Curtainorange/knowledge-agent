@@ -172,6 +172,7 @@ class Copilot:
             "l4_goal": self._execute,
             "l4_plan": self._execute,
             "l5": self._execute,
+            "books": self._execute,
             "knowledge_add": self._knowledge_add,
             "weread_sync": self._execute,
             "chat": self._chat,

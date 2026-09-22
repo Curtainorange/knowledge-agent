@@ -36,6 +36,8 @@ from sqlalchemy.orm import Session
 
 from app.agent import cards as cards_mod
 from app.agent.cards import (
+    books_card,
+    books_reply,
     brief_reply,
     deviation_reply,
     diagnosis_reply,
@@ -183,6 +185,9 @@ def execute_capability(
     if capability == "weread_sync":
         return _execute_weread_sync(user_id=user_id, session=session, key=key)
 
+    if capability == "books":
+        return _execute_books(user_id=user_id, session=session, key=key)
+
     raise ValueError(f"不支持执行的能力：{capability}")
 
 
@@ -312,6 +317,31 @@ def _execute_weread_sync(*, user_id: str, session: Session, key: str) -> tuple[s
 
     result = WeReadSyncService(session).sync(user_id=user_id).as_dict()
     return sync_reply(result), weread_sync_card(key=key, result=result)
+
+
+def _execute_books(*, user_id: str, session: Session, key: str) -> tuple[str, dict]:
+    """看书架。纯本地查询，同步即可（不上异步）。
+
+    上传不进对话：那要选本地文件，对话里做不到——卡上把这一点说清楚并给出书架页链接。
+    """
+    from app.domain.repositories.book_repository import BookRepository
+
+    rows = BookRepository(session, user_id=user_id).list_active(user_id)
+    books = [
+        {
+            "book_id": book.id,
+            "title": book.title,
+            "author": book.author or "",
+            "format": book.format or "",
+            # chapter_count 不是列，是端点里按 chapters 现算的——这里同样现算
+            "chapter_count": len(book.chapters or []),
+            "read_progress": round(float(book.read_progress or 0.0), 4),
+            # 阅读器的入口参数是 ?book=（books.html 就是这么跳的），别写成 ?id=
+            "href": f"/reader.html?book={book.id}",
+        }
+        for book in rows
+    ]
+    return books_reply(books), books_card(key=key, books=books)
 
 
 def execute_action(

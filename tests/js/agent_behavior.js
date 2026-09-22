@@ -369,6 +369,35 @@ const wereadDone = CCA.renderCard({
 check('全部扫完时不出现继续按钮', wereadDone.indexOf('data-agent-send') === -1);
 check('没有失败书目时不渲染那一项', wereadDone.indexOf('拉取失败') === -1);
 
+console.log('\n书架卡');
+const shelf = CCA.renderCard({
+  kind: 'books', key: 'b1', note: '', href: '/books.html', sends: [],
+  books: [
+    { book_id: 'k1', title: '剑来', author: '烽火戏诸侯', chapter_count: 120,
+      read_progress: 0.42, href: '/reader.html?book=k1' },
+    { book_id: 'k2', title: XSS, author: '', chapter_count: 3,
+      read_progress: 1.0, href: '/reader.html?book=k2' },
+    { book_id: 'k3', title: '没开始的书', author: '某人', chapter_count: 5,
+      read_progress: 0, href: '/reader.html?book=k3' }
+  ]
+});
+check('标题与作者渲染', shelf.indexOf('剑来') !== -1 && shelf.indexOf('烽火戏诸侯') !== -1);
+check('章节数渲染', shelf.indexOf('120 章') !== -1);
+check('在读的书显示进度与「继续读」',
+  shelf.indexOf('已读 42%') !== -1 && shelf.indexOf('继续读') !== -1);
+check('已读完的标成已读完', shelf.indexOf('已读完') !== -1);
+check('未开始的显示「未开始」与「打开」',
+  shelf.indexOf('未开始') !== -1 && shelf.indexOf('>打开<') !== -1);
+check('阅读器深链用 ?book=（写错就点不进去）',
+  shelf.indexOf('/reader.html?book=k1') !== -1);
+check('书名里的用户数据被转义', shelf.indexOf('<img src=x') === -1);
+
+const shelfEmpty = CCA.renderCard({
+  kind: 'books', key: 'b2', books: [], href: '/books.html', sends: [],
+  note: '书架还是空的。上传电子书要选本地文件，对话里做不了，去书架页传。'
+});
+check('空书架说明上传要去哪里', shelfEmpty.indexOf('上传电子书') !== -1);
+
 console.log('\n数值与徽标');
 check('pct 四舍五入', CCA.pct(0.567) === 57);
 check('pct 容错非数字', CCA.pct(null) === 0 && CCA.pct('x') === 0);

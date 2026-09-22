@@ -403,8 +403,9 @@ def test_weread_is_no_longer_a_guide_card(client):
     assert body["card"]["kind"] != "guide"
 
 
-def test_no_books_written_by_guide_path(client, session):
-    headers = auth_headers(client, "turns_guide_books")
+def test_books_path_writes_nothing(client, session):
+    """书架是只读能力：问一次书架不该产生任何写入。"""
+    headers = auth_headers(client, "turns_books_readonly")
     _send(client, headers, "我的书架里有什么")
     session.flush()
     assert session.query(Book).count() == 0

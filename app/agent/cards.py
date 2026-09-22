@@ -177,6 +177,40 @@ def weread_not_configured_card() -> dict:
     )
 
 
+# ---- 书架 ------------------------------------------------------------------
+
+
+def books_card(*, key: str, books: list[dict]) -> dict:
+    """书架卡。
+
+    **上传不在这里**：上传要选本地文件，对话里做不到。卡上给一句话说清这点，
+    并把用户送到书架页——这比假装「说了就能传」诚实，也省得他反复尝试。
+    """
+    spec = capability_spec("books")
+    href = spec.href if spec else "/books.html"
+    return {
+        "kind": "books",
+        "key": key,
+        "books": books,
+        "note": "" if books else "书架还是空的。上传电子书要选本地文件，对话里做不了，去书架页传。",
+        "href": href,
+        "sends": [],
+    }
+
+
+def books_reply(books: list[dict]) -> str:
+    if not books:
+        return "书架还是空的，去书架页上传一本电子书吧。"
+    reading = [b for b in books if 0.0 < float(b.get("read_progress") or 0.0) < 1.0]
+    finished = [b for b in books if float(b.get("read_progress") or 0.0) >= 1.0]
+    parts = [f"书架上有 {len(books)} 本书"]
+    if reading:
+        parts.append(f"{len(reading)} 本在读")
+    if finished:
+        parts.append(f"{len(finished)} 本已读完")
+    return "，".join(parts) + "。"
+
+
 # ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
 #
 # L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。

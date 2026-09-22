@@ -67,25 +67,39 @@ def chat(message, conversation_id=None):
 print("=== 1. 同步能力（秒级，直接出结果）===\n")
 first = chat("记一下：B+树更适合范围查询 #数据库")
 cid = first["conversation_id"]
-for text in ("之前存的那段讲查询优化的内容", "生成认知简报", "今天天气不错", "我的书架里有什么"):
+for text in (
+    "之前存的那段讲查询优化的内容",
+    "帮我定一个学习目标：三个月掌握数据分析",
+    "我的计划进展如何",
+    "我的书架里有什么",
+    "今天天气不错",
+):
     chat(text, cid)
 
-print("\n=== 2. 异步回合（L2 扫描：先占位，后台跑完写回）===\n")
-pending = chat("扫描知识冲突", cid)
-turn_id = (pending.get("card") or {}).get("turn_id")
-print(f"    → 已入队 turn={str(turn_id)[:8]}")
+print("\n=== 2. 异步回合（先占位，后台跑完写回）===\n")
+for text in ("生成认知简报", "扫描知识冲突", "生成周计划", "检查我有没有偏离计划", "同步微信读书"):
+    body = chat(text, cid)
+    card = body.get("card") or {}
+    print(f"    → 卡片={card.get('kind')} turn={str(card.get('turn_id'))[:8]}")
 
 with SessionLocal() as session:
-    summary = runner.run_once(session)
-print(f"    → worker 跑完一轮：claimed={summary.claimed} ok={summary.succeeded} "
-      f"retry={summary.retried} dead={summary.dead}")
+    # 一轮只领 5 个任务（队列里还混着周扫/推送这类计划任务），跑到清空为止
+    total = {"claimed": 0, "succeeded": 0, "retried": 0, "dead": 0}
+    for _ in range(5):
+        summary = runner.run_once(session)
+        for key in total:
+            total[key] += getattr(summary, key)
+        if summary.claimed == 0:
+            break
+print(f"    → worker 跑完：claimed={total['claimed']} ok={total['succeeded']} "
+      f"retry={total['retried']} dead={total['dead']}")
 
 conv = client.get(f"/api/v1/agent/conversation/{cid}", headers=headers).json()
-last = conv["messages"][-1]
-print(f"    → 读回会话：卡片={last['card'].get('kind')}  key={str(last['card'].get('key'))[:8]}")
-print(f"    → 消息正文已被就地改写：{last['content'][:72]}")
-if last["card"].get("summary"):
-    print(f"    → 扫描统计：{last['card']['summary']}")
+print("    → 读回会话（每张 pending 都已就地换成结果卡）")
+for message in conv["messages"]:
+    if message["role"] == "assistant":
+        kind = str((message.get("card") or {}).get("kind"))
+        print(f"       {kind:<16} {message['content'][:50]}")
 
 print("\n=== 3. 卡片内操作回流（构造一条冲突，验证采纳/忽略真的落库）===\n")
 with SessionLocal() as session:

@@ -23,6 +23,7 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
+from app.agent.cards import guide_card
 from tests.helpers import auth_headers
 
 NOTE_TEXT = "记一下：B+树更适合范围查询 #数据库"
@@ -265,25 +266,31 @@ def test_l3_writes_exactly_one_exchange(client, session, provider):
     assert messages[-1]["source"] == "agent"
 
 
-# ---- 未接入的能力 -----------------------------------------------------------
+# ---- 能力目录与引导卡兜底 ---------------------------------------------------
 
 
-def test_unwired_capability_returns_guide_card_without_side_effects(client, session, provider):
-    """认得意图 ≠ 已经接入。回引导卡可以，偷偷跑一遍那个能力不行。
+def test_every_capability_is_now_wired(client, session):
+    """能力目录里每一项都已接进对话。
 
-    用「书架」这条还没接进来的路径来锁：路由得认出来（否则会兜底成闲聊），
-    但必须只回引导卡，且一条书都不该被写进来。
+    引导卡（「这功能还没接，先去原页面」）从「有待接入的能力」变成了纯安全网——
+    它仍然必须存在（万一有人把某个能力加进 KNOWN 却忘了接线），但正常路径上
+    不该再出现，否则就是接线漏了。
     """
-    headers = auth_headers(client, "agent_guide")
-    body = _send(client, headers, "我的书架里有什么")
+    headers = auth_headers(client, "agent_all_wired")
 
-    assert body["capability"] == "books"
-    assert body["card"]["kind"] == "guide"
-    assert body["card"]["href"] == "/books.html"
-    assert "书架" in body["reply"]
-    assert provider.task_types == []              # 引导卡不该顺手调模型
+    for path in ("我的书架里有什么", "同步微信读书"):
+        body = _send(client, headers, path)
+        assert body["card"]["kind"] != "guide", path
     session.flush()
-    assert session.query(Book).count() == 0       # 没有任何副作用
+    assert session.query(Book).count() == 0     # 走真实路径，不是引导卡
+
+
+def test_guide_fallback_still_produces_a_usable_card():
+    """安全网本身要没坏：引导卡必须带得出原页面地址，否则是个死胡同。"""
+    card = guide_card("books")
+    assert card["kind"] == "guide"
+    assert card["href"] == "/books.html"
+    assert card["label"] and card["note"]
 
 
 # ---- 通用对话 ---------------------------------------------------------------
@@ -366,13 +373,7 @@ def test_capabilities_endpoint_lists_wired_flags(client):
     wired = {name for name, item in items.items() if item["wired"]}
     assert wired == {
         "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
-        "knowledge_add", "weread_sync",
+        "knowledge_add", "weread_sync", "books",
     }
-    # 只剩书架还没接进对话
-    assert items["books"]["wired"] is False
-    assert items["books"]["href"] == "/books.html"
-    # 未接入的能力必须给得出原页面地址，否则引导卡是个死胡同
     for item in items.values():
         assert item["label"] and item["example"]
-        if not item["wired"]:
-            assert item["href"]
