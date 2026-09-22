@@ -259,6 +259,93 @@ const diagDegraded = CCA.renderCard({
 check('降级时不渲染空的诊断框', diagDegraded.indexOf('class="diag"') === -1
   && diagDegraded.indexOf('归因分析失败') !== -1);
 
+console.log('\nL4 卡片：目标 / 周计划 / 偏离');
+const goalCard = CCA.renderCard({
+  kind: 'l4_goal', goal_id: 'g1', description: XSS, note: '',
+  href: '/l4.html', sends: [{ label: '生成周计划', message: '生成周计划' }]
+});
+check('目标描述被转义', goalCard.indexOf('<img src=x') === -1);
+check('带上「生成周计划」按钮（按钮发消息）',
+  goalCard.indexOf('data-agent-send="生成周计划"') !== -1);
+check('目标卡不带操作类按钮（不调 actions）', goalCard.indexOf('data-agent-action') === -1);
+
+const planCard = CCA.renderCard({
+  kind: 'l4_plan', key: 'p1', state: 'ok',
+  goal_description: '三个月掌握数据分析', plan_id: 'pl1', version: 2,
+  rationale: '先打基础再上工具',
+  tasks: [
+    { task_id: 't1', week_index: 1, subject: '读完《入门》并写三条标准', status: 'done' },
+    { task_id: 't2', week_index: 2, subject: XSS, status: 'pending' }
+  ],
+  progress: { total: 2, done: 1, pending: 1 },
+  note: '', href: '/l4.html', sends: [{ label: '重新生成周计划', message: '重新生成周计划' }]
+});
+check('周任务按周渲染并标出完成状态',
+  planCard.indexOf('第 1 周') !== -1 && planCard.indexOf('已完成') !== -1
+  && planCard.indexOf('task-row done') !== -1);
+check('计划版本号渲染', planCard.indexOf('v2') !== -1);
+check('完成度渲染', planCard.indexOf('共 2 项，已完成 1 项') !== -1);
+check('排序理由渲染', planCard.indexOf('先打基础再上工具') !== -1);
+check('任务标题被转义', planCard.indexOf('<img src=x') === -1);
+check('计划卡带重新生成按钮', planCard.indexOf('data-agent-send="重新生成周计划"') !== -1);
+
+const planDegraded = CCA.renderCard({
+  kind: 'l4_plan', key: 'p2', state: 'degraded', goal_description: '三个月掌握数据分析',
+  plan_id: '', version: 0, rationale: '', tasks: [], progress: {},
+  note: '计划生成失败（模型输出无法解析），已保留既有计划，请重试。',
+  href: '/l4.html', sends: []
+});
+check('计划降级时说明原因而不是空表格',
+  planDegraded.indexOf('已保留既有计划') !== -1 && planDegraded.indexOf('task-row') === -1);
+
+const deviation = CCA.renderCard({
+  kind: 'l4_deviation', key: 'd1', state: 'ok', plan_id: 'pl1',
+  signals: { reasons: ['连续 7 天没有学习行为'], plan_total: 2, plan_done: 0 },
+  analysis: {
+    root_cause: XSS, adjustment: '把第一周任务拆成每天 15 分钟',
+    expected_gain: '完成率翻倍', confidence: 0.7
+  },
+  note: '', href: '/l4.html'
+});
+check('偏离归因与建议渲染', deviation.indexOf('每天 15 分钟') !== -1
+  && deviation.indexOf('预期改善') !== -1);
+check('归因文本被转义', deviation.indexOf('<img src=x') === -1);
+check('本地信号单独列出', deviation.indexOf('连续 7 天没有学习行为') !== -1);
+check('给出两个操作按钮',
+  deviation.indexOf('data-agent-action="l4.adjustment.apply"') !== -1
+  && deviation.indexOf('data-agent-action="l4.adjustment.keep"') !== -1);
+check('两个按钮都带上计划 id 作为 target',
+  deviation.indexOf('data-target="pl1"') !== -1);
+
+const devNoPlan = CCA.renderCard({
+  kind: 'l4_deviation', key: 'd2', state: 'no_plan', plan_id: '', signals: {},
+  analysis: {}, note: '还没有学习计划，先设定目标并生成计划。', href: '/l4.html'
+});
+check('没有计划时不给操作按钮',
+  devNoPlan.indexOf('data-agent-action') === -1 && devNoPlan.indexOf('还没有学习计划') !== -1);
+
+const devRestored = CCA.renderCard({
+  kind: 'l4_deviation', key: 'd3', state: 'ok', plan_id: 'pl1',
+  signals: { reasons: ['连续 7 天没有学习行为'] },
+  analysis: { root_cause: '门槛过高', adjustment: '拆小', expected_gain: '', confidence: 0.6 },
+  note: '后台执行失败（可能网络或模型超时），可以再试一次。', href: '/l4.html'
+});
+check('任务失败还原后仍显示失败原因与重试入口',
+  devRestored.indexOf('可以再试一次') !== -1
+  && devRestored.indexOf('data-agent-action="l4.adjustment.apply"') !== -1);
+
+const notice = CCA.renderCard({
+  kind: 'notice', title: '还没有学习目标', note: XSS, href: '/l4.html',
+  sends: [{ label: '生成周计划', message: '生成周计划' }]
+});
+check('提示卡渲染标题与说明', notice.indexOf('还没有学习目标') !== -1);
+check('提示卡说明被转义', notice.indexOf('<img src=x') === -1);
+check('提示卡可以带「接下来做什么」的按钮',
+  notice.indexOf('data-agent-send="生成周计划"') !== -1);
+
+const noticeBare = CCA.renderCard({ kind: 'notice', title: 't', note: 'n', href: '', sends: [] });
+check('提示卡没有按钮时不渲染空的按钮行', noticeBare.indexOf('cf-actions') === -1);
+
 console.log('\n数值与徽标');
 check('pct 四舍五入', CCA.pct(0.567) === 57);
 check('pct 容错非数字', CCA.pct(null) === 0 && CCA.pct('x') === 0);

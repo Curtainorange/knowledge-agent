@@ -364,7 +364,9 @@ def test_capabilities_endpoint_lists_wired_flags(client):
 
     items = {item["capability"]: item for item in resp.json()}
     wired = {name for name, item in items.items() if item["wired"]}
-    assert wired == {"l1", "l2", "l3", "l5", "knowledge_add"}
+    assert wired == {
+        "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5", "knowledge_add",
+    }
     assert items["books"]["wired"] is False
     assert items["books"]["href"] == "/books.html"
     assert items["weread_sync"]["wired"] is False

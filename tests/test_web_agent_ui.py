@@ -80,6 +80,17 @@ def test_card_actions_use_event_delegation():
     assert "closest('[data-agent-action]')" in js
 
 
+def test_send_buttons_share_the_delegation():
+    """「按钮发消息」也要走同一套委托，并且真的复用 send()。
+
+    这类按钮（生成周计划、按建议重排）本质是替用户说一句话，必须走完整的对话回合——
+    自己拼一个请求就会绕过异步回合、结果落不到消息流里。
+    """
+    js = _agent_js()
+    assert "closest('[data-agent-send]')" in js
+    assert "send(sender.getAttribute('data-agent-send'))" in js
+
+
 def test_polling_is_bounded():
     """轮询必须有上限。没有上限的话，一条卡死的 pending 消息会让页面永远打请求。"""
     js = _agent_js()

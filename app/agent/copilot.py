@@ -118,7 +118,7 @@ class Copilot:
         if self._runs_async(route.capability):
             reply, card = turns.start_turn(
                 self._session, user_id=user_id, conversation=conversation,
-                capability=route.capability, message=message,
+                capability=route.capability, message=message, args=route.args,
             )
         else:
             method = self._handlers().get(route.capability)
@@ -152,14 +152,19 @@ class Copilot:
     def _handlers(self) -> dict[str, object]:
         """已接入的能力。未登记的能力一律走引导卡。
 
-        `l2/l3/l5` 登记的是**同步**执行：正常路径上它们会被 `_runs_async` 拦到后台去，
-        这里只在没有 worker 时兜底。
+        除了 `l1` / `knowledge_add` / `chat`（它们要写自己的消息），其余能力都走
+        `_execute`：执行逻辑统一在 `turns.execute_capability`，本层只负责把结果落成消息。
+        `l2/l3/l5/l4_plan/l4_deviation` 正常路径会被 `_runs_async` 拦到后台去，
+        这里只在没有 worker 时兜底同步跑。
         """
         return {
             "l1": self._l1,
-            "l2": self._heavy,
-            "l3": self._heavy,
-            "l5": self._heavy,
+            "l2": self._execute,
+            "l3": self._execute,
+            "l4_deviation": self._execute,
+            "l4_goal": self._execute,
+            "l4_plan": self._execute,
+            "l5": self._execute,
             "knowledge_add": self._knowledge_add,
             "chat": self._chat,
         }
@@ -195,15 +200,15 @@ class Copilot:
         repo.append_message(conversation, "assistant", reply, source=SOURCE, card=card)
         return reply, card
 
-    def _heavy(self, repo, conversation, *, user_id, message, route):
-        """同步跑重能力。只在没有 worker 时走到这里（否则 `_runs_async` 已经拦下）。"""
-        key = str(uuid4())
+    def _execute(self, repo, conversation, *, user_id, message, route):
+        """执行能力并落消息。异步能力只在没有 worker 时走到这里（否则已被 `_runs_async` 拦下）。"""
         reply, card = turns.execute_capability(
             route.capability,
             user_id=user_id,
             session=self._session,
             gateway=self._gateway,
-            key=key,
+            key=str(uuid4()),
+            args=route.args,
         )
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card

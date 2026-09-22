@@ -170,21 +170,26 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v1",
+    version="v2",
     text=(
         "你是「认知副驾」对话入口的意图分流器。把用户这一句话归到**恰好一个**能力上，"
         "并抽出该能力需要的参数。输出严格 JSON："
-        '{"capability":"l1|l2|l3|l4|l5|knowledge_add|weread_sync|books|chat",'
+        '{"capability":"l1|l2|l3|l4_goal|l4_plan|l4_deviation|l5|knowledge_add|weread_sync|books|chat",'
         '"args":{},"confidence":0..1,"reason":""}。'
         "各能力语义："
         "l1=用模糊线索找回知识库里某条已有内容，args 留空；"
         "l2=检测知识之间的矛盾或冲突，args 留空；"
         "l3=生成认知简报、指出该问但没问的问题，args 留空；"
-        "l4=定学习目标、拆周计划、检查执行偏离，args 可带 {goal}；"
+        "l4_goal=设定学习目标，或查看当前目标与计划，"
+        'args 形如 {"intent":"create|view","goal":"目标描述"}；'
+        "l4_plan=把学习目标拆成周计划，args 留空；"
+        "l4_deviation=检查计划执行是否偏离、要归因与调整建议，args 留空；"
         "l5=诊断学习行为问题、做健康归因，args 留空；"
         "knowledge_add=用户要新记一条内容，args 必带 {title, content}，tags 可选数组；"
         "weread_sync=同步微信读书的划线与想法，args 留空；"
         "books=查看书架或阅读记录，args 留空。"
+        "注意 l4 的三项区别：说「定目标」用 l4_goal；说「拆成周计划」用 l4_plan；"
+        "说「有没有按计划走/偏离了」用 l4_deviation。"
         "判定不明确、或只是提问、闲聊、道谢 → chat，**不要**硬塞进某个能力。"
         "args 只填该能力真正用得到的字段，用不到就给空对象。"
     ),

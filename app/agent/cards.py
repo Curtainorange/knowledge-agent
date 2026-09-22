@@ -94,6 +94,136 @@ def note_empty_card() -> dict:
     }
 
 
+def notice_card(*, title: str, note: str, href: str = "", sends: list[dict] | None = None) -> dict:
+    """「信息不够 / 前提不满足」的通用提示卡。
+
+    比引导卡弱一档：引导卡说的是「这功能还没接进来」，提示卡说的是
+    「这件事差一个条件」——差的那句话、那个目标、那把 Key。故意不复用 `note_empty`：
+    那是知识录入专用的文案形状，混用会让前端没法单独调它的样式。
+    """
+    return {
+        "kind": "notice",
+        "title": title,
+        "note": note,
+        "href": href,
+        "sends": list(sends or []),
+    }
+
+
+def goal_missing_card() -> dict:
+    return notice_card(
+        title="还差一句目标描述",
+        note="想学什么？再说具体一点，例如「帮我定一个学习目标：三个月掌握数据分析」。",
+    )
+
+
+def no_goal_card() -> dict:
+    return notice_card(
+        title="还没有学习目标",
+        note="先定一个目标，再说「生成周计划」——没有目标就无从拆起。",
+    )
+
+
+# ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
+#
+# L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。
+# 用于「再做一件事」这类动作（生成周计划、重新同步），复用整条异步回合链路，
+# 不需要为它单开一个动作端点；而真正改状态的快操作仍走 `/agent/actions`。
+# 两类按钮的分界线是**耗时**：秒级以内改状态 → actions；要跑模型 → sends。
+
+
+def _send(label: str, message: str) -> dict:
+    return {"label": label, "message": message}
+
+
+def l4_goal_card(*, goal_id: str, description: str, note: str = "") -> dict:
+    spec = capability_spec("l4_goal")
+    return {
+        "kind": "l4_goal",
+        "goal_id": goal_id,
+        "description": description,
+        "note": note,
+        "href": spec.href if spec else "",
+        "sends": [_send("生成周计划", "生成周计划")] if goal_id else [],
+    }
+
+
+def l4_plan_card(
+    *, key: str, state: str, goal_description: str = "", plan_id: str = "",
+    version: int = 0, rationale: str = "", tasks: list[dict] | None = None,
+    progress: dict | None = None, note: str = "",
+) -> dict:
+    spec = capability_spec("l4_plan")
+    return {
+        "kind": "l4_plan",
+        "key": key,
+        "state": state,                 # ok | degraded | no_goal
+        "goal_description": goal_description,
+        "plan_id": plan_id,
+        "version": version,
+        "rationale": rationale,
+        "tasks": [
+            {
+                "task_id": t.get("task_id", ""),
+                "week_index": int(t.get("week_index") or 0),
+                "subject": str(t.get("subject") or ""),
+                "status": str(t.get("status") or "pending"),
+            }
+            for t in (tasks or [])
+        ],
+        "progress": dict(progress or {}),
+        "note": note,
+        "href": spec.href if spec else "",
+        "sends": [_send("重新生成周计划", "重新生成周计划")] if state == "ok" else [],
+    }
+
+
+def l4_deviation_card(
+    *, key: str, state: str, plan_id: str = "", signals: dict | None = None,
+    analysis: dict | None = None, note: str = "",
+) -> dict:
+    """偏离卡。
+
+    `state=ok` 才给两个按钮：快速那个只记录偏好（不调模型），
+    慢的那个走异步重排。分开放是因为它们一个秒回、一个要十几秒，
+    混成一个按钮会让「点一下等十秒」变成常态。
+    """
+    spec = capability_spec("l4_deviation")
+    return {
+        "kind": "l4_deviation",
+        "key": key,
+        "state": state,                 # ok | no_plan | no_deviation | degraded
+        "plan_id": plan_id,
+        "signals": dict(signals or {}),
+        "analysis": dict(analysis or {}),
+        "note": note,
+        "href": spec.href if spec else "",
+    }
+
+
+def goal_reply(description: str) -> str:
+    return f"目标已记下：{description}。说一句「生成周计划」就能拆成每周要做的事。"
+
+
+def plan_reply(state: str, *, tasks: list[dict], progress: dict, note: str = "") -> str:
+    if state != "ok":
+        return note or "这次没能生成计划，稍后再试一次。"
+    total = int(progress.get("total") or len(tasks) or 0)
+    return f"拆好了：{total} 周任务（已完成 {int(progress.get('done') or 0)} 项）"
+
+
+def deviation_reply(state: str, *, reasons: list[str], analysis: dict, note: str = "") -> str:
+    if state == "no_plan":
+        return note or "还没有学习计划，先定一个目标并生成计划。"
+    if state == "no_deviation":
+        return note or "计划执行正常，暂时没什么要调整的。"
+    if state != "ok":
+        return note or "检测没能完成，稍后再试一次。"
+    headline = analysis.get("adjustment") or analysis.get("root_cause") or ""
+    prefix = f"发现 {len(reasons)} 个偏离信号"
+    return f"{prefix}：{headline}" if headline else prefix
+
+
 # ---- L1 认知挖掘 -----------------------------------------------------------
 
 

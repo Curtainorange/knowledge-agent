@@ -126,13 +126,16 @@ def agent_conversation(
 def agent_action(
     body: AgentActionRequest,
     user_id: str = Depends(get_user_id),
+    gateway: ModelGateway = Depends(get_gateway),
     session: Session = Depends(get_session),
 ) -> AgentActionResponse:
-    """卡片内操作（采纳 / 忽略 / 标回）。
+    """卡片内操作（采纳 / 忽略 / 保持原计划 / 按建议重排）。
 
     刻意**不追加会话消息**：对已有结果的处置不是新的一轮对话，写一条「已忽略」
-    只会把消息流刷满噪声。动作本身由学习事件记录（L2 反馈 / L5 决策），
+    只会把消息流刷满噪声。动作本身由学习事件记录（L2 反馈 / L4 决策 / L5 决策），
     这就是那份留痕；卡片状态则通过刷新保持真实。
+
+    慢操作（按建议重排计划）会返回 pending 卡，由前端轮询等结果；快操作直接返回更新后的卡片。
     """
     try:
         reply, card = turns.apply_action(
@@ -143,6 +146,7 @@ def agent_action(
             action=body.action,
             target_id=body.target_id,
             value=body.value,
+            gateway=gateway,
         )
     except turns.ActionError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc

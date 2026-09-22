@@ -28,13 +28,15 @@ from app.llm.structure import JsonParseError, parse_structured
 logger = logging.getLogger(__name__)
 
 Capability = Literal[
-    "l1", "l2", "l3", "l4", "l5",
-    "knowledge_add", "weread_sync", "books", "chat",
+    "l1", "l2", "l3",
+    "l4_goal", "l4_plan", "l4_deviation",
+    "l5", "knowledge_add", "weread_sync", "books", "chat",
 ]
 
 KNOWN_CAPABILITIES: tuple[str, ...] = (
-    "l1", "l2", "l3", "l4", "l5",
-    "knowledge_add", "weread_sync", "books", "chat",
+    "l1", "l2", "l3",
+    "l4_goal", "l4_plan", "l4_deviation",
+    "l5", "knowledge_add", "weread_sync", "books", "chat",
 )
 
 # 未识别 / 判定不明确时的归宿。**所有兜底都落到这里**。
@@ -42,7 +44,9 @@ FALLBACK_CAPABILITY = "chat"
 
 # 目前已经真正接进对话的能力。其余能力路由层认得、但由 copilot 回一张「去哪儿」的引导卡，
 # 而不是假装做完了——「路由认得」与「能力已接入」必须分开，否则用户会以为功能坏了。
-WIRED_CAPABILITIES: frozenset[str] = frozenset({"l1", "l2", "l3", "l5", "knowledge_add", "chat"})
+WIRED_CAPABILITIES: frozenset[str] = frozenset({
+    "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5", "knowledge_add", "chat",
+})
 
 
 @dataclass(frozen=True)
@@ -68,7 +72,9 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("knowledge_add", "记一条", "记一下：B+树更适合范围查询 #数据库"),
     CapabilitySpec("l2", "冲突检测", "扫描知识冲突", "/conflicts.html"),
     CapabilitySpec("l3", "认知简报", "生成认知简报", "/brief.html"),
-    CapabilitySpec("l4", "路径修正", "帮我定一个学习目标", "/l4.html"),
+    CapabilitySpec("l4_goal", "学习目标", "帮我定一个学习目标：三个月掌握数据分析", "/l4.html"),
+    CapabilitySpec("l4_plan", "拆周计划", "生成周计划", "/l4.html"),
+    CapabilitySpec("l4_deviation", "偏离检查", "检查我有没有偏离计划", "/l4.html"),
     CapabilitySpec("l5", "健康诊断", "诊断我的学习状态", "/l5.html"),
     CapabilitySpec("weread_sync", "同步微信读书", "同步微信读书", "/books.html"),
     CapabilitySpec("books", "书架", "我的书架里有什么", "/books.html"),
@@ -136,8 +142,27 @@ _NOTE_VERBS = tuple(sorted((
 _SCAN_WORDS = ("扫描", "扫一下", "扫一遍", "检测", "检查", "查一下", "看看", "有没有", "找找")
 _CONFLICT_WORDS = ("冲突", "矛盾", "打架", "不一致")
 
-_GOAL_WORDS = ("目标", "学习计划", "周计划", "计划")
-_GOAL_VERBS = ("定", "设", "拆", "生成", "制定", "安排", "规划", "我想学", "我要学")
+# L4 拆成三个能力（而不是一个 l4 + 子参数），因为**异步是按能力名判定的**，
+# 而这三件事的速度差了一个数量级：定目标是本地写库、拆计划调一次模型、
+# 偏离检查在 reasoning=on 上跑。合成一个能力就没法给它们各自选同步还是异步。
+_GOAL_VERBS = ("定", "设", "立", "制定", "换一个", "我想学", "我要学", "帮我规划")
+_PLAN_WORDS = ("周计划", "学习计划", "计划")
+_PLAN_VERBS = ("生成", "拆", "重排", "重新排", "安排", "规划", "制定")
+# 偏离检查要「偏离类词」或「计划 + 检查类动词」；后者刻意不含「生成/拆」，
+# 否则「生成周计划」会被抢走
+_DEVIATION_WORDS = ("偏离", "跑偏", "没按计划", "没跟上", "进度落后", "执行情况")
+_DEVIATION_VERBS = ("检查", "看看", "有没有按", "怎么样", "如何")
+# 纯查看（不产生副作用）也归 l4_goal：它和「定目标」都是同步、不调模型、围绕同一份数据，
+# 为一次本地查询单开一个能力不值得
+_PLAN_VIEW_WORDS = ("我的计划", "计划进展", "计划是什么", "计划怎么样", "目标有哪些", "我的目标")
+
+# 「定目标」的引导词：剥掉之后剩下的才是目标描述。按长度倒序，避免长词被短词截断。
+_GOAL_TRIGGERS = tuple(sorted((
+    "帮我定一个学习目标", "帮我定个学习目标", "帮我制定学习目标", "帮我设定学习目标",
+    "帮我定一个目标", "帮我定个目标", "帮我规划一下", "帮我规划",
+    "定一个学习目标", "定个学习目标", "设置学习目标", "设定学习目标",
+    "定一个目标", "定个目标", "我想学", "我想学习", "我要学", "换一个目标",
+), key=len, reverse=True))
 
 _RECALL_PREFIXES = ("帮我找", "找一下", "找找", "找回", "搜一下", "之前存", "之前记", "记得我")
 _RECALL_MARKERS = ("那条", "那本", "那段", "那篇", "记得我存", "记得我记")
@@ -147,6 +172,7 @@ _SYNC_WORDS = ("微信读书", "微信阅读", "weread")
 
 TAG_PATTERN = re.compile(r"#([^\s#]{1,16})")
 _TITLE_MAX = 40
+_GOAL_MAX = 256
 
 
 def _has_any(text: str, words: tuple[str, ...]) -> bool:
@@ -178,6 +204,20 @@ def parse_note(text: str) -> dict:
     return {"title": first_line[:_TITLE_MAX], "content": body, "tags": tags}
 
 
+def parse_goal(text: str) -> str:
+    """从「帮我定一个学习目标：三个月掌握数据分析」里剥出目标描述。
+
+    和 `parse_note` 同一套路：剥掉开头的引导词与紧随的分隔符，剩下的就是正文。
+    剥空了说明用户没说清要定什么目标，调用方据此反问一句，而不是建一个空目标。
+    """
+    body = (text or "").strip()
+    for trigger in _GOAL_TRIGGERS:
+        if body.startswith(trigger):
+            body = body[len(trigger):]
+            break
+    return body.lstrip("：:，,。.、 ").strip()[:_GOAL_MAX]
+
+
 def _match_local(text: str) -> CapabilityRoute | None:
     """命令式快路径。命中返回路由，未命中返回 None（交给模型）。"""
     def hit(capability: str, reason: str, **args) -> CapabilityRoute:
@@ -206,17 +246,29 @@ def _match_local(text: str) -> CapabilityRoute | None:
     if _has_any(text, ("诊断", "偏误", "健康报告", "学得怎么样", "学习怎么样")):
         return hit("l5", "识别到健康诊断")
 
-    # 6. L4 目标 / 计划 —— 要「目标类名词 + 规划类动词」同时出现。
-    #    刻意不含「找 / 帮我」这类泛动词：否则「帮我找关于目标的笔记」会被抢到 L4
-    if _has_any(text, _GOAL_WORDS) and _has_any(text, _GOAL_VERBS):
-        return hit("l4", "识别到目标或计划")
+    # 6. L4-偏离检查 —— 放在「拆计划」之前：两者都含「计划」，
+    #    但「检查我有没有偏离计划」里的动作词是「检查」而不是「生成/拆」
+    if _has_any(text, _DEVIATION_WORDS) or (
+        "计划" in text and _has_any(text, ("检查", "有没有按"))
+    ):
+        return hit("l4_deviation", "识别到检查计划执行偏离")
 
-    # 7. L1 按线索找回 —— 放在 books 之前：
+    # 7. L4-拆周计划
+    if _has_any(text, _PLAN_WORDS) and _has_any(text, _PLAN_VERBS):
+        return hit("l4_plan", "识别到生成或重排周计划")
+
+    # 8. L4-定目标 / 查看目标与计划（同步入口）
+    if "目标" in text and _has_any(text, _GOAL_VERBS):
+        return hit("l4_goal", "识别到设定学习目标", intent="create", goal=parse_goal(text))
+    if _has_any(text, _PLAN_VIEW_WORDS):
+        return hit("l4_goal", "识别到查看当前目标与计划", intent="view")
+
+    # 9. L1 按线索找回 —— 放在 books 之前：
     #    「帮我找书架里那本讲索引的书」的意图是 L1，不该被「书架」抢走
     if text.startswith(("找", "搜")) or _has_any(text, _RECALL_PREFIXES + _RECALL_MARKERS):
         return hit("l1", "识别到按线索找回")
 
-    # 8. 书架 / 阅读记录
+    # 10. 书架 / 阅读记录
     if _has_any(text, _BOOK_WORDS):
         return hit("books", "识别到查看书架")
 

@@ -550,4 +550,17 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 }
 .diag .row strong{flex:1;min-width:0;font-weight:600;color:var(--text)}
 .diag .d-body{margin-top:8px;font-size:13px;color:var(--text-2);line-height:1.7}
+
+/* L4 目标 / 周计划 / 偏离检查 */
+.notice-card .n-title{font-weight:600;margin-bottom:5px}
+.plan-head{display:flex;align-items:center;gap:8px;margin-bottom:9px}
+.plan-head strong{flex:1;min-width:0;font-weight:600;color:var(--text)}
+.task-row{
+  display:flex;align-items:center;gap:9px;padding:8px 10px;margin-bottom:6px;
+  border:1px solid var(--border);border-radius:var(--radius-sm);font-size:13px;
+}
+.task-row.done{opacity:.72;background:var(--ok-weak);border-color:#bfe8d7}
+.task-row .task-week{color:var(--muted);font-size:12px;white-space:nowrap}
+.task-row .task-subject{flex:1;min-width:0;color:var(--text)}
+@media(max-width:700px){.task-row{flex-wrap:wrap}}
 @media(max-width:700px){.agent-log{max-height:none}}

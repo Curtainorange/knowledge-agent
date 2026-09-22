@@ -10,5 +10,17 @@
   {
     "name": "前后夹带解释文字 + 未知能力名被收敛成 chat",
     "text": "我判断这句话的意图是：{\"capability\":\"recall_something\",\"args\":[],\"confidence\":\"高\",\"reason\":\"线索模糊\"} 以上是路由结果。"
+  },
+  {
+    "name": "L4 定目标：args 带 intent 与 goal",
+    "text": "{\"capability\":\"l4_goal\",\"args\":{\"intent\":\"create\",\"goal\":\"三个月掌握数据分析\"},\"confidence\":0.93,\"reason\":\"用户明确要设学习目标\"}"
+  },
+  {
+    "name": "L4 偏离检查",
+    "text": "{\"capability\":\"l4_deviation\",\"args\":{},\"confidence\":0.85,\"reason\":\"用户想知道是否偏离计划\"}"
+  },
+  {
+    "name": "L4 旧能力名 l4 已拆分，收敛成 chat 而不是猜一个子能力",
+    "text": "{\"capability\":\"l4\",\"args\":{},\"confidence\":0.7,\"reason\":\"旧的合并能力名\"}"
   }
 ]

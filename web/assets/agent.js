@@ -147,6 +147,127 @@ window.CCA = (function () {
       ' data-value="' + esc(value) + '">' + esc(label) + '</button>';
   }
 
+  /* 卡片上的第二类按钮：点它等于替用户说一句话。
+
+     用于「再做一件耗时的事」（生成周计划、按建议重排、再同步一次）——
+     复用整条异步回合链路，不必为它单开一个动作端点。
+     与 `data-agent-action` 的分界线是**耗时**：秒级改状态走 actions，要跑模型就发消息。 */
+  function sendsHtml(sends) {
+    return (sends || []).map(function (s) {
+      return '<button class="sm" data-agent-send="' + esc(s.message) + '">' + esc(s.label) + '</button>';
+    }).join('');
+  }
+
+  function actionsRow(card) {
+    var sends = sendsHtml(card.sends);
+    var link = card.href
+      ? '<a href="' + esc(card.href) + '">在原页面查看</a>'
+      : '';
+    if (!sends) {
+      return link ? '<div class="card-actions">' + link + '</div>' : '';
+    }
+    return '<div class="cf-actions">' + sends + '</div>' +
+      (link ? '<div class="card-actions">' + link + '</div>' : '');
+  }
+
+  function noticeHtml(card) {
+    var parts = ['<div class="notice">' +
+      (card.title ? '<div class="n-title">' + esc(card.title) + '</div>' : '') +
+      esc(card.note || '') + '</div>'];
+    parts.push(actionsRow(card));
+    return '<div class="notice-card">' + parts.join('') + '</div>';
+  }
+
+  function l4GoalHtml(card) {
+    var parts = ['<div class="diag">' +
+      '<div class="row"><strong>' + esc(card.description) + '</strong>' +
+      '<span class="badge">学习目标</span></div>' +
+      '<div class="meta">目标已记下。拆成每周要做的事，执行进度才有据可查。</div>' +
+    '</div>'];
+    parts.push(actionsRow(card));
+    return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
+  var TASK_STATE_LABEL = { done: '已完成', pending: '待办' };
+
+  function l4PlanHtml(card) {
+    var parts = [];
+    if (card.state !== 'ok') {
+      parts.push('<div class="notice">' + esc(card.note || '这次没能生成计划，稍后再试一次。') + '</div>');
+      parts.push(actionsRow(card));
+      return '<div class="l4-card">' + parts.join('') + '</div>';
+    }
+
+    parts.push('<div class="plan-head"><strong>' + esc(card.goal_description) + '</strong>' +
+      '<span class="badge">v' + Number(card.version || 1) + '</span></div>');
+
+    parts.push((card.tasks || []).map(function (t) {
+      var done = t.status === 'done';
+      return '<div class="task-row' + (done ? ' done' : '') + '">' +
+        '<span class="task-week">第 ' + Number(t.week_index) + ' 周</span>' +
+        '<span class="task-subject">' + esc(t.subject) + '</span>' +
+        '<span class="badge' + (done ? ' ok' : '') + '">' +
+          esc(TASK_STATE_LABEL[t.status] || t.status) + '</span>' +
+      '</div>';
+    }).join(''));
+
+    var progress = card.progress || {};
+    parts.push('<div class="meta">共 ' + Number(progress.total || 0) + ' 项，已完成 ' +
+      Number(progress.done || 0) + ' 项</div>');
+
+    if (card.rationale) {
+      parts.push('<div class="cf-block"><b>为什么这样排：</b>' + esc(card.rationale) + '</div>');
+    }
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    parts.push(actionsRow(card));
+    return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
+  function l4DeviationHtml(card) {
+    var parts = [];
+    if (card.state !== 'ok') {
+      parts.push('<div class="notice">' + esc(card.note || '暂时没有可展示的偏离分析。') + '</div>');
+      parts.push(actionsRow(card));
+      return '<div class="l4-card">' + parts.join('') + '</div>';
+    }
+
+    var analysis = card.analysis || {};
+    var signals = card.signals || {};
+    parts.push('<div class="diag">' +
+      '<div class="row"><strong>' + esc(analysis.root_cause || '检测到偏离') + '</strong>' +
+      '<span class="badge ' + (Number(analysis.confidence || 0) >= 0.6 ? 'ok' : 'warn') +
+      '">置信度 ' + Math.round(Number(analysis.confidence || 0) * 100) + '%</span></div>' +
+      (analysis.adjustment
+        ? '<div class="cf-block"><b>建议调整：</b>' + esc(analysis.adjustment) + '</div>' : '') +
+      (analysis.expected_gain
+        ? '<div class="cf-block"><b>预期改善：</b>' + esc(analysis.expected_gain) + '</div>' : '') +
+    '</div>');
+
+    var reasons = signals.reasons || [];
+    if (reasons.length) {
+      parts.push('<div class="patterns"><div class="meta">本地统计出的偏离信号</div>' +
+        reasons.map(function (r) {
+          return '<div class="pattern abundant">' + esc(r) + '</div>';
+        }).join('') +
+      '</div>');
+    }
+
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+
+    parts.push('<div class="cf-actions">' +
+      actionButton(card.key, 'l4.adjustment.apply', card.plan_id, 'accepted', '按建议重排计划') +
+      actionButton(card.key, 'l4.adjustment.keep', card.plan_id, 'kept', '保持原计划') +
+    '</div>');
+    if (card.href) {
+      parts.push('<div class="card-actions"><a href="' + esc(card.href) + '">在原页面查看</a></div>');
+    }
+    return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
   function conflictHtml(c, cardKey) {
     var done = c.user_state !== 'unseen';
     var body = '<div class="cf-head">' +
@@ -339,11 +460,15 @@ window.CCA = (function () {
     l1_empty: emptyHtml,
     l2_conflicts: l2ConflictsHtml,
     l3_brief: l3BriefHtml,
+    l4_goal: l4GoalHtml,
+    l4_plan: l4PlanHtml,
+    l4_deviation: l4DeviationHtml,
     l5_diagnosis: l5DiagnosisHtml,
     pending: pendingHtml,
     failed: failedHtml,
     knowledge_created: createdHtml,
     note_empty: noteEmptyHtml,
+    notice: noticeHtml,
     guide: guideHtml
   };
 
@@ -642,6 +767,13 @@ window.CCA = (function () {
       if (button) {
         event.preventDefault();
         runAction(button);
+        return;
+      }
+      // 「再做一件事」类按钮：就当用户自己说了那句话，走完整的对话回合
+      var sender = target.closest('[data-agent-send]');
+      if (sender) {
+        event.preventDefault();
+        send(sender.getAttribute('data-agent-send'));
       }
     });
     document.getElementById('btn-new').addEventListener('click', function () {

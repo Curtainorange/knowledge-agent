@@ -32,34 +32,50 @@ def l2_scan(payload: dict, session: Session) -> None:
     )
 
 
-@register("agent_capability")
-def agent_capability(payload: dict, session: Session) -> None:
-    """对话里发起的重能力（L2 扫描 / L3 简报 / L5 诊断）。
+@register("agent_turn")
+def agent_turn(payload: dict, session: Session) -> None:
+    """对话里发起的后台回合：能力执行（L2 扫描 / L3 简报 / L4 计划与偏离 / L5 诊断）
+    或慢的卡片操作（按建议重排计划）。
 
     与其它处理器只记日志不同，它必须**把结果写回那条 pending 消息**——
     否则用户只会看到一条永远在转圈的卡片。执行逻辑与同步路径共用
-    `turns.execute_capability`，异步只改「在哪儿跑」，不改「跑什么」。
+    `turns.execute_capability` / `turns.execute_action`，异步只改「在哪儿跑」。
     """
     from app.agent import turns
     from app.llm.gateway import ModelGateway
 
+    kind = str(payload.get("kind") or "capability")
     turn_id = str(payload.get("turn_id") or "")
     user_id = str(payload.get("user_id") or "")
     conversation_id = str(payload.get("conversation_id") or "")
-    capability = str(payload.get("capability") or "")
-    if not (turn_id and user_id and conversation_id and capability):
-        raise ValueError("agent_capability 缺少 turn_id / user_id / conversation_id / capability")
+    if not (turn_id and user_id and conversation_id):
+        raise ValueError("agent_turn 缺少 turn_id / user_id / conversation_id")
 
-    reply, card = turns.execute_capability(
-        capability, user_id=user_id, session=session, gateway=ModelGateway(), key=turn_id
-    )
+    if kind == "action":
+        reply, card = turns.execute_action(
+            str(payload.get("action") or ""),
+            user_id=user_id,
+            session=session,
+            card_key=str(payload.get("card_key") or ""),
+            target_id=str(payload.get("target_id") or ""),
+            value=str(payload.get("value") or ""),
+        )
+    else:
+        capability = str(payload.get("capability") or "")
+        if not capability:
+            raise ValueError("agent_turn 缺少 capability")
+        reply, card = turns.execute_capability(
+            capability, user_id=user_id, session=session, gateway=ModelGateway(),
+            key=turn_id, args=payload.get("args") or {},
+        )
+
     written = turns.finish_turn(
         session, user_id=user_id, conversation_id=conversation_id,
         turn_id=turn_id, reply=reply, card=card,
     )
     logger.info(
-        "agent turn done user=%s capability=%s turn=%s written=%s",
-        user_id, capability, turn_id, written,
+        "agent turn done user=%s kind=%s turn=%s written=%s",
+        user_id, kind, turn_id, written,
     )
 
 

@@ -102,8 +102,23 @@ def test_conflict_needs_scan_verb():
 
 def test_goal_word_does_not_steal_recall_intent():
     """「目标」是 L4 的词，但「找关于目标的笔记」是 L1 的意图——泛动词不能算规划动词。"""
-    assert _match_local("帮我定一个学习目标").capability == "l4"
+    assert _match_local("帮我定一个学习目标").capability == "l4_goal"
     assert _match_local("帮我找关于目标的笔记").capability == "l1"
+
+
+def test_l4_three_ways_do_not_cross():
+    """L4 拆成三个能力后，三者不能互相抢。
+
+    这是拆分带来的新风险：三者的触发词都绕着「计划/目标」转，
+    规则一糊就会把「生成周计划」判成「检查偏离」。
+    """
+    assert _match_local("生成周计划").capability == "l4_plan"
+    assert _match_local("重新生成周计划").capability == "l4_plan"
+    assert _match_local("检查我有没有偏离计划").capability == "l4_deviation"
+    assert _match_local("计划执行情况怎么样").capability == "l4_deviation"
+    # 纯查看走同步入口，不触发任何写操作
+    view = _match_local("我的计划进展如何")
+    assert view.capability == "l4_goal" and view.args["intent"] == "view"
 
 
 def test_books_not_stolen_by_recall():
@@ -213,4 +228,7 @@ def test_cost_is_recorded_for_routing(session):
     session.flush()
     rows = session.query(CostLog).filter(CostLog.task_type == "capability_routing").all()
     assert len(rows) == 1
-    assert rows[0].prompt_version == "v1"
+    # 版本号跟着 AGENT_ROUTE 走：改了提示词必须 bump，否则成本日志追溯不到当初发的是哪一版
+    from app.llm.prompts import AGENT_ROUTE
+
+    assert rows[0].prompt_version == AGENT_ROUTE.version
