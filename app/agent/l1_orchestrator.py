@@ -223,7 +223,7 @@ class L1Orchestrator:
             )
 
         turn = self._l1_turn_count(conv)
-        candidates = self._retriever.retrieve(message, list(items.values()), top_k=5)
+        candidates = self._retriever.retrieve(message, user_id=user_id, top_k=5)
         details = self._candidate_details(candidates, items)
 
         # 追问超限：兜底定位最可能的候选，结束追问（宁可给一条，也不要无限问下去）

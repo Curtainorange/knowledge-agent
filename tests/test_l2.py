@@ -86,6 +86,22 @@ def test_scan_extracts_claims_and_marks_scanned(session):
     assert item.claims_scanned_at is not None
 
 
+def test_scan_persists_claim_embedding(session):
+    """主张提取成功后把向量写入 Claim.embedding（供后续向量近邻复用）。"""
+    item = _ingest(session, "u1", "长期主义", "坚守战略。")
+    orch = _orchestrator(session, {
+        "batch_extraction": [{
+            "claims": [
+                {"statement": "应坚守既定战略至少三年", "topic": "决策策略", "polarity": 1, "strength": 0.9},
+            ]
+        }],
+    })
+    orch.scan(user_id="u1")
+    claims = ClaimRepository(session, user_id="u1").list_by_item(item.id)
+    assert len(claims) == 1
+    assert claims[0].embedding is not None  # 主张向量已落库
+
+
 def test_scan_is_incremental(session):
     """已扫描且未更新的条目不会重复提取。"""
     _ingest(session, "u1", "长期主义", "坚守战略。")

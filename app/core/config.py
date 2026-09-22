@@ -75,6 +75,12 @@ class Settings(BaseSettings):
     # local 后端读取的模型目录，用 scripts/fetch_embedding_model.py 预取
     embedding_local_dir: str = "models/bge-small-zh-v1.5"
 
+    # --- 向量库（库内检索后端；ADR-08 起步 pgvector）---
+    # memory（进程内索引，P0 默认，免基础设施）| pgvector（PostgreSQL + pgvector 扩展）
+    vector_backend: str = "memory"
+    # pgvector 后端使用的专用表名（与业务表隔离）
+    vector_store_table: str = "embeddings"
+
     # --- 书籍（阅读器）---
     # 上传的电子书原始文件存放目录（体积大，不入库；已加入 .gitignore）
     books_dir: str = "data/books"

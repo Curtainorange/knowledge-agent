@@ -24,6 +24,11 @@ settings.deepseek_api_key = ""
 settings.mimo_api_key = ""
 # 测试强制走确定性哈希 embedding：全程不触网、不装大模型（铁律）
 settings.embedding_backend = "hash"
+# 向量库：测试走进程内 memory 后端，并禁掉冷启动回填（回填会读到本机 dev.db 污染断言）
+settings.vector_backend = "memory"
+from app.retrieval.vector_store import set_backfill_loader  # noqa: E402
+
+set_backfill_loader(lambda: [])
 # 微信读书同步：强制「未配置 API Key」，避免本机 .env 里的真实 Key 影响断言
 settings.weread_api_key = ""
 # 书籍文件写到临时目录，避免污染真实 data/books
@@ -90,6 +95,10 @@ def _reset_throttles():
 @pytest.fixture()
 def session():
     _reset_tables()
+    # 进程内向量索引是单例：清库的同时清索引，避免跨用例串数据（user_id="u1" 被大量复用）
+    from app.retrieval.vector_store import reset_vector_store_cache
+
+    reset_vector_store_cache()
     s = _TestingSession()
     try:
         yield s

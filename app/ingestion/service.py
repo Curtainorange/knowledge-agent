@@ -12,14 +12,26 @@ from sqlalchemy.orm import Session
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.retrieval.embedding import EmbeddingModel
+from app.retrieval.vector_store import VectorStore, build_vector_store
 
 logger = logging.getLogger(__name__)
 
 
 class IngestionService:
-    def __init__(self, session: Session, embedding: EmbeddingModel | None = None):
+    def __init__(
+        self,
+        session: Session,
+        embedding: EmbeddingModel | None = None,
+        store: VectorStore | None = None,
+    ):
         self._session = session
         self._embedding = embedding
+        self._store = store  # None → 惰性取工厂单例（与检索侧共用同一索引）
+
+    def _get_store(self) -> VectorStore:
+        if self._store is None:
+            self._store = build_vector_store()
+        return self._store
 
     def add_knowledge(
         self, *, user_id: str, title: str, content: str, source: str = "manual", tags: list | None = None
@@ -99,6 +111,12 @@ class IngestionService:
         """软删条目（保留原文，仅置 is_deleted）。不存在返回 None。"""
         repo = KnowledgeRepository(self._session, user_id=user_id)
         item = repo.soft_delete(item_id)
+        if item is not None:
+            # 同步从向量库移除，避免已删条目继续被召回；失败不阻断软删（降级）
+            try:
+                self._get_store().delete(item_id=item_id, user_id=user_id)
+            except Exception as exc:  # noqa: BLE001 - 索引一致性失败不阻断主链路
+                logger.warning("vector store delete failed item=%s: %s", item_id, exc)
 
         from app.feedback import events
 
@@ -109,10 +127,26 @@ class IngestionService:
         return item
 
     def _try_embed(self, item: KnowledgeItem) -> None:
+        vec: list[float] | None
         try:
             vec = self._embedding.embed([item.title + "\n" + item.raw_content])[0]
             item.embedding = EmbeddingModel.dumps(vec)
             item.embed_status = "embedded"
         except Exception as exc:  # 降级：不阻断主链路
             item.embed_status = "embed_failed"
+            vec = None
             logger.warning("embed failed item=%s: %s", item.id, exc)
+
+        # 无论向量化成功与否都同步写入向量库：成功带向量、失败仅带文本，
+        # 保证「embedding 失败 → 关键词兜底」仍能召回该条目（可靠-4）。
+        # 索引 upsert 失败只影响召回质量，不回滚已算好的向量。
+        try:
+            self._get_store().upsert(
+                item_id=item.id,
+                user_id=item.user_id,
+                vector=vec,
+                title=item.title,
+                content=item.raw_content,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("vector store upsert failed item=%s: %s", item.id, exc)

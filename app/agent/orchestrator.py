@@ -88,7 +88,7 @@ class Orchestrator:
             if not items:
                 return ""
             retriever = self._retriever or Retriever(build_embedding())
-            top = retriever.retrieve(message, list(items.values()), top_k=_CHAT_CONTEXT_TOP_K)
+            top = retriever.retrieve(message, user_id=user_id, top_k=_CHAT_CONTEXT_TOP_K)
         except Exception as exc:  # pragma: no cover - 防御性兜底
             logger.warning("chat knowledge context skipped: %s", exc)
             return ""

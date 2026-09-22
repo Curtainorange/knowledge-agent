@@ -141,8 +141,12 @@ class L2Orchestrator:
                 result.extraction_failures += 1
                 continue
             crepo.delete_by_item(item.id)  # 重扫 = 替换旧主张
+            picked = claims[: settings.l2_max_claims_per_item]
+            # 主张向量化：持久化到 Claim.embedding（供后续向量近邻检索复用）。
+            # 失败只跳过向量、不阻断主张落库（可靠-4）。
+            vecs = self._embed_claim_statements([c.statement[:_MAX_CLAIM_STATEMENT] for c in picked])
             created = 0
-            for c in claims[: settings.l2_max_claims_per_item]:
+            for idx, c in enumerate(picked):
                 crepo.create(
                     user_id=user_id,
                     knowledge_item_id=item.id,
@@ -151,6 +155,7 @@ class L2Orchestrator:
                     polarity=c.polarity,
                     strength=c.strength,
                     confidence=c.confidence,
+                    embedding=vecs[idx] if vecs else None,
                 )
                 created += 1
             item.claims_scanned_at = _utcnow()
@@ -348,6 +353,17 @@ class L2Orchestrator:
             for j in range(i + 1, len(claims)):
                 sims[(claims[i].id, claims[j].id)] = cos_sim(vectors[i], vectors[j])
         return sims
+
+    def _embed_claim_statements(self, statements: list[str]) -> list[bytes] | None:
+        """批量向量化主张陈述并序列化；失败返回 None（调用方降级为无向量落库）。"""
+        if not statements:
+            return None
+        try:
+            vectors = self._embedding.embed(list(statements))
+        except Exception as exc:
+            logger.warning("l2 claim vectorization failed, claims stored without embedding: %s", exc)
+            return None
+        return [EmbeddingModel.dumps(v) for v in vectors]
 
     # ---- L2-6 反馈抑制 -----------------------------------------------------
 
