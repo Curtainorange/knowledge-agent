@@ -1,8 +1,11 @@
 """L2 隐性冲突检测编排（系统设计 §5.2 / 架构设计 §7.2 多层候选漏斗）。
 
-漏斗（P0 落地形态，向量近邻 L2-2 留待 pgvector 阶段）：
+漏斗（P0 落地形态）：
   L2-1 增量筛选   只对 `claims_scanned_at IS NULL` 或落后于 `updated_at` 的条目
                   （重）提取主张；主张是冲突判定的最小比对粒度（ADR-09）
+  L2-2 语义近邻   主张向量余弦落在 [sim_lo, sim_hi] 带内即组对，兜住 topic 标签措辞
+                  不稳定导致的漏召回；向量优先读 `Claim.embedding`，缺失才补算并回写
+                  （见 `_claim_vectors`）——两侧文本口径由 `_claim_embed_text` 唯一收口
   L2-3 规则预筛   同 topic 才组对（同主题预筛索引 ix_claims_user_topic）
   L2-4 立场/强度  极性相反、强度高的候选对优先送判
   L2-5 LLM 判定   conflict_detection（reasoning=on），ADR-11 JSON Schema：
@@ -142,20 +145,24 @@ class L2Orchestrator:
                 continue
             crepo.delete_by_item(item.id)  # 重扫 = 替换旧主张
             picked = claims[: settings.l2_max_claims_per_item]
+            # 嵌入文本与落库 statement 用**同一个** `_claim_embed_text` 产出：
+            # 相似度侧是拿库里的 statement 重新送入同一口径算的，两者必须逐字相同，
+            # 否则「提取时存的向量」与「检索时算的向量」落在不同文本上，余弦失去意义。
+            texts = [self._claim_embed_text(c.statement) for c in picked]
             # 主张向量化：持久化到 Claim.embedding（供后续向量近邻检索复用）。
             # 失败只跳过向量、不阻断主张落库（可靠-4）。
-            vecs = self._embed_claim_statements([c.statement[:_MAX_CLAIM_STATEMENT] for c in picked])
+            vecs = self._embed_texts(texts)
             created = 0
             for idx, c in enumerate(picked):
                 crepo.create(
                     user_id=user_id,
                     knowledge_item_id=item.id,
-                    statement=c.statement[:_MAX_CLAIM_STATEMENT],
+                    statement=texts[idx],
                     topic=c.topic.strip()[:64],
                     polarity=c.polarity,
                     strength=c.strength,
                     confidence=c.confidence,
-                    embedding=vecs[idx] if vecs else None,
+                    embedding=EmbeddingModel.dumps(vecs[idx]) if vecs else None,
                 )
                 created += 1
             item.claims_scanned_at = _utcnow()
@@ -310,7 +317,8 @@ class L2Orchestrator:
         - topic 通道：归一化后同主题即组对（召回廉价但受 LLM 标签措辞影响——
           实测两次提取把同一主题标成「战略定力/快速调整」等互不相同的词）
         - 语义通道（L2-2）：主张向量余弦落在 [sim_lo, sim_hi] 带内才组对——
-          太近≈重复表述、太远≈无关，两端都排除（架构 §7.2 要点）
+          太近≈重复表述、太远≈无关，两端都排除（架构 §7.2 要点）；
+          向量取自 `Claim.embedding`（缺失才补算回写，见 `_claim_vectors`）
         - embedding 不可用时自动退化为纯 topic 通道，不阻断扫描
         """
         if not claims:
@@ -341,29 +349,108 @@ class L2Orchestrator:
         pairs.sort(key=priority, reverse=True)
         return [(a, b) for a, b, _ in pairs[: settings.l2_max_pairs_per_scan]]
 
+    @staticmethod
+    def _claim_embed_text(statement: str | None) -> str:
+        """主张送入 embedding 的文本口径（**唯一来源**）。
+
+        扫描侧写库与相似度侧补算都必须经这里。历史上两侧各写各的
+        （一侧 `statement[:500]`、另一侧裸 `statement`）——只要改一次常量就会静默分叉：
+        已落库的向量与新算的向量落在不同文本上，余弦照旧算得出来，但已不是同一个东西。
+        """
+        return (statement or "").strip()[:_MAX_CLAIM_STATEMENT]
+
     def _claim_similarities(self, claims: list[Claim]) -> dict[tuple[str, str], float]:
-        """批量向量化主张并计算两两余弦；失败返回空表（退化为 topic 通道）。"""
-        try:
-            vectors = self._embedding.embed([c.statement for c in claims])
-        except Exception as exc:
-            logger.warning("l2 claim embedding unavailable, topic-only pairing: %s", exc)
+        """主张两两余弦；任一方取不到向量就不产出该键（该对退化为 topic 通道）。"""
+        if len(claims) < 2:
             return {}
+        vectors = self._claim_vectors(claims)
         sims: dict[tuple[str, str], float] = {}
         for i in range(len(claims)):
             for j in range(i + 1, len(claims)):
-                sims[(claims[i].id, claims[j].id)] = cos_sim(vectors[i], vectors[j])
+                vi, vj = vectors[i], vectors[j]
+                if vi is None or vj is None:
+                    continue
+                sims[(claims[i].id, claims[j].id)] = cos_sim(vi, vj)
         return sims
 
-    def _embed_claim_statements(self, statements: list[str]) -> list[bytes] | None:
-        """批量向量化主张陈述并序列化；失败返回 None（调用方降级为无向量落库）。"""
-        if not statements:
+    def _claim_vectors(self, claims: list[Claim]) -> list[list[float] | None]:
+        """按 `claims` 顺序取主张向量：优先读 `Claim.embedding`，缺失才补算并回写。
+
+        为什么必须读库：主张是**存量数据**，而 L2 每轮扫描都要重算一遍两两余弦
+        （`pair_key` 幂等只挡住重复**判定**，挡不住重复**向量化**）。若每轮现场 embed
+        全部主张，等于把提取时已付过的向量成本按扫描次数重复支付，并随存量线性增长——
+        主张把冲突检测从 O(n²) 降为近邻检索的收益会被二次抵消（ADR-09 的本意）。
+
+        可降级：embedding 不可用时已读到的向量照旧可用，只有缺失位返回 None；
+        位对里任一为 None 即不参与语义通道，不影响 topic 通道。
+        """
+        vectors = [self._load_claim_vector(c) for c in claims]
+        missing = [i for i, v in enumerate(vectors) if v is None]
+        if not missing:
+            return vectors  # 全部命中：不产生任何写操作
+
+        computed = self._embed_texts(
+            [self._claim_embed_text(claims[i].statement) for i in missing]
+        )
+        if computed is None:
+            return vectors  # 补算失败：保底用已读到的，不整体退化
+        for i, vec in zip(missing, computed):
+            vectors[i] = vec
+            claims[i].embedding = EmbeddingModel.dumps(vec)  # 回写，下轮不再重算
+        self._flush_claim_embeddings()
+        return vectors
+
+    def _load_claim_vector(self, claim: Claim) -> list[float] | None:
+        """读一条已落库的主张向量；不可用（缺失 / 损坏 / 维度不符）返回 None。"""
+        blob = claim.embedding
+        if not blob:
             return None
         try:
-            vectors = self._embedding.embed(list(statements))
-        except Exception as exc:
-            logger.warning("l2 claim vectorization failed, claims stored without embedding: %s", exc)
+            vec = [float(x) for x in EmbeddingModel.loads(blob)]
+        except Exception as exc:  # noqa: BLE001 - 单条脏数据不该拖垮整轮扫描
+            logger.warning("l2 claim embedding unreadable claim=%s: %s", claim.id, exc)
             return None
-        return [EmbeddingModel.dumps(v) for v in vectors]
+
+        dim = getattr(self._embedding, "dim", None)
+        if isinstance(dim, int) and dim > 0 and len(vec) != dim:
+            # 换过 embedding 模型（或历史脏数据）：旧向量与新向量不在同一空间。
+            # 混用能算出数、但那个数没有意义——视为缺失，按当前模型补算覆盖。
+            logger.info(
+                "l2 claim embedding dim mismatch claim=%s stored=%d current=%d, recomputing",
+                claim.id, len(vec), dim,
+            )
+            return None
+        return vec
+
+    def _flush_claim_embeddings(self) -> None:
+        """回写补算出的主张向量；落库失败只降级为「下轮再补」，不影响本轮检索。
+
+        这里用 commit 而非 flush：唯一调用点在 `scan` 的组对阶段，而该阶段之前
+        每一步都已提交过，因此不存在「夹带未完成写操作」的情况。将来若把它挪到
+        带挂起写的上下文里，那些写会被一并提交——需要改成局部事务。
+        """
+        try:
+            self._session.commit()
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("l2 claim embedding write-back failed: %s", exc)
+            self._session.rollback()
+
+    def _embed_texts(self, texts: list[str]) -> list[list[float]] | None:
+        """批量向量化文本；失败或返回条数不符时返回 None（调用方降级为无向量）。"""
+        if not texts:
+            return None
+        try:
+            vectors = list(self._embedding.embed(list(texts)))
+        except Exception as exc:
+            logger.warning("l2 claim embedding unavailable, topic-only pairing: %s", exc)
+            return None
+        if len(vectors) != len(texts):
+            # 条数不符即与输入错位；按位回写会把向量写到错误的主张上——宁可不回写
+            logger.warning(
+                "l2 claim embedding size mismatch: expected %d got %d", len(texts), len(vectors)
+            )
+            return None
+        return vectors
 
     # ---- L2-6 反馈抑制 -----------------------------------------------------
 

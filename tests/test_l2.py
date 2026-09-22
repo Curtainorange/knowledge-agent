@@ -352,6 +352,180 @@ def test_embedding_unavailable_falls_back_to_topic(session):
     assert result.conflicts_found == 1  # topic 通道仍组对并完成判定
 
 
+# ---------- 主张向量的复用与回写 ----------
+
+
+class CountingEmbedding(EmbeddingModel):
+    """记录 embed 调用次数与收到的文本，回放固定向量。
+
+    `dim` 与 HashEmbedding 对齐（256），这样测试能自由选择「库内向量可复用」
+    还是「维度不符需重算」两种场景。
+    """
+
+    dim = 256
+
+    def __init__(self, vec: list[float] | None = None):
+        self.calls = 0
+        self.seen: list[list[str]] = []
+        self._vec = vec or [1.0] + [0.0] * 255
+
+    def embed(self, texts):
+        self.calls += 1
+        self.seen.append(list(texts))
+        return [list(self._vec) for _ in texts]
+
+
+def test_similarities_reuse_stored_claim_vectors(session):
+    """已落库的主张向量直接复用：相似度计算不再触碰 embedding 模型。"""
+    provider_rows = _two_same_topic_items(session)
+    orch = _orchestrator(session, provider_rows)
+    orch.scan(user_id="u1")  # 扫描时已把向量写进 Claim.embedding
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    assert len(claims) == 2
+    assert all(c.embedding for c in claims)
+
+    counter = CountingEmbedding()
+    orch._embedding = counter
+    sims = orch._claim_similarities(claims)
+
+    assert counter.calls == 0  # 全部命中库内向量 → 零模型调用
+    assert len(sims) == 1
+
+
+def test_similarities_recompute_and_write_back_missing_vectors(session):
+    """向量缺失时批量补算并回写：第二次计算不再重复支付 embedding 成本。"""
+    provider_rows = _two_same_topic_items(session)
+    orch = _orchestrator(session, provider_rows)
+    orch.scan(user_id="u1")
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    for c in claims:  # 模拟历史数据：主张在、向量不在
+        c.embedding = None
+    session.commit()
+
+    counter = CountingEmbedding()
+    orch._embedding = counter
+    orch._claim_similarities(claims)
+
+    assert counter.calls == 1  # 两条缺失合并为一次批量调用
+    assert all(c.embedding for c in claims)  # 补算结果已回写
+
+    session.expire_all()  # 重新从库里读，确认真的落盘而不是只在内存
+    reloaded = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    assert all(c.embedding for c in reloaded)
+
+    orch._claim_similarities(reloaded)
+    assert counter.calls == 1  # 第二次全部命中，不再调用
+
+
+def test_vectors_with_mismatched_dimension_are_recomputed(session):
+    """换过 embedding 模型后旧维度向量不可复用（不同向量空间），按当前模型重算覆盖。"""
+    provider_rows = _two_same_topic_items(session)
+    orch = _orchestrator(session, provider_rows)
+    orch.scan(user_id="u1")
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    for c in claims:  # 2 维旧向量；当前模型是 256 维
+        c.embedding = EmbeddingModel.dumps([1.0, 0.0])
+    session.commit()
+
+    counter = CountingEmbedding()
+    orch._embedding = counter
+    orch._claim_similarities(claims)
+
+    assert counter.calls == 1
+    assert all(len(EmbeddingModel.loads(c.embedding)) == 256 for c in claims)
+
+
+def test_scan_does_not_re_embed_claims_for_pairing(session):
+    """扫描内部：候选对生成复用刚落库的向量，不为组对再算一遍。
+
+    这是本项优化的直接收益——组对阶段从「每次扫描重算全部主张」变为零模型调用。
+    """
+    _ingest(session, "u1", "条目A", "内容A")
+    _ingest(session, "u1", "条目B", "内容B")
+    counter = CountingEmbedding()
+    orch = L2Orchestrator(
+        ModelGateway(provider=FakeProvider(_extraction_rows())), session, embedding=counter,
+    )
+    orch.scan(user_id="u1")
+
+    assert counter.calls == 2  # 两个条目各一次；组对阶段零调用
+    pairs = orch._candidate_pairs(ClaimRepository(session, user_id="u1").list_by_user("u1"))
+    assert len(pairs) == 1
+    assert counter.calls == 2  # 再组一次对，仍不触碰模型
+
+
+def test_partial_vectors_keep_semantic_channel(session):
+    """部分主张缺向量且补算失败时，已有向量仍产出相似度——不整体退化。"""
+    class BrokenEmbedding(EmbeddingModel):
+        dim = 256
+
+        def embed(self, texts):
+            raise RuntimeError("模型不可用")
+
+    for i in range(3):
+        _ingest(session, "u1", f"条目{i}", f"内容{i}")
+    orch = _orchestrator(session, {
+        "batch_extraction": [
+            {"claims": [{"statement": f"主张{i}", "topic": f"主题{i}", "polarity": 1, "strength": 0.8}]}
+            for i in range(3)
+        ],
+    })
+    orch.scan(user_id="u1")
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    assert len(claims) == 3
+
+    # 按 statement 定位而不是按下标：三条主张同批创建，created_at 可能同秒，排序不稳
+    by_stmt = {c.statement: c for c in claims}
+    a, b, missing_one = by_stmt["主张0"], by_stmt["主张1"], by_stmt["主张2"]
+    fixed = EmbeddingModel.dumps([1.0] + [0.0] * 255)
+    a.embedding = fixed
+    b.embedding = fixed
+    missing_one.embedding = None  # 缺失且补算会失败
+    session.commit()
+
+    orch._embedding = BrokenEmbedding()
+    sims = orch._claim_similarities(claims)
+
+    assert len(sims) == 1  # 只有两条有向量的主张构成的那一对
+    assert sims[(a.id, b.id)] == pytest.approx(1.0)
+
+
+def test_scan_and_similarity_share_one_embed_text_rule(session):
+    """扫描侧与相似度侧送入 embedding 的文本必须逐字相同（同一口径）。
+
+    分叉的后果不是报错而是静默失真：已落库的向量与新算的向量落在不同文本上，
+    余弦照旧算得出来，但它度量的已不是同一个东西。
+    """
+    from app.agent.l2_orchestrator import _MAX_CLAIM_STATEMENT
+
+    _ingest(session, "u1", "长期主义", "坚守战略。")
+    _ingest(session, "u1", "敏捷思维", "快速掉头。")
+    recorder = CountingEmbedding()
+    orch = L2Orchestrator(
+        ModelGateway(provider=FakeProvider(_extraction_rows())), session, embedding=recorder,
+    )
+    orch.scan(user_id="u1")
+    claims = ClaimRepository(session, user_id="u1").list_by_user("u1")
+    assert len(claims) == 2
+
+    scan_texts = [t for batch in recorder.seen for t in batch]
+    assert sorted(scan_texts) == sorted(c.statement for c in claims)  # 落库 statement 即嵌入文本
+
+    for c in claims:  # 清空后重算：相似度侧应送入完全相同的文本
+        c.embedding = None
+    session.commit()
+    orch._claim_similarities(claims)
+
+    assert sorted(recorder.seen[-1]) == sorted(scan_texts)
+
+    # 口径本身：去首尾空白 + 截断，只在一处定义
+    long_text = "  " + "甲" * (_MAX_CLAIM_STATEMENT + 50) + "  "
+    text = orch._claim_embed_text(long_text)
+    assert len(text) == _MAX_CLAIM_STATEMENT
+    assert not text.startswith(" ")
+    assert orch._claim_embed_text(None) == ""
+
+
 # ---------- API ----------
 
 
