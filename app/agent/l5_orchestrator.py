@@ -25,6 +25,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent.conflict_view import unresolved_section
 from app.core.config import settings
 from app.domain.repositories.conflict_repository import ConflictRepository
 from app.domain.repositories.cognitive_diagnosis_repository import CognitiveDiagnosisRepository
@@ -259,6 +260,11 @@ class L5Orchestrator:
             f"{'窗口内无记录' if metrics.idle_days is None else str(metrics.idle_days) + ' 天'}\n"
             f"- 未处理观点冲突 {metrics.unseen_conflicts} 处\n"
         )
+        # 冲突**内容**而不只是数量：计数只能让诊断说「有 3 处冲突」，
+        # 内容才能让它把矛盾纳入归因（如「停滞可能与这处未解矛盾有关」）。
+        unresolved = unresolved_section(self._session, user_id=user_id)
+        if unresolved:
+            prompt += f"\n未处理冲突的具体内容（归因时考虑它们是否与当前状态有关）：\n{unresolved}\n"
         try:
             completion = self.gateway.chat(
                 task_type="causal_reasoning",

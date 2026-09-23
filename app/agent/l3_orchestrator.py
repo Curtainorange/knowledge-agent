@@ -33,6 +33,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent.conflict_view import unresolved_section
 from app.core.config import settings
 from app.domain.models.knowledge_item import KnowledgeItem
 from app.domain.repositories.conflict_repository import ConflictRepository
@@ -255,8 +256,16 @@ class L3Orchestrator:
             f"知识库共 {len(items)} 条，主题分布：\n" + "\n".join(lines)
             + f"\n\n本周新增冲突 {conflicts.get('this_week', 0)} 处，"
               f"上周 {conflicts.get('last_week', 0)} 处。"
-            + f"\n\n部分条目标题：\n{titles}"
         )
+        # 冲突**内容**（而不只是数量）才是追问的原料：用户知识里互相打架的地方，
+        # 本身就是「该问但没问」的最强候选——只给一个计数，模型无从针对它提问。
+        unresolved = unresolved_section(self._session, user_id=user_id)
+        if unresolved:
+            context += (
+                "\n\n尚未处理的观点冲突（生成追问时优先围绕它们——这些是用户自己"
+                "知识里互相矛盾的地方）：\n" + unresolved
+            )
+        context += f"\n\n部分条目标题：\n{titles}"
         try:
             completion = self._gateway.chat(
                 task_type="cognitive_brief",

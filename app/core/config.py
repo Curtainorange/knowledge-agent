@@ -149,6 +149,14 @@ class Settings(BaseSettings):
     task_max_attempts: int = 3           # 重试上限，超出转死信
     task_retry_backoff_seconds: float = 1.0  # 重试退避基数（2^(n-1) 倍，测试设 0 即时重试）
 
+    # --- L2 产物的下游消费（把冲突从「台账」变成「推理原料」）---
+    # 未解冲突注入各能力时取几条：开场只取 1 条（显式传入），
+    # L3 简报 / L5 诊断 / L4 计划上下文共用此上限（成本与上下文闸门）
+    conflict_context_limit: int = 3
+    # L4：未解冲突与学习目标的语义相关阈值（BGE 余弦）。低于它视为「与当前目标无关」，
+    # 不注入计划 / 归因上下文——否则会把无关矛盾塞进计划讨论，制造噪声
+    l4_conflict_relevance: float = 0.45
+
     # --- L2 触发链路 ---
     l2_realtime_trigger_enabled: bool = True  # 录入/划词后按小时桶合并触发扫描
     l2_weekly_scan_enabled: bool = True       # 每周自动扫描（幂等键按 ISO 周去重）

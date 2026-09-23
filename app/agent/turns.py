@@ -35,6 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent import cards as cards_mod
+from app.agent.conflict_view import conflict_views
 from app.agent.cards import (
     books_card,
     books_reply,
@@ -372,53 +373,6 @@ def execute_action(
         return message, card
 
     raise ValueError(f"不支持的动作：{action}")
-
-
-# ---- 冲突视图 --------------------------------------------------------------
-
-
-def conflict_views(
-    session: Session, *, user_id: str, conflict_ids: list[str] | None = None, limit: int = 50
-) -> list[dict]:
-    """冲突的展示视图（标题 / 主张 / 判定 / 当前状态）。
-
-    与 `GET /api/v1/l2/conflicts` 的字段一一对应：同一份数据在对话卡片与原页面里
-    长得一样，用户不必在两个地方学两套说法。
-    """
-    from app.domain.repositories.claim_repository import ClaimRepository
-    from app.domain.repositories.conflict_repository import ConflictRepository
-    from app.domain.repositories.knowledge_repository import KnowledgeRepository
-
-    xrepo = ConflictRepository(session, user_id=user_id)
-    krepo = KnowledgeRepository(session, user_id=user_id)
-    crepo = ClaimRepository(session, user_id=user_id)
-
-    if conflict_ids is None:
-        rows = xrepo.list_by_user(user_id, limit=limit)
-    else:
-        rows = [row for row in (xrepo.get(cid) for cid in conflict_ids) if row is not None]
-
-    views: list[dict] = []
-    for row in rows:
-        item_a = krepo.get(row.item_a_id)
-        item_b = krepo.get(row.item_b_id)
-        claim_a = crepo.get(row.claim_a_id) if row.claim_a_id else None
-        claim_b = crepo.get(row.claim_b_id) if row.claim_b_id else None
-        views.append({
-            "conflict_id": row.id,
-            "item_a_id": row.item_a_id,
-            "item_b_id": row.item_b_id,
-            "title_a": item_a.title if item_a else "（条目已删除）",
-            "title_b": item_b.title if item_b else "（条目已删除）",
-            "claim_a": claim_a.statement if claim_a else "",
-            "claim_b": claim_b.statement if claim_b else "",
-            "conflict_type": row.conflict_type,
-            "detail": row.detail,
-            "suggestion": row.suggestion,
-            "confidence": row.confidence,
-            "user_state": row.user_state,
-        })
-    return views
 
 
 # ---- 异步回合 --------------------------------------------------------------

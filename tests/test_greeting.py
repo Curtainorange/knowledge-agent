@@ -12,6 +12,7 @@ from __future__ import annotations
 import pytest
 from fastapi.testclient import TestClient
 
+from app.agent.conflict_view import ConflictBrief
 from app.agent.greeting import UserState, build_opening, collect_state
 from app.api import deps
 from app.domain.models.conversation import Conversation
@@ -21,6 +22,7 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
+from tests.conflict_fixtures import make_conflict
 from tests.helpers import sign_in
 
 # 所有文案分支都要被这些状态覆盖到（加分支时同时补进来）
@@ -239,3 +241,85 @@ def test_greeting_reflects_real_knowledge_count(client, session, gateway_calls):
 
     body = _start(client, user.headers)
     assert "1 条" in body["messages"][0]["content"]
+
+
+# ---- D：开场直击「最该处理的那一处」 ----------------------------------------
+
+
+def _seed_conflict(session, user_id: str) -> None:
+    make_conflict(
+        session, user_id, tag="索引",
+        statement_a="B+树更适合范围查询",
+        statement_b="哈希索引更适合范围查询",
+    )
+
+
+def test_conflict_opening_names_the_conflict_when_details_known():
+    """拿到具体要点时要说清是哪两条、哪两个说法——只报数字等于只做了通知。
+
+    看到「3 处冲突」用户仍要自己回去翻是哪三处、哪一点对不上；把双方说法摆出来
+    并把问题问出去，才是本项目说的「逼你修正」。
+    """
+    text = build_opening(UserState(
+        unseen_conflicts=3,
+        top_conflict=ConflictBrief(
+            conflict_id="c1",
+            title_a="索引笔记",
+            title_b="数据库选型",
+            claim_a="B+树更适合范围查询",
+            claim_b="哈希索引更适合范围查询",
+            conflict_type="立场对立",
+            confidence=0.9,
+        ),
+    ))
+
+    assert "3 处冲突" in text
+    assert "索引笔记" in text and "数据库选型" in text
+    assert "B+树更适合范围查询" in text
+    assert text.endswith("？")
+    assert "周计划" not in text
+
+
+def test_conflict_opening_falls_back_to_count_without_details():
+    """没有具体要点时退回只报数量的形态——纯计数构造也必须产出可用开场。"""
+    text = build_opening(UserState(unseen_conflicts=3))
+    assert "3 处冲突" in text
+    assert text.endswith("？")
+
+
+def test_conflict_opening_truncates_long_text():
+    """书名与主张都要截断，否则开场会退化成朗读两句长文。"""
+    text = build_opening(UserState(
+        unseen_conflicts=1,
+        top_conflict=ConflictBrief(
+            conflict_id="c1", title_a="甲" * 40, title_b="乙" * 40,
+            claim_a="观" * 200, claim_b="点" * 200,
+        ),
+    ))
+    assert "…" in text
+    assert text.endswith("？")
+
+
+def test_collect_state_reads_top_conflict(client, session):
+    """collect_state 顺带取「最该处理的那一处」——开场才有东西可直击。"""
+    user = sign_in(client, "greet_conflict")
+    _seed_conflict(session, user.user_id)
+
+    state = collect_state(session, user_id=user.user_id)
+
+    assert state.unseen_conflicts == 1
+    assert state.top_conflict is not None
+    assert state.top_conflict.claim_a == "B+树更适合范围查询"
+
+
+def test_start_uses_conflict_details_in_greeting(client, session, gateway_calls):
+    """端到端：有未解冲突时开场直接摆出双方说法，且依然不调模型。"""
+    user = sign_in(client, "greet_conflict_detail")
+    _seed_conflict(session, user.user_id)
+
+    text = _start(client, user.headers)["messages"][0]["content"]
+
+    assert "1 处冲突" in text
+    assert "索引·甲" in text
+    assert "B+树更适合范围查询" in text
+    assert gateway_calls == []

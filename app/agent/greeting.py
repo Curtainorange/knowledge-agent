@@ -22,6 +22,7 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.agent.conflict_view import ConflictBrief, top_unresolved
 from app.domain.repositories.conflict_repository import ConflictRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.domain.repositories.learning_plan_repository import (
@@ -33,16 +34,26 @@ logger = logging.getLogger(__name__)
 
 # 目标描述写进开场时截断：一句话里塞进一个 200 字的书面目标，开场就变成了朗读
 _GOAL_SNIPPET = 24
+# 冲突要点同理：开场要能把双方说法并排摆出来，句子不能长到变成朗读
+_TITLE_SNIPPET = 14
+_CLAIM_SNIPPET = 28
 
 
 @dataclass(frozen=True)
 class UserState:
-    """开场说什么，取决于这几个事实。"""
+    """开场说什么，取决于这几个事实。
+
+    `top_conflict` 是「最该处理的那一处」的要点（未解冲突里置信度最高的一条）。
+    有它在，开场就不必停在「有 3 处冲突」这种数量上——直接摆出双方说法、
+    并问用户更认同哪个。它是**可选增强**：读不到具体内容时退回只报数量的形态，
+    所以纯粹用计数构造的 `UserState` 仍然产出可用的开场。
+    """
 
     knowledge_count: int = 0
     goal: str = ""
     has_plan: bool = False
     unseen_conflicts: int = 0
+    top_conflict: ConflictBrief | None = None
 
 
 def collect_state(session: Session, *, user_id: str) -> UserState:
@@ -55,6 +66,7 @@ def collect_state(session: Session, *, user_id: str) -> UserState:
     goal = ""
     has_plan = False
     unseen = 0
+    top_conflict: ConflictBrief | None = None
 
     try:
         knowledge_count = KnowledgeRepository(session, user_id=user_id).count_active(user_id)
@@ -74,6 +86,11 @@ def collect_state(session: Session, *, user_id: str) -> UserState:
     try:
         counted = ConflictRepository(session, user_id=user_id).count_by_state(user_id)
         unseen = int((counted or {}).get("unseen", 0) or 0)
+        if unseen:
+            # 顺带取「最该处理的那一处」——开场直接说要点，而不是只报一个数字。
+            # 同一次读取里完成：多读一次的收益（更近的开场）抵不上多一次查询的成本。
+            briefs = top_unresolved(session, user_id=user_id, limit=1)
+            top_conflict = briefs[0] if briefs else None
     except Exception as exc:  # pragma: no cover - 防御性兜底
         logger.warning("opening: 读冲突数失败，按 0 处理: %s", exc)
 
@@ -82,6 +99,7 @@ def collect_state(session: Session, *, user_id: str) -> UserState:
         goal=goal,
         has_plan=has_plan,
         unseen_conflicts=unseen,
+        top_conflict=top_conflict,
     )
 
 
@@ -93,8 +111,20 @@ def build_opening(state: UserState) -> str:
     """
     goal = _short(state.goal)
 
-    # 1. 有没处理的冲突 —— 唯一一种「事情已经发生了、在等你」的状态
+    # 1. 有没处理的冲突 —— 唯一一种「事情已经发生了、在等你」的状态。
+    #    能拿到具体要点就直接摆出双方说法并问用户更认同哪个：这一步是本功能从
+    #    「报数量」升级为「逼你表态」的地方——只报「3 处冲突」，用户仍要自己
+    #    去翻是哪三处、哪一点对不上，开场等于只做了通知。
     if state.unseen_conflicts:
+        top = state.top_conflict
+        if top is not None and (top.claim_a or top.claim_b):
+            return (
+                f"我是你的认知副驾。上次扫出来的 {state.unseen_conflicts} 处冲突还没处理，"
+                f"最要紧的一处是：《{_short(top.title_a, _TITLE_SNIPPET)}》认为"
+                f"「{_short(top.claim_a, _CLAIM_SNIPPET)}」，"
+                f"《{_short(top.title_b, _TITLE_SNIPPET)}》认为"
+                f"「{_short(top.claim_b, _CLAIM_SNIPPET)}」——你更认同哪个？"
+            )
         return (
             f"我是你的认知副驾。上次扫出来的 {state.unseen_conflicts} 处冲突还没处理——"
             "要现在过一遍吗？还是先做别的？"
@@ -135,7 +165,7 @@ def opening_for(session: Session, *, user_id: str) -> str:
 
 
 def _short(text: str, limit: int = _GOAL_SNIPPET) -> str:
-    """把目标描述压成能塞进一句话的长度。"""
+    """把目标描述 / 主张压成能塞进一句话的长度。"""
     cleaned = (text or "").strip().replace("\n", " ")
     if len(cleaned) <= limit:
         return cleaned

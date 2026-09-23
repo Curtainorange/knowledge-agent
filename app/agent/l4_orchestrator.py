@@ -31,6 +31,7 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent.conflict_view import ConflictBrief, format_conflicts, top_unresolved
 from app.core.config import settings
 from app.domain.repositories.claim_repository import ClaimRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
@@ -44,6 +45,8 @@ from app.feedback import events
 from app.llm.gateway import ModelGateway
 from app.llm.prompts import L4_DEVIATE, L4_PLAN
 from app.llm.structure import JsonParseError, parse_structured
+from app.retrieval.embedding import EmbeddingModel, build_embedding
+from app.retrieval.vector_store import cos_sim
 
 logger = logging.getLogger(__name__)
 
@@ -135,11 +138,19 @@ class L4PlanResult:
 
 
 class L4Orchestrator:
-    def __init__(self, gateway: ModelGateway | None = None, session: Session = None):
+    def __init__(
+        self,
+        gateway: ModelGateway | None = None,
+        session: Session = None,
+        embedding: EmbeddingModel | None = None,
+    ):
         # gateway 可空：建目标、查计划、看目标列表都不需要模型；
         # 惰性构造避免「传了 None 又走到模型调用」时炸在 AttributeError 上
         self._gateway = gateway
         self._session = session
+        # embedding 同样惰性：只有「判断未解冲突与目标是否相关」时才需要它，
+        # 而建目标 / 查计划这些高频轻操作不该为此付出加载模型的代价
+        self._embedding = embedding
         self._goals = LearningGoalRepository(session)
         self._plans = LearningPlanRepository(session)
         self._tasks = PlanTaskRepository(session)
@@ -149,6 +160,12 @@ class L4Orchestrator:
         if self._gateway is None:
             self._gateway = ModelGateway()
         return self._gateway
+
+    @property
+    def embedding(self) -> EmbeddingModel:
+        if self._embedding is None:
+            self._embedding = build_embedding()
+        return self._embedding
 
     # ---- UC-L4-01 定目标 → 拆计划 -----------------------------------------
 
@@ -171,7 +188,7 @@ class L4Orchestrator:
         if goal is None:
             return None
 
-        context = self._knowledge_context(user_id)
+        context = self._knowledge_context(user_id, goal.description)
         item_ids = [i.id for i in KnowledgeRepository(self._session, user_id=user_id).list_active(user_id)][:60]
         prompt = (
             f"学习目标：{goal.description}\n"
@@ -255,7 +272,7 @@ class L4Orchestrator:
         if goal is None:
             return False, "计划关联的目标不存在"
 
-        context = self._knowledge_context(user_id)
+        context = self._knowledge_context(user_id, goal.description)
         prompt = (
             f"学习目标：{goal.description}\n"
             f"上一版计划被打断，请重新拆解（可调整顺序、切分粒度与单周负荷）：\n"
@@ -313,9 +330,80 @@ class L4Orchestrator:
         latest = LearningPlanRepository(self._session).latest_for_goal(goal_id)
         return (latest.version + 1) if latest else 1
 
+    # ---- 内部：未解冲突与目标的相关性 ---------------------------------------
+
+    def _relevant_conflicts(
+        self, *, user_id: str, goal_description: str, limit: int | None = None
+    ) -> list[ConflictBrief]:
+        """与学习目标语义相关的未解冲突（用于计划上下文与偏离归因）。
+
+        判定 = 目标描述向量 与 冲突双方主张已落库向量（`Claim.embedding`）的余弦，
+        取 ≥ `l4_conflict_relevance` 的。**判不出来就不注入**：无目标、无冲突、
+        embedding 不可用、主张没有向量，一律返回空——把「所有冲突」当成「相关冲突」
+        塞进计划讨论，比不注入更糟（用户会以为计划卡在这处矛盾上）。
+        """
+        if not (goal_description or "").strip():
+            return []
+        if limit is None:
+            limit = settings.conflict_context_limit
+
+        try:
+            briefs = top_unresolved(self._session, user_id=user_id, limit=max(limit * 3, 9))
+        except Exception as exc:  # noqa: BLE001 - 读冲突失败不该阻断计划 / 归因
+            logger.warning("l4: 读未解冲突失败，跳过: %s", exc)
+            return []
+        if not briefs:
+            return []
+
+        goal_vec = self._embed_one(goal_description)
+        if goal_vec is None:
+            return []
+
+        crepo = ClaimRepository(self._session, user_id=user_id)
+        picked: list[ConflictBrief] = []
+        for brief in briefs:
+            score = 0.0
+            for claim_id in (brief.claim_a_id, brief.claim_b_id):
+                vec = self._claim_vector(crepo, claim_id) if claim_id else None
+                if vec is not None:
+                    score = max(score, cos_sim(goal_vec, vec))
+            if score >= settings.l4_conflict_relevance:
+                picked.append(brief)
+            if len(picked) >= limit:
+                break
+        return picked
+
+    def _embed_one(self, text: str) -> list[float] | None:
+        try:
+            vectors = list(self.embedding.embed([text]))
+        except Exception as exc:  # noqa: BLE001 - 降级为「不判相关性」
+            logger.warning("l4: embedding 不可用，跳过冲突相关性判定: %s", exc)
+            return None
+        return vectors[0] if vectors else None
+
+    def _claim_vector(self, crepo: ClaimRepository, claim_id: str) -> list[float] | None:
+        """读一条主张已落库的向量（与 L2 落库时的口径一致）。读不到返回 None。"""
+        try:
+            claim = crepo.get(claim_id)
+        except Exception:  # noqa: BLE001 - 越权 / 已删都当作取不到
+            return None
+        blob = getattr(claim, "embedding", None) if claim is not None else None
+        if not blob:
+            return None
+        try:
+            vec = [float(x) for x in EmbeddingModel.loads(blob)]
+        except Exception as exc:  # noqa: BLE001 - 单条脏数据不拖垮 L4
+            logger.warning("l4: 主张向量不可读 claim=%s: %s", claim_id, exc)
+            return None
+        dim = getattr(self.embedding, "dim", None)
+        if isinstance(dim, int) and dim > 0 and len(vec) != dim:
+            # 换过 embedding 模型：旧向量与新目标向量不在同一空间，混用算出的余弦无意义
+            return None
+        return vec
+
     # ---- 内部：知识结构上下文（复用 L2 主张，零额外模型调用）------------------
 
-    def _knowledge_context(self, user_id: str) -> str:
+    def _knowledge_context(self, user_id: str, goal_description: str = "") -> str:
         claims = ClaimRepository(self._session, user_id=user_id).list_by_user(user_id)
         topic_counts: dict[str, int] = {}
         for claim in claims:
@@ -332,6 +420,13 @@ class L4Orchestrator:
             lines.append("已有知识主题：暂无（尚未做过 L2 主张抽取）")
         if items:
             lines.append("近期条目标题：\n" + "\n".join(f"- {i.title}" for i in items))
+        # 与该目标相关的未解矛盾：排任务时应先解决它们，否则计划会建立在自相矛盾的知识上
+        relevant = self._relevant_conflicts(user_id=user_id, goal_description=goal_description)
+        if relevant:
+            lines.append(
+                "与该目标相关的未解观点冲突（会直接影响目标推进，排任务时应考虑先解决）：\n"
+                + format_conflicts(relevant)
+            )
         return "\n".join(lines)
 
     def _plan_digest(self, plan_id: str) -> str:
@@ -360,8 +455,9 @@ class L4Orchestrator:
 
     def _analyze(self, signals: DeviationSignals, plan, *, user_id: str):
         goal = LearningGoalRepository(self._session, user_id=plan.user_id).get(plan.goal_id)
+        goal_description = goal.description if goal else ""
         prompt = (
-            f"学习目标：{goal.description if goal else '（已删除）'}\n"
+            f"学习目标：{goal_description or '（已删除）'}\n"
             f"计划版本：v{plan.version}；任务进度：{signals.plan_done}/{signals.plan_total} 已完成\n"
             f"计划内容：\n{self._plan_digest(plan.id)}\n\n"
             f"行为统计（本地统计，事实）：\n"
@@ -373,6 +469,13 @@ class L4Orchestrator:
             f"- 近期新增内容与计划主题的重合度：{signals.topic_overlap:.0%}\n"
             f"- 已触发的偏离信号：{'；'.join(signals.reasons)}\n"
         )
+        # 相关未解冲突也是归因的一个候选原因：停滞有时正是因为绕不过一处自相矛盾
+        relevant = self._relevant_conflicts(user_id=user_id, goal_description=goal_description)
+        if relevant:
+            prompt += (
+                "\n与该目标相关的未解观点冲突（做归因时考虑它们是否就是停滞的原因）：\n"
+                + format_conflicts(relevant) + "\n"
+            )
         try:
             completion = self.gateway.chat(
                 task_type="deep_reasoning",
