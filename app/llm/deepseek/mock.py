@@ -15,6 +15,9 @@ _PREFIX = {
 
 
 class MockProvider(LLMProvider):
+    # 链上只有 Mock = 用户没配任何真实 Key（见 LLMProvider.is_mock）
+    is_mock = True
+
     def chat(
         self,
         *,

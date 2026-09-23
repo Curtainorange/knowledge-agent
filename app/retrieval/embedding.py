@@ -30,6 +30,16 @@ class EmbeddingModel(ABC):
 
     dim: ClassVar[int]
 
+    @property
+    def name(self) -> str:
+        """嵌入模型标识（写入 knowledge_items.embedding_model）。
+
+        换模型后旧向量不可比，重建逻辑按此字段判断哪些条目需要重算。
+        同一模型经不同实现（bge / local onnx）产出应视为同一模型——两者
+        都是 bge-small-zh-v1.5，向量可比，标识一致。
+        """
+        return "unknown"
+
     @abstractmethod
     def embed(self, texts: list[str]) -> list[list[float]]:
         """批量把文本映射为定长向量（每行一个）。"""
@@ -54,6 +64,10 @@ class BGEHesEmbedding(EmbeddingModel):
     """
 
     dim = 512
+
+    @property
+    def name(self) -> str:
+        return settings.embedding_model
 
     def __init__(self, retry_cooldown_seconds: float = 300.0) -> None:
         self._model = None
@@ -108,7 +122,14 @@ class LocalOnnxEmbedding(EmbeddingModel):
 
     模型若已输出 `sentence_embedding` 就直接取用，否则回退 CLS 池化；最后统一做
     L2 归一化（BGE 官方推荐用法）。
+
+    与 BGEHesEmbedding 是同一个模型（bge-small-zh-v1.5）的两种加载方式，
+    向量可比，`name` 同样返回 settings.embedding_model。
     """
+
+    @property
+    def name(self) -> str:
+        return settings.embedding_model
 
     def __init__(self, model_dir: str | None = None, max_length: int = 512) -> None:
         self._dir = Path(model_dir or settings.embedding_local_dir)
@@ -191,6 +212,10 @@ class HashEmbedding(EmbeddingModel):
     """
 
     dim = 256
+
+    @property
+    def name(self) -> str:
+        return "hash"
 
     def __init__(self, n_gram: int = 3, n_hashes: int = 1) -> None:
         self.n_gram = n_gram

@@ -101,11 +101,17 @@ class L1Orchestrator:
         session: Session,
         retriever: Retriever | None = None,
         max_turns: int = 3,
+        rule_fallback: bool = True,
     ) -> None:
         self._gateway = gateway
         self._session = session
         self._retriever = retriever or Retriever(build_embedding())
         self._max_turns = max_turns
+        # 无 Key 降级档（借鉴 agentic-local-brain 的优雅降级）：链上只剩 Mock
+        # （= 未配置任何真实 Key）时不调「模型」，改用检索信号做规则路由。
+        # 这是**显式降级档**，不是失败回退目标——与「Mock 永不作为真实失败的
+        # 回退目标」一致：把 Mock 罐头输出当模型结论才是要防的事。
+        self._rule_fallback = rule_fallback
 
     def _emit(self, event_type: str, user_id: str, payload: dict) -> None:
         """行为埋点（旁路，失败不影响挖掘主链路）。"""
@@ -233,6 +239,10 @@ class L1Orchestrator:
                 candidates=details, turn=turn, reason="追问已达上限，回退到最可能的候选",
             )
 
+        # 无 Key 降级档：不配置真实 Key 时用检索信号路由，不把 Mock 输出当模型结论
+        if self._rule_fallback and not self._gateway.has_real_provider:
+            return self._rule_route(conv, repo, candidates, items, details, turn)
+
         route = self._route(conv, message, candidates, items, user_id)
 
         if route.decision == "located":
@@ -260,6 +270,38 @@ class L1Orchestrator:
             turn=turn + 1,
             max_turns=self._max_turns,
             reason=route.reason,
+        )
+
+    def _rule_route(self, conv, repo, candidates, items, details, turn) -> L1Result:
+        """规则路由（无 Key 降级档）：双通道都命中才交付，否则追问。
+
+        用「通道证据」而不是分数做判据——RRF / 加权两种融合的分数尺度不同，
+        通道共现（vector + keyword 同时召回）才是跨策略稳定的强信号。
+        """
+        top = candidates[0] if candidates else None
+        if top is not None and {"vector", "keyword"} <= set(top.channels):
+            return self._finish_located(
+                conv, repo, [top.item_id], items,
+                candidates=details, turn=turn,
+                reason="无 Key 降级：双通道均命中，规则路由取最高候选",
+            )
+
+        question = "你能再描述得具体一点吗（时间、对象或场景）？"
+        repo.append_message(conv, "assistant", question, source="l1")
+        repo.set_state(conv, "clarifying")
+        self._session.commit()
+        self._emit(events.L1_MINE, conv.user_id, {
+            "state": "clarifying", "turn": turn + 1, "candidates": len(details),
+            "degraded": True,
+        })
+        return L1Result(
+            state="clarifying",
+            conversation_id=conv.id,
+            question=question,
+            candidates=details,
+            turn=turn + 1,
+            max_turns=self._max_turns,
+            reason="无 Key 降级：检索信号不足，规则路由转追问",
         )
 
     def _finish_located(

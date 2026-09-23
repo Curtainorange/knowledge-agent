@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import JSON, DateTime, Float, String, Text
+from sqlalchemy import JSON, DateTime, Float, Integer, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.base import Base, TimestampMixin
@@ -25,6 +25,10 @@ class KnowledgeItem(Base, TimestampMixin):
     embedding: Mapped[bytes | None] = mapped_column(nullable=True)
     # 向量化状态：pending=待算 / embedded=可检索 / embed_failed=失败（降级关键词召回）
     embed_status: Mapped[str] = mapped_column(default="pending")
+    # 生成该向量的嵌入模型标识与维度（换模型后旧向量不可比，据此增量重建）。
+    # NULL = 早期版本写入，模型未知——重建时按「模型未知」处理。
+    embedding_model: Mapped[str | None] = mapped_column(String(128), nullable=True)
+    embedding_dim: Mapped[int | None] = mapped_column(Integer, nullable=True)
     # 用户自己的批注 / 想法（阅读时随手写下，与摘录原文一起沉淀为一条知识）
     note: Mapped[str] = mapped_column(Text, default="")
     # 来源定位：如书籍内的字符区间 {chapter_index, char_start, char_end}，

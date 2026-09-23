@@ -11,8 +11,8 @@ from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.endpoints import (
-    agent, auth, books, chat, events, health, knowledge, l1, l2, l3, l4, l5, preferences, push,
-    weread,
+    agent, auth, books, chat, doctor, events, health, knowledge, l1, l2, l3, l4, l5, preferences,
+    push, weread,
 )
 from app.core import logging as core_logging
 from app.core import trace
@@ -132,6 +132,7 @@ async def validation_exception_handler(request: Request, exc: RequestValidationE
 
 
 app.include_router(health.router)
+app.include_router(doctor.router)
 app.include_router(auth.router)
 app.include_router(agent.router)
 app.include_router(chat.router)

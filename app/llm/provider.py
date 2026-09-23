@@ -26,6 +26,11 @@ class LLMProvider(ABC):
     supports_json_object: bool = False
     supports_json_schema: bool = False
 
+    # Mock 供应商标记：网关据此判定「链上是否有真实供应商」。
+    # 无 Key 时链上只剩 Mock——业务层（如 L1 的规则降级档）应走确定性兜底，
+    # 而不是把 Mock 的罐头输出当模型结论（Mock 永不作为真实失败的回退目标）。
+    is_mock: bool = False
+
     # 可选属性 `default_model`（字符串）：本供应商自己的默认模型名。
     # 网关执行供应商回退时改用它——把主供应商的模型名（如 mimo-v2.6-flash）发给
     # 备用供应商会被判 Unsupported model，等于回退必然失败。未提供时回落到策略表模型名。

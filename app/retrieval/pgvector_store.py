@@ -282,3 +282,13 @@ class PgvectorStore(VectorStore):
             return scored[: int(top_k)]
         finally:
             session.close()
+
+    def count(self) -> int:
+        self._ensure_table()
+        session = self._session()
+        try:
+            from sqlalchemy import text
+
+            return int(session.execute(text(f"SELECT COUNT(*) FROM {self._table_name}")).scalar())
+        finally:
+            session.close()

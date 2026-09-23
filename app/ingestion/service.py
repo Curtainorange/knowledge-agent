@@ -132,6 +132,9 @@ class IngestionService:
             vec = self._embedding.embed([item.title + "\n" + item.raw_content])[0]
             item.embedding = EmbeddingModel.dumps(vec)
             item.embed_status = "embedded"
+            # 记录模型标识与维度：换嵌入模型后据此增量重建（模型未知/不一致 → 重算）
+            item.embedding_model = self._embedding.name
+            item.embedding_dim = len(vec)
         except Exception as exc:  # 降级：不阻断主链路
             item.embed_status = "embed_failed"
             vec = None

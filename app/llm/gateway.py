@@ -134,6 +134,16 @@ class ModelGateway:
             raise ValueError("供应商链不能为空")
         self._provider = self._providers[0]  # 主供应商（能力位判定 / 向后兼容取用）
 
+    @property
+    def has_real_provider(self) -> bool:
+        """链上是否存在真实供应商（Mock-only = 未配置任何 Key）。"""
+        return any(not getattr(p, "is_mock", False) for p in self._providers)
+
+    @property
+    def real_provider_names(self) -> list[str]:
+        """真实供应商类名列表（doctor / 诊断信息展示用）。"""
+        return [type(p).__name__ for p in self._providers if not getattr(p, "is_mock", False)]
+
     def route(self, task_type: str = "default") -> Strategy:
         s = strategy_for(task_type)
         return Strategy(

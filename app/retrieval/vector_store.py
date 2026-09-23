@@ -89,6 +89,10 @@ class VectorStore(ABC):
     ) -> list[tuple[str, float]]:
         """关键词兜底检索（可靠-4）：返回 [(item_id, 得分), ...]，按得分降序。"""
 
+    def count(self) -> int | None:
+        """索引内记录总数（doctor 一致性检查用）。后端不支持时返回 None。"""
+        return None
+
 
 def _default_backfill_loader() -> list[VectorRecord]:
     """冷启动回填：从关系库读出已持久化的条目向量（未删除且已向量化）。
@@ -225,6 +229,10 @@ class InMemoryVectorStore(VectorStore):
                 scored.append((record.item_id, s))
         scored.sort(key=lambda x: x[1], reverse=True)
         return scored[:top_k]
+
+    def count(self) -> int:
+        self._ensure_loaded()
+        return len(self._records)
 
 
 _instances: dict[str, VectorStore] = {}
