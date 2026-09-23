@@ -501,8 +501,7 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
    卡片本身沿用各自的既有样式（.hit/.guide/.created…），不改视觉语言。 */
 .agent-wrap{max-width:880px;margin:0 auto;width:100%}
 .agent-head{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap;margin-bottom:10px}
-.agent-head h2{margin:0}
-.agent-tools{display:flex;align-items:center;gap:8px}
+.agent-tools{display:flex;align-items:center;gap:8px;margin-left:auto}
 /* 这里原本是「能力快捷入口」（.chips/.chip 一排按钮），现已移除。
    把「能做什么」摊成一排按钮，等于要用户先学会这个产品的功能分类、再挑一个点下去——
    那还是「点功能」，不是对话。改为由副驾在开场时主动把话题接起来
