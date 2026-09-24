@@ -1,6 +1,6 @@
 """检索质量评估集（借鉴 agentic-local-brain 的评估思路，落地为本项目护栏）。
 
-- 语料与查询在 tests/data/retrieval_eval.json（20 条语料 / 15 条查询）。
+- 语料与查询在 tests/data/retrieval_eval.json（20 条语料 / 16 条查询）。
 - 指标：recall@k = 命中至少一条相关条目的查询占比（hit-rate）。
 - 全程用 HashEmbedding + 内存索引，确定性、不触网；哈希向量语义弱但确定，
   作为**回归基线**足够：融合策略改动后指标不应低于护栏值，也不应低于旧策略。
