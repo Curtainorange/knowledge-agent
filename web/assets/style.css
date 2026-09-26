@@ -167,6 +167,39 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 }
 .badge.ok{background:var(--ok-weak);color:var(--ok)}
 .badge.warn{background:var(--warn-weak);color:var(--warn)}
+/* 来源色徽（借鉴 agentic-local-brain 的内容类型专属色，收敛为三种来源） */
+.badge.src-manual{background:var(--accent-weak);color:var(--accent)}
+.badge.src-weread{background:var(--ok-weak);color:var(--ok)}
+.badge.src-book{background:var(--warn-weak);color:var(--warn)}
+.badge.src-other{background:#eef0f6;color:var(--text-2)}
+
+/* ============ 知识库概览仪表盘 ============ */
+.stat-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 12px;
+}
+.stat-card{
+  background:#fafbfe;border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px 8px;text-align:center;
+}
+.stat-num{font-size:24px;font-weight:700;color:var(--text);line-height:1.2;font-variant-numeric:tabular-nums}
+.stat-num.ok{color:var(--ok)}
+.stat-num.warn{color:var(--warn)}
+.stat-label{font-size:12.5px;color:var(--muted);margin-top:2px}
+.src-row{display:flex;flex-wrap:wrap;gap:6px;margin-bottom:12px}
+.chip-cloud{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:4px}
+.chip{
+  border:1px solid var(--border);background:#fff;color:var(--text-2);
+  font:inherit;font-size:12.5px;padding:3px 11px;border-radius:999px;cursor:pointer;
+  transition:border-color .15s,color .15s,background .15s;
+}
+.chip:hover{border-color:var(--accent);color:var(--accent);background:var(--accent-weak)}
+.chip i{font-style:normal;color:var(--muted-2);margin-left:3px}
+.pager{
+  display:flex;align-items:center;justify-content:center;gap:14px;
+  padding-top:12px;border-top:1px dashed var(--border);
+}
+.pager button:disabled{opacity:.45;cursor:default}
+@media(max-width:560px){.stat-grid{grid-template-columns:repeat(3,1fr);gap:6px}.stat-num{font-size:20px}}
 .detail{margin-top:12px;padding-top:12px;border-top:1px dashed var(--border);cursor:default}
 .full{
   max-height:200px;overflow:auto;white-space:pre-wrap;background:#fafbfe;

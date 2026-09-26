@@ -40,9 +40,23 @@
 
     <div class="card">
       <h2>概览</h2>
-      <div class="meta">共 <strong id="kb-count">0</strong> 条知识</div>
-      <div class="meta">向量化失败时会自动退回关键词召回，不影响录入与检索。</div>
-      <div class="meta">想按模糊线索找回某条笔记？去「L1 挖掘」。</div>
+      <div class="stat-grid">
+        <div class="stat-card">
+          <div class="stat-num" id="st-total">0</div>
+          <div class="stat-label">知识条目</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num ok" id="st-embedded">0</div>
+          <div class="stat-label">已向量化</div>
+        </div>
+        <div class="stat-card">
+          <div class="stat-num warn" id="st-embed-failed">0</div>
+          <div class="stat-label">向量失败</div>
+        </div>
+      </div>
+      <div class="src-row" id="st-sources"></div>
+      <div class="chip-cloud" id="st-tags"></div>
+      <div class="meta">向量化失败会自动退回关键词召回；点击标签可按关键词搜索。</div>
     </div>
   </section>
 
@@ -85,7 +99,15 @@
   var $ = CC.$;
   var esc = CC.esc;
   var PAGE_SIZE = 20;
-  var state = { items: [], total: 0, detail: {}, selected: null, query: '', loading: false };
+  var state = { items: [], total: 0, page: 1, detail: {}, selected: null, query: '', loading: false };
+
+  var SOURCE_LABEL = { manual: '手动', weread: '微信读书', book: '书籍' };
+
+  function sourceBadge(source) {
+    var key = SOURCE_LABEL[source] ? source : 'other';
+    var label = SOURCE_LABEL[source] || source || '未知';
+    return '<span class="badge src-' + key + '">' + esc(label) + '</span>';
+  }
 
   function embedBadge(status) {
     if (status === 'embedded') {
@@ -117,7 +139,6 @@
 
   function renderItems() {
     var box = $('#kb-list');
-    $('#kb-count').textContent = state.total;
     if (!state.items.length) {
       box.innerHTML = state.query
         ? '<div class="empty">没有匹配「' + esc(state.query) + '」的条目。</div>'
@@ -128,46 +149,74 @@
       var pct = Math.round((item.read_progress || 0) * 100);
       var open = state.selected === item.item_id;
       return '<div class="item ' + (open ? 'active' : '') + '" data-id="' + esc(item.item_id) + '">' +
-        '<div class="row"><strong>' + esc(item.title) + '</strong>' + embedBadge(item.embed_status) + '</div>' +
+        '<div class="row"><strong>' + esc(item.title) + '</strong>' +
+          sourceBadge(item.source) + embedBadge(item.embed_status) + '</div>' +
         '<div class="snippet">' + esc(item.snippet) + '</div>' +
         '<div class="bar"><i style="width:' + pct + '%"></i></div>' +
         '<div class="meta">已读 ' + pct + '% · ' + esc((item.tags || []).join('、') || '无标签') + '</div>' +
         (open ? detailHtml(item, pct) : '') +
       '</div>';
     }).join('');
-    // 还有更多时补一个「加载更多」——此前固定 limit=50，超出部分永远看不到
-    if (state.items.length < state.total) {
-      html += '<button id="kb-more" class="sm" style="width:100%;margin-top:6px">' +
-        '加载更多（已显示 ' + state.items.length + ' / ' + state.total + '）</button>';
-    }
+    // 分页条：‹ 第 x / y 页 ›（API 本就支持 limit/offset，此前是「加载更多」追加式）
+    var pages = Math.max(1, Math.ceil(state.total / PAGE_SIZE));
+    html += '<div class="pager">' +
+      '<button id="kb-prev" class="sm"' + (state.page <= 1 ? ' disabled' : '') + '>‹</button>' +
+      '<span class="meta">第 ' + state.page + ' / ' + pages + ' 页 · 共 ' + state.total + ' 条</span>' +
+      '<button id="kb-next" class="sm"' + (state.page >= pages ? ' disabled' : '') + '>›</button>' +
+    '</div>';
     box.innerHTML = html;
   }
 
-  /** 拉取列表；reset=true 从第一页重来（首屏 / 刷新 / 搜索 / 增删后），false 追加下一页。 */
-  async function loadItems(reset) {
-    if (reset === undefined) {
-      reset = true;
-    }
+  /** 拉取指定页；搜索 / 增删后从第 1 页重来（goPage 不传时回第一页）。 */
+  async function loadItems(goPage) {
     if (state.loading) {
       return;
     }
     state.loading = true;
     try {
-      if (reset) {
-        state.items = [];
-        state.selected = null;
-      }
-      var params = 'limit=' + PAGE_SIZE + '&offset=' + state.items.length;
+      state.page = goPage || 1;
+      var params = 'limit=' + PAGE_SIZE + '&offset=' + (state.page - 1) * PAGE_SIZE;
       if (state.query) {
         params += '&q=' + encodeURIComponent(state.query);
       }
       var data = await CC.api('GET', '/api/v1/knowledge/items?' + params);
       state.total = data.total;
-      state.items = state.items.concat(data.items);
+      state.items = data.items;
+      state.selected = null;
+      // 删掉末页最后一条后当前页可能超界，回退一页
+      if (!state.items.length && state.page > 1) {
+        state.loading = false;
+        return loadItems(state.page - 1);
+      }
       renderItems();
     } finally {
       state.loading = false;
     }
+  }
+
+  /** 概览统计：总数 / 向量化状态 / 来源分布 / 高频标签。 */
+  async function loadStats() {
+    var stats = await CC.api('GET', '/api/v1/knowledge/stats');
+    $('#st-total').textContent = stats.total;
+    var embedded = stats.by_embed_status.embedded || 0;
+    var failed = stats.by_embed_status.embed_failed || 0;
+    var pending = stats.by_embed_status.pending || 0;
+    $('#st-embedded').textContent = embedded;
+    $('#st-embed-failed').textContent = failed + pending;
+    var order = ['manual', 'weread', 'book'];
+    var parts = [];
+    order.concat(Object.keys(stats.by_source).filter(function (s) { return order.indexOf(s) < 0; }))
+      .forEach(function (s) {
+        if (stats.by_source[s]) {
+          parts.push('<span class="badge src-' + (SOURCE_LABEL[s] ? s : 'other') + '">' +
+            esc(SOURCE_LABEL[s] || s) + ' ' + stats.by_source[s] + '</span>');
+        }
+      });
+    $('#st-sources').innerHTML = parts.join('') || '<span class="meta">暂无条目</span>';
+    $('#st-tags').innerHTML = (stats.top_tags || []).map(function (t) {
+      return '<button class="chip" data-tag="' + esc(t.tag) + '" title="按「' + esc(t.tag) + '」搜索">' +
+        esc(t.tag) + ' <i>' + t.count + '</i></button>';
+    }).join('') || '<span class="meta">还没有标签</span>';
   }
 
   async function selectItem(itemId) {
@@ -184,8 +233,10 @@
   }
 
   $('#kb-list').addEventListener('click', async function (event) {
-    if (event.target.closest('#kb-more')) {
-      loadItems(false).catch(function (err) { CC.toast('加载失败：' + err.message); });
+    var pagerNode = event.target.closest('#kb-prev, #kb-next');
+    if (pagerNode && !pagerNode.disabled) {
+      loadItems(state.page + (pagerNode.id === 'kb-next' ? 1 : -1))
+        .catch(function (err) { CC.toast('翻页失败：' + err.message); });
       return;
     }
     var itemNode = event.target.closest('.item');
@@ -203,7 +254,7 @@
         await CC.api('DELETE', '/api/v1/knowledge/items/' + itemId);
         state.selected = null;
         delete state.detail[itemId];
-        await loadItems();
+        await Promise.all([loadItems(state.page), loadStats()]);
         CC.toast('已删除');
       } catch (err) {
         CC.toast('删除失败：' + err.message);
@@ -272,7 +323,7 @@
       hint.textContent = result.embed_status === 'embedded'
         ? '已录入并完成向量化'
         : '已录入，但向量化失败（将退回关键词召回，网络恢复后更新正文即可重算）';
-      await loadItems();
+      await Promise.all([loadItems(), loadStats()]);
       CC.toast('录入成功');
     } catch (err) {
       hint.textContent = '录入失败：' + err.message;
@@ -291,8 +342,20 @@
     clearTimeout(searchTimer);
     searchTimer = setTimeout(function () {
       state.query = value;
-      loadItems(true).catch(function (err) { CC.toast('搜索失败：' + err.message); });
+      loadItems(1).catch(function (err) { CC.toast('搜索失败：' + err.message); });
     }, 300);
+  });
+
+  /* 标签云：点击把标签词填入搜索框（按关键词搜标题与正文） */
+  $('#st-tags').addEventListener('click', function (event) {
+    var chip = event.target.closest('.chip');
+    if (!chip) {
+      return;
+    }
+    var tag = chip.getAttribute('data-tag');
+    $('#kb-search').value = tag;
+    state.query = tag;
+    loadItems(1).catch(function (err) { CC.toast('搜索失败：' + err.message); });
   });
 
   /* 导出：带 token 拉取文件流再触发下载
@@ -374,7 +437,7 @@
       return;
     }
     try {
-      await loadItems();
+      await Promise.all([loadItems(), loadStats()]);
     } catch (err) {
       CC.toast('加载知识库失败：' + err.message);
       return;

@@ -45,6 +45,7 @@ class KnowledgeBrief(BaseModel):
     tags: list[str] = Field(default_factory=list)
     read_progress: float
     embed_status: str
+    source: str
     created_at: datetime
 
 
@@ -89,6 +90,21 @@ class KnowledgeDeleteResponse(BaseModel):
     request_id: str
 
 
+class TagCount(BaseModel):
+    tag: str
+    count: int
+
+
+class KnowledgeStatsResponse(BaseModel):
+    """知识库概览统计（前端仪表盘）。"""
+
+    total: int
+    by_source: dict[str, int] = Field(default_factory=dict)
+    by_embed_status: dict[str, int] = Field(default_factory=dict)
+    top_tags: list[TagCount] = Field(default_factory=list)
+    request_id: str
+
+
 @router.post("/items", response_model=KnowledgeCreateResponse)
 def create_item(
     body: KnowledgeCreate,
@@ -124,6 +140,7 @@ def list_items(
                 tags=list(r.tags or []),
                 read_progress=r.read_progress,
                 embed_status=r.embed_status,
+                source=r.source or "manual",
                 created_at=r.created_at,
             )
             for r in rows
@@ -131,6 +148,44 @@ def list_items(
         total=total,
         limit=limit,
         offset=offset,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.get("/stats", response_model=KnowledgeStatsResponse)
+def get_stats(
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+):
+    """知识库概览统计（前端仪表盘用）：总数 / 来源分布 / 向量化状态 / 高频标签。
+
+    纯本地聚合，不调模型。标签频次取前 15 个（出现次数降序、同频按名称排序）。
+    """
+    from collections import Counter
+
+    from sqlalchemy import select
+
+    from app.domain.models.knowledge_item import KnowledgeItem
+
+    rows = session.execute(
+        select(KnowledgeItem.source, KnowledgeItem.embed_status, KnowledgeItem.tags).where(
+            KnowledgeItem.is_deleted.is_(False),
+            KnowledgeItem.user_id == user_id,
+        )
+    ).all()
+
+    by_source = Counter(r.source or "manual" for r in rows)
+    by_embed = Counter(r.embed_status or "pending" for r in rows)
+    tag_counter: Counter = Counter()
+    for r in rows:
+        tag_counter.update(t.strip() for t in (r.tags or []) if t and t.strip())
+    top_tags = sorted(tag_counter.items(), key=lambda kv: (-kv[1], kv[0]))[:15]
+
+    return KnowledgeStatsResponse(
+        total=len(rows),
+        by_source=dict(by_source),
+        by_embed_status=dict(by_embed),
+        top_tags=[TagCount(tag=tag, count=count) for tag, count in top_tags],
         request_id=trace.get_request_id() or "",
     )
 

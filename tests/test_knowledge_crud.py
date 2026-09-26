@@ -49,7 +49,36 @@ def test_created_item_appears_in_list(client):
     assert item["title"] == "数据库索引"
     assert item["snippet"].startswith("B+树")
     assert item["embed_status"] == "embedded"
+    assert item["source"] == "manual"  # 列表摘要带来源（前端来源色徽用）
     assert "content" not in item  # 列表只给摘要，不回灌全文
+
+
+def test_stats_aggregates_overview(client, session):
+    user = sign_in(client, "u_stats")
+    headers = user.headers
+    _create(client, "u_stats", title="甲", content="内容甲", headers=headers)
+    _create(client, "u_stats", title="乙", content="内容乙", headers=headers)
+    # 直接改一条的来源与标签，验证聚合口径（录入 API 默认 manual / 无标签）
+    repo = KnowledgeRepository(session, user_id=user.user_id)
+    rows = repo.list_active(user.user_id)
+    rows[0].source = "weread"
+    rows[0].tags = ["数据库", "索引"]
+    rows[1].tags = ["数据库"]
+    rows[1].embed_status = "embed_failed"
+    session.commit()
+
+    resp = client.get("/api/v1/knowledge/stats", headers=headers)
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["total"] == 2
+    assert body["by_source"] == {"manual": 1, "weread": 1}
+    assert body["by_embed_status"] == {"embedded": 1, "embed_failed": 1}
+    tags = {t["tag"]: t["count"] for t in body["top_tags"]}
+    assert tags == {"数据库": 2, "索引": 1}  # 同频按名称排序
+
+
+def test_stats_requires_auth(client):
+    assert client.get("/api/v1/knowledge/stats").status_code == 401
 
 
 def test_detail_returns_full_content(client):
