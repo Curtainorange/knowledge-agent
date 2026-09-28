@@ -1,7 +1,7 @@
 {
   "agent_route": {
-    "version": "v2",
-    "sha256": "07a89887da9af67ca8e33309bc07033ad347e0d928622fa0872d235015ccd1cf"
+    "version": "v3",
+    "sha256": "6a8057b0e069c8919a2303d341ea5e0684da2a134b0312afb1189a12a2b2ac6f"
   },
   "l1_route": {
     "version": "v1",
@@ -38,5 +38,17 @@
   "l5_diagnose": {
     "version": "v1",
     "sha256": "70d36ccf5534f4fd84a9838dd93589e31b5e6a4fe987966e8d9be69c48eeda31"
+  },
+  "book_digest_chunk": {
+    "version": "v1",
+    "sha256": "d644437bd80048157c6dc92ea356cda16feb6abead648b9801f78defc699839c"
+  },
+  "book_digest_summary": {
+    "version": "v1",
+    "sha256": "3a9ef4558858d5c9f463482c612fa81d6a595d841cb33ee7428d777aaa47449e"
+  },
+  "book_recommend": {
+    "version": "v1",
+    "sha256": "c6f8956eee82b76d78300300a5d7552fd85b5e63bb13c6492c3646f80a4f0546"
   }
 }

@@ -374,6 +374,7 @@ def test_capabilities_endpoint_lists_wired_flags(client):
     assert wired == {
         "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
         "knowledge_add", "weread_sync", "books",
+        "book_digest", "book_discuss", "book_recommend",
     }
     for item in items.values():
         assert item["label"] and item["example"]

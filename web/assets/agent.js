@@ -506,6 +506,78 @@ window.CCA = (function () {
     return '<div class="brief">' + parts.join('') + '</div>';
   }
 
+  /* 通读笔记：总评 + 分章要点折叠 + 「聊聊这本书」。
+     类名复用现有卡片语言（.cf-block / .meta / details.candidates / .cand），不新增视觉样式。 */
+  function bookDigestHtml(card) {
+    var parts = [];
+    if (card.summary) {
+      parts.push('<div class="cf-block"><b>总评：</b>' + esc(card.summary) + '</div>');
+    }
+    var chapters = (card.chapters || []).filter(function (c) { return c.gist; });
+    if (chapters.length) {
+      parts.push('<details class="candidates"><summary>分章要点（' + chapters.length + ' 段）</summary>' +
+        chapters.map(function (c) {
+          var body = '<div class="cand"><div class="cand-main">' +
+            '<div class="cand-title">' + esc(c.title) + '</div>' +
+            '<div class="cand-snip">' + esc(c.gist) + '</div>' +
+            ((c.points || []).length
+              ? '<div class="cand-snip">' + c.points.map(esc).join('；') + '</div>'
+              : '') +
+          '</div></div>';
+          return body;
+        }).join('') +
+      '</details>');
+    }
+    var meta = [];
+    if (Number(card.chunk_count || 0) > 0) {
+      meta.push('读了 ' + Number(card.chunk_count) + ' 段');
+    }
+    if (Number(card.failed_chunks || 0) > 0) {
+      meta.push(Number(card.failed_chunks) + ' 段没读成');
+    }
+    if (card.truncated) {
+      meta.push('全书超长，只精读了前一部分');
+    }
+    if (meta.length) {
+      parts.push('<div class="meta">' + esc(meta.join(' · ')) + '</div>');
+    }
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    var actions = actionsRow(card);
+    if (actions) {
+      parts.push(actions);
+    }
+    return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
+  /* 书籍推荐：每本一张问题卡形状的条目（书名/作者 + 与你学习的关系 + 为什么值得读）。 */
+  function bookRecommendHtml(card) {
+    var parts = [];
+    if (card.overview) {
+      parts.push('<div class="meta">' + esc(card.overview) + '</div>');
+    }
+    parts.push((card.items || []).map(function (item) {
+      var body = '<div class="question-card"><div class="q-head">' + esc(item.title) +
+        (item.author ? ' <span class="badge">' + esc(item.author) + '</span>' : '') + '</div>';
+      if (item.fit) {
+        body += '<div class="cf-block"><b>和你现在的关系：</b>' + esc(item.fit) + '</div>';
+      }
+      if (item.reason) {
+        body += '<div class="cf-block"><b>为什么值得读：</b>' + esc(item.reason) + '</div>';
+      }
+      return body + '</div>';
+    }).join(''));
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    var actions = actionsRow(card);
+    if (actions) {
+      parts.push(actions);
+    }
+    return '<div class="brief">' + parts.join('') + '</div>';
+  }
+
   function guideHtml(card) {
     return '<div class="guide">' +
       '<div class="g-head">' + esc(card.label) + '</div>' +
@@ -525,6 +597,8 @@ window.CCA = (function () {
     l4_deviation: l4DeviationHtml,
     l5_diagnosis: l5DiagnosisHtml,
     books: booksHtml,
+    book_digest: bookDigestHtml,
+    book_recommend: bookRecommendHtml,
     pending: pendingHtml,
     failed: failedHtml,
     knowledge_created: createdHtml,

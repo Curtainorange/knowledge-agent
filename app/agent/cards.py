@@ -211,6 +211,78 @@ def books_reply(books: list[dict]) -> str:
     return "，".join(parts) + "。"
 
 
+# ---- 书籍：通读 / 讨论 / 推荐 ------------------------------------------------
+#
+# 通读产出的存储与用户阅读完全隔离（book_agent_readings 表），卡片只负责呈现结果；
+# 「聊聊这本书」是 sends 按钮：点它等于替用户发一句话，复用整条对话链路。
+
+
+def book_digest_card(*, key: str, outcome) -> dict:
+    return {
+        "kind": "book_digest",
+        "key": key,
+        "state": outcome.state,            # ok | reused | degraded
+        "book_id": outcome.book_id,
+        "title": outcome.title,
+        "author": outcome.author,
+        "summary": outcome.summary,
+        "chapters": [
+            {
+                "index": int(c.get("index") or 0),
+                "title": str(c.get("title") or ""),
+                "gist": str(c.get("gist") or ""),
+                "points": [str(p) for p in (c.get("points") or [])],
+            }
+            for c in (outcome.chapters or [])
+        ],
+        "chunk_count": outcome.chunk_count,
+        "failed_chunks": outcome.failed_chunks,
+        "truncated": bool(outcome.truncated),
+        "note": outcome.note,
+        "href": "",
+        "sends": (
+            [_send(f"聊聊《{outcome.title}》", f"聊聊《{outcome.title}》这本书")]
+            if outcome.state in ("ok", "reused")
+            else []
+        ),
+    }
+
+
+def digest_reply(outcome) -> str:
+    if outcome.state == "reused":
+        return f"《{outcome.title}》之前已经通读过，笔记直接给你用。"
+    if outcome.state == "degraded":
+        return outcome.note or f"《{outcome.title}》这次没读成，稍后再试一次。"
+    return f"《{outcome.title}》读完了，{outcome.chunk_count} 段笔记都在卡里，想聊就说「聊聊这本书」。"
+
+
+def book_recommend_card(*, key: str, result) -> dict:
+    return {
+        "kind": "book_recommend",
+        "key": key,
+        "state": result.state,             # ok | empty | degraded
+        "overview": result.overview,
+        "items": [
+            {
+                "title": item.title,
+                "author": item.author,
+                "fit": item.fit,
+                "reason": item.reason,
+            }
+            for item in result.items
+        ],
+        "note": result.note,
+        "href": "",
+        "sends": [_send("换一批", "再推荐几本书")] if result.state == "ok" else [],
+    }
+
+
+def recommend_reply(result) -> str:
+    if result.state == "ok":
+        return f"挑了 {len(result.items)} 本，都和你现在的学习对得上。"
+    return result.note or "这次没能给出推荐，稍后再试一次。"
+
+
 # ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
 #
 # L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。

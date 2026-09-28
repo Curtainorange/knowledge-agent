@@ -36,12 +36,14 @@ from sqlalchemy.orm import Session
 
 from app.agent import cards as cards_mod
 from app.agent.conflict_view import conflict_views
+from app.agent import book_orchestrator
 from app.agent.cards import (
     books_card,
     books_reply,
     brief_reply,
     deviation_reply,
     diagnosis_reply,
+    digest_reply,
     failed_card,
     goal_missing_card,
     goal_reply,
@@ -51,10 +53,13 @@ from app.agent.cards import (
     l4_goal_card,
     l4_plan_card,
     l5_diagnosis_card,
+    book_digest_card,
+    book_recommend_card,
     no_goal_card,
     notice_card,
     pending_card,
     plan_reply,
+    recommend_reply,
     scan_reply,
     sync_reply,
     weread_not_configured_card,
@@ -87,6 +92,9 @@ TASK_KEY_PREFIX = "agent:"
 # 合成一个能力就没法给它们各自选同步还是异步。
 ASYNC_CAPABILITIES: frozenset[str] = frozenset({
     "l2", "l3", "l5", "l4_plan", "l4_deviation", "weread_sync",
+    # 书籍两项：推荐一次模型调用（十几秒），通读是「逐块读完全书」（分钟级）——
+    # 都压不进一次 HTTP 请求，与 l2/l3 同一批
+    "book_recommend", "book_digest",
 })
 
 # 慢的卡片操作：跑模型、要十几秒，走后台，不在请求里等。
@@ -100,6 +108,8 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "l4_plan": ("正在拆解周计划", "要结合你的知识结构排任务，通常十几秒。"),
     "l4_deviation": ("正在检查计划执行", "先做本地统计，确认有偏离才做归因，通常十几秒。"),
     "weread_sync": ("正在同步微信读书", "逐本拉取划线与想法并逐条向量化，通常半分钟以内。"),
+    "book_digest": ("正在通读这本书", "逐章读完再汇总，一本书要几分钟，读的过程不用你管。"),
+    "book_recommend": ("正在挑书", "要结合你的知识库、书架和目标一起看，通常十几秒。"),
 }
 
 _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
@@ -189,7 +199,110 @@ def execute_capability(
     if capability == "books":
         return _execute_books(user_id=user_id, session=session, key=key)
 
+    if capability == "book_digest":
+        return _execute_book_digest(
+            user_id=user_id, session=session, gateway=gateway, key=key, args=args
+        )
+
+    if capability == "book_recommend":
+        result = book_orchestrator.recommend(session, gateway, user_id=user_id)
+        return recommend_reply(result), book_recommend_card(key=key, result=result)
+
     raise ValueError(f"不支持执行的能力：{capability}")
+
+
+def _execute_book_digest(
+    *, user_id: str, session: Session, gateway: ModelGateway, key: str, args: dict | None
+) -> tuple[str, dict]:
+    """通读一本书。书名对不上时出选择卡，让用户点一下书名再说一遍。"""
+    from app.agent.router import parse_book_title
+
+    payload = args or {}
+    title = str(payload.get("title") or "").strip()
+    force = bool(payload.get("force"))
+
+    from app.domain.repositories.book_repository import BookRepository
+
+    if not title:
+        shelf = BookRepository(session, user_id=user_id).list_active(user_id)
+        if not shelf:
+            card = notice_card(
+                title="书架还是空的",
+                note="先去书架页上传一本电子书，回来再说「通读《书名》」。",
+                href="/books.html",
+            )
+            return card["note"], card
+        card = notice_card(
+            title="要通读哪一本？",
+            note="点下面任意一本开始；或者直接说「通读《书名》」。",
+            sends=[
+                {"label": f"通读《{book.title}》", "message": f"通读《{book.title}》"}
+                for book in shelf[:5]
+            ],
+        )
+        return card["note"], card
+
+    book = book_orchestrator.resolve_book(session, user_id=user_id, title=title)
+    if book is None:
+        shelf = BookRepository(session, user_id=user_id).list_active(user_id)
+        if not shelf:
+            card = notice_card(
+                title=f"书架里没有《{title}》",
+                note="先去书架页上传这本电子书，再来通读。",
+                href="/books.html",
+            )
+        else:
+            card = notice_card(
+                title=f"书架里没找到《{title}》",
+                note="是下面某一本书的话，点它就开始；名字不在书架里就先去上传。",
+                sends=[
+                    {"label": f"通读《{b.title}》", "message": f"通读《{b.title}》"}
+                    for b in shelf[:5]
+                ],
+            )
+        return card["note"], card
+
+    outcome = book_orchestrator.read_whole_book(
+        session, gateway, user_id=user_id, book=book, force=force
+    )
+    return digest_reply(outcome), book_digest_card(key=key, outcome=outcome)
+
+
+def execute_book_discuss(
+    *, user_id: str, session: Session, gateway: ModelGateway, message: str, args: dict | None
+) -> tuple[str, dict]:
+    """就通读过的书讨论一轮（同步：一次模型调用，自然语言回复）。
+
+    与 `execute_capability` 分开：它需要**用户那句话原文**当问题——
+    本地规则只判得出「这是在聊书」，问题本身没法抽成结构化 args。
+    """
+    from app.agent.router import parse_book_title
+    from app.domain.repositories.book_repository import BookRepository
+
+    payload = args or {}
+    title = str(payload.get("title") or "").strip() or parse_book_title(message)
+    question = (message or "").strip()
+
+    book = book_orchestrator.resolve_book(session, user_id=user_id, title=title)
+    if book is None:
+        card = notice_card(
+            title="没确定要聊哪本书",
+            note="带上书名再说一次，例如「聊聊《三体》」；也可以先「通读《书名》」。",
+            href="/books.html",
+        )
+        return card["note"], card
+
+    answer = book_orchestrator.discuss(
+        session, gateway, user_id=user_id, book=book, question=question
+    )
+    if answer is None:
+        card = notice_card(
+            title=f"《{book.title}》还没通读过",
+            note="先让我通读一遍再聊，讨论才有依据。",
+            sends=[{"label": f"通读《{book.title}》", "message": f"通读《{book.title}》"}],
+        )
+        return card["note"], card
+    return answer, None
 
 
 def _execute_l4_goal(*, user_id: str, session: Session, key: str, args: dict | None) -> tuple[str, dict]:

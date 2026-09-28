@@ -199,6 +199,11 @@ class Copilot:
             "books": self._execute,
             "knowledge_add": self._knowledge_add,
             "weread_sync": self._execute,
+            # 通读/推荐走 turns.execute_capability；讨论需要用户那句话原文当问题，
+            # 单独一个 handler（execute_capability 的 args 契约装不下它）
+            "book_digest": self._execute,
+            "book_recommend": self._execute,
+            "book_discuss": self._book_discuss,
             "chat": self._chat,
         }
 
@@ -241,6 +246,18 @@ class Copilot:
             session=self._session,
             gateway=self._gateway,
             key=str(uuid4()),
+            args=route.args,
+        )
+        self._append_exchange(repo, conversation, message, reply, card)
+        return reply, card
+
+    def _book_discuss(self, repo, conversation, *, user_id, message, route):
+        """就通读过的书讨论一轮。消息由本层追加（执行体不写消息，与 `_execute` 同一分工）。"""
+        reply, card = turns.execute_book_discuss(
+            user_id=user_id,
+            session=self._session,
+            gateway=self._gateway,
+            message=message,
             args=route.args,
         )
         self._append_exchange(repo, conversation, message, reply, card)

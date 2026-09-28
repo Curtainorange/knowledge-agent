@@ -27,6 +27,7 @@ from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult
 from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
+from app.agent.book_orchestrator import BookRecommendList, ChunkDigest, SummaryDigest
 from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
 from app.llm.structure import parse_structured
@@ -89,6 +90,9 @@ def _validator_for(name: str):
         "l4_plan": lambda d: GeneratedPlan(**d),
         "l4_deviate": lambda d: DeviationAnalysis(**d),
         "l5_diagnose": lambda d: DiagnosisDraft(**d),
+        "book_digest_chunk": lambda d: ChunkDigest(**d),
+        "book_digest_summary": lambda d: SummaryDigest(**d),
+        "book_recommend": lambda d: BookRecommendList(**d),
     }[name]
 
 
@@ -120,6 +124,15 @@ def _check(name: str, parsed) -> None:
     elif name == "l5_diagnose":
         assert parsed.root_cause and parsed.suggested_action
         assert isinstance(parsed.reasoning_chain, list)
+    elif name == "book_digest_chunk":
+        assert parsed.gist, "分块要点缺主线概括"
+        assert isinstance(parsed.points, list)
+    elif name == "book_digest_summary":
+        assert parsed.summary, "全书总评为空"
+    elif name == "book_recommend":
+        assert parsed.items, "推荐书单为空"
+        for item in parsed.items:
+            assert item.title and item.reason, "推荐条目缺书名或理由"
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

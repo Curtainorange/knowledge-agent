@@ -51,6 +51,10 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     # 判不出来时回落通用对话也是安全行为——故 reasoning=off 控成本。
     # 若实测分流质量不足，再单独把这行改成 on（比照 l1_mining）。
     "capability_routing": Strategy("capability_routing", False, ""),
+    # 书籍三项：通读的分块提要点与汇总、书籍推荐都是标准结构化任务，reasoning=off；
+    # 讨论复用 multi_turn_dialogue 策略（自然语言、off），不单开一行
+    "book_digest": Strategy("book_digest", False, ""),
+    "book_recommend": Strategy("book_recommend", False, ""),
 }
 
 
@@ -73,6 +77,8 @@ JSON_TASK_TYPES: frozenset[str] = frozenset({
     "plan_generation",
     "causal_reasoning",
     "deep_reasoning",
+    "book_digest",
+    "book_recommend",
 })
 
 

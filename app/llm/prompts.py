@@ -170,11 +170,12 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v2",
+    version="v3",
     text=(
         "你是「认知副驾」对话入口的意图分流器。把用户这一句话归到**恰好一个**能力上，"
         "并抽出该能力需要的参数。输出严格 JSON："
-        '{"capability":"l1|l2|l3|l4_goal|l4_plan|l4_deviation|l5|knowledge_add|weread_sync|books|chat",'
+        '{"capability":"l1|l2|l3|l4_goal|l4_plan|l4_deviation|l5|knowledge_add|weread_sync|books|'
+        'book_digest|book_discuss|book_recommend|chat",'
         '"args":{},"confidence":0..1,"reason":""}。'
         "各能力语义："
         "l1=用模糊线索找回知识库里某条已有内容，args 留空；"
@@ -187,11 +188,87 @@ AGENT_ROUTE = PromptSpec(
         "l5=诊断学习行为问题、做健康归因，args 留空；"
         "knowledge_add=用户要新记一条内容，args 必带 {title, content}，tags 可选数组；"
         "weread_sync=同步微信读书的划线与想法，args 留空；"
-        "books=查看书架或阅读记录，args 留空。"
+        "books=查看书架或阅读记录，args 留空；"
+        "book_digest=让我通读书架里的某本书并生成通读笔记（要点、总评），"
+        'args 形如 {"title":"《》里的书名","force":false}，用户没给书名时 title 留空，'
+        "「重新通读」时 force=true；"
+        "book_discuss=就通读过的书继续提问或讨论（前提是已有通读笔记），"
+        'args 形如 {"title":"书名或空","question":"用户想聊的问题"}；'
+        "book_recommend=根据学习情况推荐值得读的书，args 留空。"
+        "注意 book 三项的区别：说「通读/替我读一遍」用 book_digest；"
+        "说「聊聊/讨论这本书的内容」用 book_discuss；说「推荐书」用 book_recommend。"
         "注意 l4 的三项区别：说「定目标」用 l4_goal；说「拆成周计划」用 l4_plan；"
         "说「有没有按计划走/偏离了」用 l4_deviation。"
         "判定不明确、或只是提问、闲聊、道谢 → chat，**不要**硬塞进某个能力。"
         "args 只填该能力真正用得到的字段，用不到就给空对象。"
+    ),
+)
+
+
+# ---- 书籍：通读 / 讨论 / 推荐 ----------------------------------------------
+#
+# 通读拆成两个提示词（分块提要点 → 汇总成总评），共用 task_type=book_digest，
+# 版本号由调用方用 prompt_version 区分（与 cognitive_brief 服务简报/追问是同一模式）。
+
+BOOK_DIGEST_CHUNK = PromptSpec(
+    name="book_digest_chunk",
+    version="v1",
+    text=(
+        "你是「认知副驾」的通读笔记员。下面给你一本书连续的一段原文，"
+        "你要产出这一段的阅读笔记。输出严格 JSON："
+        '{"gist":"2-3 句概括这段讲了什么","points":["要点1","要点2"]}.'
+        "要求："
+        "1) gist 抓主线与结论，不复述细节；"
+        "2) points 是 2-5 条可独立成立的要点，每条一句话，"
+        "优先保留作者的核心主张、方法与例子，不写「本段介绍了」这类废话；"
+        "3) 只依据给定原文，读不到的内容不编。"
+    ),
+)
+
+BOOK_DIGEST_SUMMARY = PromptSpec(
+    name="book_digest_summary",
+    version="v1",
+    text=(
+        "你是「认知副驾」的通读笔记员。下面是逐段读完一本书后得到的分章要点，"
+        "你要把它们汇总成一份全书总评。输出严格 JSON："
+        '{"summary":"150-300 字的总评"}.'
+        "要求："
+        "1) 总评讲清这本书在回答什么问题、核心主张是什么、结构上怎么展开；"
+        "2) 点出最值得记住的 2-3 个观点；"
+        "3) 不堆砌章节清单，不复述要点原文；只依据给定要点，不编造书中没有的内容。"
+    ),
+)
+
+BOOK_RECOMMEND = PromptSpec(
+    name="book_recommend",
+    version="v1",
+    text=(
+        "你是「认知副驾」的选书人。根据用户的学习画像（知识库主题、在读的书、学习目标），"
+        "推荐 3-5 本值得读的书。输出严格 JSON："
+        '{"overview":"一句话说明这批书为什么适合他现在","items":['
+        '{"title":"书名","author":"作者","fit":"这本书和他现在在学的东西的关系（一句话）",'
+        '"reason":"为什么值得他读（两三句，具体到书的内容）"}]}.'
+        "要求："
+        "1) fit 必须挂在他的真实学习活动上（引用画像里的主题/目标），不许写成通用的「拓宽视野」；"
+        "2) reason 讲书本身的价值与切入时机，不说教、不夸大；"
+        "3) 只推荐你确信真实存在的书，作者不确定就留空；"
+        "4) 书名给中文名（有通行译名时），不要编造书名。"
+    ),
+)
+
+# 就通读过的书继续讨论：输出是自然语言回复，不产结构化 JSON，
+# 因此与 COPILOT_PERSONA 一样**不进 ALL_PROMPTS**，版本只进 PROMPT_VERSION_BY_TASK_TYPE。
+BOOK_CHAT = PromptSpec(
+    name="book_chat",
+    version="v1",
+    text=(
+        "你在和用户讨论一本书。你们已经让我通读过全书，下面附上通读笔记"
+        "（总评 + 分章要点）和用户的问题。"
+        "回答要求："
+        "1) 依据通读笔记回答，笔记里没有的可以谨慎补充，但要说明这不是书里的内容；"
+        "2) 具体到书里的观点、例子与章节，不空谈；"
+        "3) 语气像一起读过这本书的同伴：直接给观点，不罗列、不说教、不啰嗦；"
+        "4) 用户的空闲阅读位置可以自然参考，但不要催他读书。"
     ),
 )
 
@@ -234,6 +311,9 @@ ALL_PROMPTS: list[PromptSpec] = [
     L4_PLAN,
     L4_DEVIATE,
     L5_DIAGNOSE,
+    BOOK_DIGEST_CHUNK,
+    BOOK_DIGEST_SUMMARY,
+    BOOK_RECOMMEND,
 ]
 
 
@@ -258,4 +338,9 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "plan_generation": L4_PLAN.version,
     "deep_reasoning": L4_DEVIATE.version,
     "causal_reasoning": L5_DIAGNOSE.version,
+    # 书籍三项：通读的分块与汇总共用 task_type=book_digest，靠调用方传 prompt_version 区分，
+    # 这里登记的是默认（分块）；讨论走 multi_turn_dialogue 的策略，只在此登记版本供成本追溯
+    "book_digest": BOOK_DIGEST_CHUNK.version,
+    "book_recommend": BOOK_RECOMMEND.version,
+    "book_chat": BOOK_CHAT.version,
 }

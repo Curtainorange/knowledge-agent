@@ -30,13 +30,15 @@ logger = logging.getLogger(__name__)
 Capability = Literal[
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
-    "l5", "knowledge_add", "weread_sync", "books", "chat",
+    "l5", "knowledge_add", "weread_sync", "books",
+    "book_digest", "book_discuss", "book_recommend", "chat",
 ]
 
 KNOWN_CAPABILITIES: tuple[str, ...] = (
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
-    "l5", "knowledge_add", "weread_sync", "books", "chat",
+    "l5", "knowledge_add", "weread_sync", "books",
+    "book_digest", "book_discuss", "book_recommend", "chat",
 )
 
 # 未识别 / 判定不明确时的归宿。**所有兜底都落到这里**。
@@ -46,7 +48,8 @@ FALLBACK_CAPABILITY = "chat"
 # 而不是假装做完了——「路由认得」与「能力已接入」必须分开，否则用户会以为功能坏了。
 WIRED_CAPABILITIES: frozenset[str] = frozenset({
     "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
-    "knowledge_add", "weread_sync", "books", "chat",
+    "knowledge_add", "weread_sync", "books",
+    "book_digest", "book_discuss", "book_recommend", "chat",
 })
 
 
@@ -79,6 +82,9 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("l5", "健康诊断", "诊断我的学习状态", "/l5.html"),
     CapabilitySpec("weread_sync", "同步微信读书", "同步微信读书", "/books.html"),
     CapabilitySpec("books", "书架", "我的书架里有什么", "/books.html"),
+    CapabilitySpec("book_digest", "通读一本书", "通读《三体》"),
+    CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
+    CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
 )
 
 
@@ -171,7 +177,9 @@ _RECALL_MARKERS = ("那条", "那本", "那段", "那篇", "记得我存", "记�
 _BOOK_WORDS = ("书架", "阅读记录", "阅读日志", "读了什么", "读了哪些")
 _SYNC_WORDS = ("微信读书", "微信阅读", "weread")
 
-TAG_PATTERN = re.compile(r"#([^\s#]{1,16})")
+_TAG_PATTERN = re.compile(r"#([^\s#]{1,16})")
+# 书名只认《》形式：自然语言里的裸书名没法可靠切出来，宁缺毋滥
+_BOOK_TITLE_PATTERN = re.compile(r"《([^《》]{1,80})》")
 _TITLE_MAX = 40
 _GOAL_MAX = 256
 
@@ -193,10 +201,10 @@ def parse_note(text: str) -> dict:
             break
 
     tags: list[str] = []
-    for found in TAG_PATTERN.findall(body):
+    for found in _TAG_PATTERN.findall(body):
         if found not in tags:
             tags.append(found)
-    body = TAG_PATTERN.sub("", body).strip()
+    body = _TAG_PATTERN.sub("", body).strip()
 
     if not body:
         return {"title": "", "content": "", "tags": tags}
@@ -217,6 +225,15 @@ def parse_goal(text: str) -> str:
             body = body[len(trigger):]
             break
     return body.lstrip("：:，,。.、 ").strip()[:_GOAL_MAX]
+
+
+def parse_book_title(text: str) -> str:
+    """从「通读《三体》」里剥出书名；没有《》就返回空串，由执行层出选择卡。
+
+    和 `parse_goal` 同一套路：书名只在《》里认，裸书名没法可靠切出来。
+    """
+    found = _BOOK_TITLE_PATTERN.findall(text or "")
+    return found[0].strip() if found else ""
 
 
 def _match_local(text: str) -> CapabilityRoute | None:
@@ -264,12 +281,24 @@ def _match_local(text: str) -> CapabilityRoute | None:
     if _has_any(text, _PLAN_VIEW_WORDS):
         return hit("l4_goal", "识别到查看当前目标与计划", intent="view")
 
-    # 9. L1 按线索找回 —— 放在 books 之前：
+    # 9. 书籍三项 —— 放在 L1 之前：词形更具体，且「聊聊那本书」里的「那本」
+    #    会撞 L1 的澄清标记词；「通读」这类说法没有歧义，直接快路径
+    if "通读" in text:
+        return hit(
+            "book_digest", "识别到通读一本书",
+            title=parse_book_title(text), force="重新" in text,
+        )
+    if _has_any(text, ("聊聊", "讨论")) and _has_any(text, ("这本书", "那本书", "《")):
+        return hit("book_discuss", "识别到就书讨论", title=parse_book_title(text))
+    if "推荐" in text and _has_any(text, ("书", "读物", "书单")):
+        return hit("book_recommend", "识别到推荐书籍")
+
+    # 10. L1 按线索找回 —— 放在 books 之前：
     #    「帮我找书架里那本讲索引的书」的意图是 L1，不该被「书架」抢走
     if text.startswith(("找", "搜")) or _has_any(text, _RECALL_PREFIXES + _RECALL_MARKERS):
         return hit("l1", "识别到按线索找回")
 
-    # 10. 书架 / 阅读记录
+    # 11. 书架 / 阅读记录
     if _has_any(text, _BOOK_WORDS):
         return hit("books", "识别到查看书架")
 

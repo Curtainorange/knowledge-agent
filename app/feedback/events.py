@@ -28,6 +28,8 @@ KNOWLEDGE_DELETED = "knowledge.item.deleted"
 BOOK_UPLOADED = "book.uploaded"
 BOOK_PROGRESS = "book.progress"
 NOTE_CREATED = "note.created"
+BOOK_DIGEST_DONE = "book.digest.done"      # 智能体通读一本书完成（与用户阅读进度完全隔离）
+BOOK_RECOMMEND_DONE = "book.recommend.done"  # 生成一次书籍推荐
 # 外部阅读平台同步（微信读书官方 AI Skills 接口）
 WEREAD_SYNCED = "weread.synced"
 # 能力调用与反馈
