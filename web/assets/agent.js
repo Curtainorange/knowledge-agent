@@ -135,8 +135,13 @@ window.CCA = (function () {
   }
 
   function conflictSideHtml(title, itemId, claim) {
+    /* 书籍通读来源（book:<id>）没有知识条目页，标题不做成链接 */
+    var isBook = typeof itemId === 'string' && itemId.indexOf('book:') === 0;
+    var who = isBook
+      ? '<div class="cf-who">' + esc(title) + '</div>'
+      : '<div class="cf-who"><a href="/knowledge.html?item=' + esc(itemId) + '">' + esc(title) + '</a></div>';
     return '<div class="cf-side">' +
-      '<div class="cf-who"><a href="/knowledge.html?item=' + esc(itemId) + '">' + esc(title) + '</a></div>' +
+      who +
       '<div>' + esc(claim || '（该条主张已不存在）') + '</div>' +
     '</div>';
   }

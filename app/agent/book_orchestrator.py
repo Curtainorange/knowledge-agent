@@ -38,7 +38,8 @@ from app.llm.prompts import BOOK_CHAT, BOOK_DIGEST_CHUNK, BOOK_DIGEST_SUMMARY, B
 logger = logging.getLogger(__name__)
 
 MAX_CHUNK_CHARS = 12_000   # 单块最大字符数（送模型的原文长度）
-MAX_CHUNKS = 16            # 块数上限：24 万字封顶，超出截断并在卡片注明
+MAX_CHUNKS = 24            # 块数上限：28.8 万字封顶，超出截断并在卡片注明
+                           # （19.9 万字的《刻意练习》= 17 块，16 挡不住真实书单）
 
 
 # ---- 模型输出契约（结构化 JSON）---------------------------------------------

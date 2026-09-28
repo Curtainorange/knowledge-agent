@@ -480,6 +480,9 @@ def scan_reply(summary: dict) -> str:
     scanned = int(summary.get("scanned_items") or 0)
     judged = int(summary.get("pairs_judged") or 0)
     parts = [f"扫了 {scanned} 条、判了 {judged} 对主张"]
+    books = int(summary.get("book_readings_used") or 0)
+    if books:
+        parts.append(f"含 {books} 本书通读笔记的观点")
     if found:
         parts.append(f"发现 {found} 处矛盾")
     else:

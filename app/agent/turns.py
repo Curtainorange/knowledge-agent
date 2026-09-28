@@ -172,6 +172,7 @@ def execute_capability(
             "conflicts_found": result.conflicts_found,
             "conflicts_suppressed": result.conflicts_suppressed,
             "extraction_failures": result.extraction_failures,
+            "book_readings_used": result.book_readings_used,
         }
         items = conflict_views(session, user_id=user_id, conflict_ids=result.conflict_ids)
         return scan_reply(summary), l2_conflicts_card(key=key, items=items, summary=summary)

@@ -70,3 +70,15 @@ class ClaimRepository(BaseRepository[Claim]):
             self._session.delete(row)
         self._session.flush()
         return len(rows)
+
+    def latest_created_at(self, item_id: str):
+        """某条目（含书籍影子来源键）主张的最新落库时间；无主张返回 None。
+
+        L2 书籍影子主张的增量口径用它：与 reading.updated_at 比较，
+        笔记更新了就重建（见 L2Orchestrator._book_claims_fresh）。
+        """
+        stmt = (
+            select(func.max(Claim.created_at))
+            .where(Claim.knowledge_item_id == item_id)
+        )
+        return self._session.scalar(stmt)

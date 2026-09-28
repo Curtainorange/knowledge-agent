@@ -2,7 +2,10 @@
 
 漏斗（P0 落地形态）：
   L2-1 增量筛选   只对 `claims_scanned_at IS NULL` 或落后于 `updated_at` 的条目
-                  （重）提取主张；主张是冲突判定的最小比对粒度（ADR-09）
+                  （重）提取主张；主张是冲突判定的最小比对粒度（ADR-09）。
+                  **书籍通读笔记不经过提取**：分章要点已是主张形态，直接以
+                  「影子主张」入漏斗（`knowledge_item_id="book:<book_id>"`），
+                  跳过一次提取调用——见 `_sync_book_claims`
   L2-2 语义近邻   主张向量余弦落在 [sim_lo, sim_hi] 带内即组对，兜住 topic 标签措辞
                   不稳定导致的漏召回；向量优先读 `Claim.embedding`，缺失才补算并回写
                   （见 `_claim_vectors`）——两侧文本口径由 `_claim_embed_text` 唯一收口
@@ -17,6 +20,10 @@
 幂等（ADR-13）：pair_key（无序主张对）已存在的对永不重复判定入库。
 可靠性：主张提取失败不写 claims_scanned_at（下次扫描自动重试）；
 LLM 调用绝不压在写事务里——每完成一个条目/一条冲突立即 commit 释放 SQLite 写锁。
+
+**素材边界（2026-09-28 扩展）**：知识条目（手动 / 划词 / 微信读书）+ 智能体通读笔记。
+书籍要点以影子主张参与「书 vs 笔记」「书 vs 书」的冲撞——外部知识冲撞已知，
+正是本能力存在的理由；对话闲聊、目标冲突不在此列（分别归 chat 与 L4）。
 """
 from __future__ import annotations
 
@@ -48,6 +55,24 @@ from app.retrieval.vector_store import cos_sim
 logger = logging.getLogger(__name__)
 
 _MAX_CLAIM_STATEMENT = 500
+
+# 书籍影子主张的合成来源键前缀：Claim/Conflict 的 knowledge_item_id / item_*_id
+# 填 `book:<book_id>`。以 "book:" 开头即「这条主张来自智能体通读笔记」，
+# 展示层据此改查 Book 表取标题（见 conflict_view）。**:安全: 前缀含冒号，与 UUID 天然不相交。
+_BOOK_SOURCE_PREFIX = "book:"
+
+# 每份通读笔记最多贡献的影子主张数：分章要点取 gist + 每章前 2 条要点。
+# 不设上限的话，一本 24 块的书 × 每块 5 要点会单独吃掉整轮配对预算。
+_MAX_CLAIMS_PER_READING = 40
+
+
+def book_source_key(book_id: str) -> str:
+    """书籍影子主张的来源键（Claim.knowledge_item_id / Conflict.item_*_id 共用）。"""
+    return f"{_BOOK_SOURCE_PREFIX}{book_id}"
+
+
+def is_book_source(source_id: str | None) -> bool:
+    return bool(source_id) and str(source_id).startswith(_BOOK_SOURCE_PREFIX)
 
 
 def _utcnow() -> datetime:
@@ -111,6 +136,7 @@ class L2ScanResult:
     pairs_judged: int = 0            # 成功拿到 LLM 判定的对数（解析失败不计入）
     conflicts_found: int = 0         # 新入库冲突数
     conflicts_suppressed: int = 0    # 因反馈抑制未入库数
+    book_readings_used: int = 0      # 参与本轮的通读笔记份数
     conflict_ids: list[str] = field(default_factory=list)
 
 
@@ -134,6 +160,10 @@ class L2Orchestrator:
         xrepo = ConflictRepository(self._session, user_id=user_id)
 
         items = {i.id: i for i in krepo.list_active(user_id)}
+
+        # 书籍通读笔记 → 影子主张（要点即主张，跳过提取；增量口径见函数内注释）。
+        # 返回的标题映射供判定提示词使用：书观点以《书名》的语境送进判定。
+        book_titles = self._sync_book_claims(user_id, crepo)
 
         # L2-1：增量主张提取（失败不置位，下轮重试；成功立即 commit 释放写锁）
         for item in items.values():
@@ -170,13 +200,19 @@ class L2Orchestrator:
             result.scanned_items += 1
             result.claims_extracted += created
 
-        if not items:
+        # 判定提示词的标题语境：知识条目用条目标题，书籍影子主张用《书名》
+        titles = {item_id: item.title for item_id, item in items.items()}
+        titles.update(book_titles)
+
+        if not titles:
             return result
 
         # L2-2~4：候选对生成（同 topic 预筛 + 立场/强度排序 + 上限闸门）
         # L2-6 前置：被用户反复忽略的冲突类型直接收敛（UC-L2-03）
         suppressed_types = self._suppressed_types(user_id, xrepo)
-        all_claims = [c for c in crepo.list_by_user(user_id) if c.knowledge_item_id in items]
+        valid_sources = set(titles)
+        all_claims = [c for c in crepo.list_by_user(user_id) if c.knowledge_item_id in valid_sources]
+        result.book_readings_used = len(book_titles)
         pairs = self._candidate_pairs(all_claims)
 
         for claim_a, claim_b in pairs:
@@ -184,7 +220,7 @@ class L2Orchestrator:
             if xrepo.find_by_pair(user_id, pair_key) is not None:
                 continue  # ADR-13 幂等：同对主张只判一次
 
-            judgment = self._judge_pair(claim_a, claim_b, items, user_id=user_id)
+            judgment = self._judge_pair(claim_a, claim_b, titles, user_id=user_id)
             if judgment is None:
                 continue  # LLM 失败：不入库，下轮重试
             result.pairs_judged += 1
@@ -234,6 +270,7 @@ class L2Orchestrator:
                 "conflicts_found": result.conflicts_found,
                 "conflicts_suppressed": result.conflicts_suppressed,
                 "extraction_failures": result.extraction_failures,
+                "book_readings_used": result.book_readings_used,
             },
         )
         return result
@@ -277,6 +314,113 @@ class L2Orchestrator:
         return conflict
 
     # ---- L2-1 主张提取 ---------------------------------------------------
+
+    def _sync_book_claims(self, user_id: str, crepo: ClaimRepository) -> dict[str, str]:
+        """把通读笔记同步成影子主张，返回 {source_key: 《书名》通读笔记} 供判定语境用。
+
+        **为什么跳过提取**：分章要点在通读时已按「主张形态」产出（gist + 原子要点），
+        再送一次提取调用是花钱重复劳动；这里只做「要点 → Claim 行」的转换与向量化。
+
+        增量口径：`reading.updated_at`（重读覆盖会刷新）大于该书影子主张的最新
+        `created_at` 时重建（delete + create，天然幂等）。两侧都是 SQLite `now()`
+        写出的 naive datetime，同源可比；同秒边界下「主张不落后于笔记」即视为新鲜，
+        最坏情形只是多一次重建。
+        """
+        from sqlalchemy import select
+
+        from app.domain.models.book import Book
+        from app.domain.models.book_agent_reading import BookAgentReading
+
+        readings = list(self._session.scalars(
+            select(BookAgentReading).where(
+                BookAgentReading.user_id == user_id,
+                BookAgentReading.status == "done",
+                BookAgentReading.is_deleted.is_(False),
+            )
+        ))
+        if not readings:
+            return {}
+
+        books = {
+            b.id: b
+            for b in self._session.scalars(
+                select(Book).where(Book.id.in_([r.book_id for r in readings]))
+            )
+        }
+
+        titles: dict[str, str] = {}
+        for reading in readings:
+            book = books.get(reading.book_id)
+            if book is None or book.is_deleted:
+                continue
+            source = book_source_key(book.id)
+            display = f"《{book.title}》通读笔记"
+            titles[source] = display
+
+            if self._book_claims_fresh(crepo, source, reading):
+                continue
+
+            claims = self._reading_to_claims(reading, book_title=book.title)
+            crepo.delete_by_item(source)
+            for claim in claims:
+                text = self._claim_embed_text(claim.statement)
+                vecs = self._embed_texts([text])
+                crepo.create(
+                    user_id=user_id,
+                    knowledge_item_id=source,
+                    statement=text,
+                    topic=claim.topic,
+                    polarity=claim.polarity,
+                    strength=claim.strength,
+                    confidence=claim.confidence,
+                    embedding=EmbeddingModel.dumps(vecs[0]) if vecs else None,
+                )
+            self._session.commit()
+            logger.info(
+                "l2 book claims synced book=%s claims=%d", book.id, len(claims)
+            )
+        return titles
+
+    @staticmethod
+    def _book_claims_fresh(crepo: ClaimRepository, source: str, reading) -> bool:
+        """该书影子主张是否仍与通读笔记同版（不落后于笔记的最近更新）。"""
+        from datetime import datetime
+
+        latest = crepo.latest_created_at(source)
+        if latest is None:
+            return False
+        updated = reading.updated_at or reading.created_at
+        if not isinstance(updated, datetime):
+            return False
+        return latest >= updated.replace(tzinfo=None) if updated.tzinfo else latest >= updated
+
+    @staticmethod
+    def _reading_to_claims(reading, *, book_title: str) -> list[ExtractedClaim]:
+        """通读笔记 → 影子主张：每章取要点（缺要点的章节用 gist 兜底），限量。
+
+        statement 保持纯观点文本（书名语境由判定提示词带出）——把它拼进 statement
+        会污染 embedding 相似度：同一观点在不同书名前缀下算不出相近的向量。
+        """
+        claims: list[ExtractedClaim] = []
+        topic = (book_title or "").strip()[:64]
+        for chapter in reading.chapters_note or []:
+            if not chapter.get("gist"):
+                continue
+            points = [str(p).strip() for p in (chapter.get("points") or []) if str(p).strip()]
+            statements = points[:2] if points else [str(chapter.get("gist", "")).strip()]
+            for statement in statements:
+                if not statement:
+                    continue
+                claims.append(ExtractedClaim(
+                    statement=statement[:_MAX_CLAIM_STATEMENT],
+                    topic=topic,
+                    polarity=0,
+                    strength=0.5,
+                    confidence=0.6,
+                ))
+                if len(claims) >= _MAX_CLAIMS_PER_READING:
+                    return claims
+        return claims
 
     @staticmethod
     def _needs_rescan(item: KnowledgeItem) -> bool:
@@ -468,19 +612,19 @@ class L2Orchestrator:
         self,
         claim_a: Claim,
         claim_b: Claim,
-        items: dict[str, KnowledgeItem],
+        titles: dict[str, str],
         *,
         user_id: str,
     ) -> ConflictJudgment | None:
-        item_a = items.get(claim_a.knowledge_item_id)
-        item_b = items.get(claim_b.knowledge_item_id)
+        title_a = titles.get(claim_a.knowledge_item_id, "未知条目")
+        title_b = titles.get(claim_b.knowledge_item_id, "未知条目")
         messages = [
             {"role": "system", "content": _JUDGE_SYS},
             {
                 "role": "user",
                 "content": (
-                    f"主张A（来自《{item_a.title if item_a else '未知条目'}》）：{claim_a.statement}\n"
-                    f"主张B（来自《{item_b.title if item_b else '未知条目'}》）：{claim_b.statement}\n\n"
+                    f"主张A（来自《{title_a}》）：{claim_a.statement}\n"
+                    f"主张B（来自《{title_b}》）：{claim_b.statement}\n\n"
                     "请判定两条主张的关系并输出 JSON。"
                 ),
             },

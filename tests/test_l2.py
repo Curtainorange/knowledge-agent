@@ -589,4 +589,92 @@ def test_api_scan_list_and_feedback(client):
 
 def test_api_scan_requires_auth(client):
     assert client.post("/api/v1/l2/scan").status_code == 401
-    assert client.get("/api/v1/l2/conflicts").status_code == 401
+
+
+# ---------- 书籍通读笔记参与冲突检测 ----------
+
+
+def _seed_reading(session, user_id: str, *, book_title: str) -> str:
+    """造一本书 + 一份通读笔记，返回书的 source 键（book:<id>）。"""
+    from app.domain.models.book_agent_reading import BookAgentReading
+    from app.domain.repositories.book_repository import BookRepository
+
+    book = BookRepository(session, user_id=user_id).create(
+        user_id=user_id, title=book_title, author="", format="txt", file_path="",
+        chapters=[], full_text="", total_chars=0,
+    )
+    session.add(BookAgentReading(
+        user_id=user_id, book_id=book.id, status="done", total_chars=100,
+        summary="总评",
+        chapters_note=[{
+            "index": 0, "title": "第一章", "gist": "总括",
+            "points": ["一万小时练习即可成就专家", "天赋在技能习得中的作用可以忽略"],
+        }],
+    ))
+    session.commit()
+    return f"book:{book.id}"
+
+
+def test_scan_includes_book_reading_claims(session):
+    """通读笔记的要点以影子主张进漏斗：书观点与笔记观点能被判出冲突。"""
+    from app.agent.conflict_view import conflict_views
+
+    # 书名与笔记主张的 topic 相同 → 走 topic 通道稳定配对（hash embedding 的语义带不可控）
+    source = _seed_reading(session, "u1", book_title="技能习得")
+    _ingest(session, "u1", "天赋论", "没有天赋苦练也没用。")
+    orch = _orchestrator(session, {
+        "batch_extraction": [{
+            "claims": [
+                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+            ]
+        }],
+        "conflict_detection": [{
+            "relation": "矛盾", "conflict_type": "立场对立",
+            "detail": "一边说天赋决定上限，一边说练习即可成就专家",
+            "suggestion": "用同一项技能做一次对照实验", "confidence": 0.9,
+        }],
+    })
+
+    result = orch.scan(user_id="u1")
+
+    assert result.book_readings_used == 1
+    book_claims = ClaimRepository(session, user_id="u1").list_by_item(source)
+    assert len(book_claims) == 2, "通读笔记的要点应转成影子主张"
+    assert result.conflicts_found == 1
+    conflict = ConflictRepository(session, user_id="u1").list_by_user("u1")[0]
+    assert source in (conflict.item_a_id, conflict.item_b_id)
+
+    views = conflict_views(session, user_id="u1", conflict_ids=[conflict.id])
+    assert views[0]["title_a"].endswith("通读笔记") or views[0]["title_b"].endswith("通读笔记")
+
+
+def test_book_claims_rebuilt_only_when_reading_updated(session):
+    """笔记没变 → 主张原样保留（不重复向量化）；笔记重读刷新后 → 重建。"""
+    from datetime import datetime, timedelta
+
+    source = _seed_reading(session, "u2", book_title="技能习得")
+    orch = _orchestrator(session, {})
+
+    orch.scan(user_id="u2")
+    first_ids = [c.id for c in ClaimRepository(session, user_id="u2").list_by_item(source)]
+    assert first_ids, "首次扫描应建出影子主张"
+
+    orch.scan(user_id="u2")  # 笔记没变：主张原样复用
+    second_ids = [c.id for c in ClaimRepository(session, user_id="u2").list_by_item(source)]
+    assert second_ids == first_ids
+
+    reading = session.scalars(
+        __import__("sqlalchemy").select(__import__(
+            "app.domain.models.book_agent_reading", fromlist=["BookAgentReading"]
+        ).BookAgentReading)
+    ).first()
+    reading.updated_at = datetime.utcnow().replace(tzinfo=None) + timedelta(seconds=10)
+    session.commit()
+
+    orch.scan(user_id="u2")  # 笔记更新：delete + create 重建
+    third_ids = [c.id for c in ClaimRepository(session, user_id="u2").list_by_item(source)]
+    assert third_ids and third_ids != first_ids
+
+
+def test_api_scan_requires_auth(client):
+    assert client.post("/api/v1/l2/scan").status_code == 401

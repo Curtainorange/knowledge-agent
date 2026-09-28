@@ -50,6 +50,7 @@ def conflict_views(
     from app.domain.repositories.claim_repository import ClaimRepository
     from app.domain.repositories.conflict_repository import ConflictRepository
     from app.domain.repositories.knowledge_repository import KnowledgeRepository
+    from app.agent.l2_orchestrator import is_book_source
 
     xrepo = ConflictRepository(session, user_id=user_id)
     krepo = KnowledgeRepository(session, user_id=user_id)
@@ -60,18 +61,31 @@ def conflict_views(
     else:
         rows = [row for row in (xrepo.get(cid) for cid in conflict_ids) if row is not None]
 
+    def _resolve_title(source_id: str) -> tuple[str, str]:
+        """来源 id → (标题, 展示用来源 id)。书籍影子来源改查 Book 表，
+        标题带「通读笔记」字样，让「书 vs 笔记」的冲突在界面上自解释。"""
+        if is_book_source(source_id):
+            from app.domain.models.book import Book
+
+            book = session.get(Book, source_id[len("book:"):])
+            if book is not None and not book.is_deleted:
+                return f"《{book.title}》通读笔记", source_id
+            return "（书籍已删除）", source_id
+        item = krepo.get(source_id)
+        return (item.title if item else "（条目已删除）"), source_id
+
     views: list[dict] = []
     for row in rows:
-        item_a = krepo.get(row.item_a_id)
-        item_b = krepo.get(row.item_b_id)
+        title_a, view_a_id = _resolve_title(row.item_a_id)
+        title_b, view_b_id = _resolve_title(row.item_b_id)
         claim_a = crepo.get(row.claim_a_id) if row.claim_a_id else None
         claim_b = crepo.get(row.claim_b_id) if row.claim_b_id else None
         views.append({
             "conflict_id": row.id,
-            "item_a_id": row.item_a_id,
-            "item_b_id": row.item_b_id,
-            "title_a": item_a.title if item_a else "（条目已删除）",
-            "title_b": item_b.title if item_b else "（条目已删除）",
+            "item_a_id": view_a_id,
+            "item_b_id": view_b_id,
+            "title_a": title_a,
+            "title_b": title_b,
             "claim_a": claim_a.statement if claim_a else "",
             "claim_b": claim_b.statement if claim_b else "",
             "claim_a_id": row.claim_a_id or "",
