@@ -133,9 +133,9 @@ def test_digest_end_to_end_isolated_from_user_reading(client, session, provider)
     user = sign_in(client, "book_digest_e2e")
     book_id = _upload(client, user.headers, "测试书.txt", SAMPLE_TXT.encode("utf-8"))
 
+    # 两章合计远小于单块上限 → 贪心合并成 1 块：1 次提要点 + 1 次汇总
     provider.rows = [
-        json.dumps({"gist": "第一章交代背景", "points": ["要点甲", "要点乙"]}),
-        json.dumps({"gist": "第二章推进转折", "points": ["要点丙"]}),
+        json.dumps({"gist": "第一章交代背景，第二章推进转折", "points": ["要点甲", "要点乙", "要点丙"]}),
         json.dumps({"summary": "全书围绕起点与转折展开，主张先立框架再谈细节。"}),
     ]
 
@@ -145,13 +145,13 @@ def test_digest_end_to_end_isolated_from_user_reading(client, session, provider)
     assert card["kind"] == "book_digest"
     assert card["state"] == "ok"
     assert card["summary"].startswith("全书围绕")
-    assert len(card["chapters"]) == 2
+    assert len(card["chapters"]) == 1
     assert card["sends"] and "聊聊" in card["sends"][0]["message"]
 
     # 隔离不变量：智能体的阅读成果只落在独立表里
     reading = BookAgentReadingRepository(session, user_id=user.user_id).get_by_book(book_id)
     assert reading is not None and reading.status == "done"
-    assert reading.chunk_count == 2 and reading.failed_chunks == 0
+    assert reading.chunk_count == 1 and reading.failed_chunks == 0
 
     items = list(session.scalars(
         select(KnowledgeItem).where(KnowledgeItem.user_id == user.user_id)
@@ -270,6 +270,43 @@ def test_recommend_empty_profile_says_so(client, provider):
     assert card["items"] == []
     assert "空" in card["note"]
     assert provider.task_types == [], "画像为空时不该调模型"
+
+
+# ---- 切块 --------------------------------------------------------------------
+
+
+def test_build_chunks_merges_fragmented_chapters():
+    """epub 碎片章节（目录、版权页各算一章）必须按**字数**合并成块。
+
+    否则块上限会被章节数顶满——真实案例：《世界尽头的咖啡馆》3.6 万字被切成
+    16+ 块、后 7 章直接截断没读。
+    """
+    from app.agent.book_orchestrator import _build_chunks
+
+    chapters = [
+        {"index": i, "title": f"第{i}节", "char_start": i * 3000, "char_end": (i + 1) * 3000}
+        for i in range(30)
+    ]
+    book = Book(
+        id="b1", user_id="u1", title="t", author="", format="txt", file_path="",
+        chapters=chapters, full_text="x" * 90000, total_chars=90000,
+    )
+    chunks, truncated = _build_chunks(book)
+    assert not truncated, "9 万字的书不该被截断"
+    assert len(chunks) == 8, "9 万字应合并成 8 块（7 块满 + 1 块半）"
+    assert "等" in chunks[0]["title"], "合并块的标题要说明它含多节"
+    assert all(len(c["text"]) <= 12000 for c in chunks), "单块不得超过上限"
+
+
+def test_build_chunks_truncates_oversized_book():
+    from app.agent.book_orchestrator import MAX_CHUNKS, _build_chunks
+
+    book = Book(
+        id="b2", user_id="u1", title="t", author="", format="txt", file_path="",
+        chapters=[], full_text="x" * (12000 * (MAX_CHUNKS + 5)), total_chars=0,
+    )
+    chunks, truncated = _build_chunks(book)
+    assert truncated and len(chunks) == MAX_CHUNKS
 
 
 # ---- 异步入队 ----------------------------------------------------------------

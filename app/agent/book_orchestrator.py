@@ -119,31 +119,43 @@ def resolve_book(session: Session, *, user_id: str, title: str) -> Book | None:
 def _build_chunks(book: Book) -> tuple[list[dict], bool]:
     """把全文切成 (块列表, 是否截断)。块：{index, title, text}。
 
-    有章节结构（≥2 章）就按章切、超长章再切；否则按定长切。
+    切块的规模上限是**字数**而不是章节数——epub 章节碎片很多（目录、版权页都是一章），
+    若按章切，块上限会被碎片顶满，正文反而被截断。做法：章节先展开成片段，
+    再把相邻小片段贪心合并到接近 `MAX_CHUNK_CHARS`。
     """
     full_text = book.full_text or ""
-    chunks: list[dict] = []
+    pieces: list[tuple[str, str]] = []
 
     chapters = [c for c in (book.chapters or []) if (c.get("char_end", 0) - c.get("char_start", 0)) > 0]
     if len(chapters) >= 2:
         for chapter in sorted(chapters, key=lambda c: c.get("index", 0)):
             text = full_text[chapter["char_start"]:chapter["char_end"]]
             title = chapter.get("title") or f"第 {chapter.get('index', '')} 章"
-            for offset in range(0, len(text), MAX_CHUNK_CHARS):
-                pieces = len(range(0, len(text), MAX_CHUNK_CHARS))
-                sub = text[offset:offset + MAX_CHUNK_CHARS]
-                label = title if pieces == 1 else f"{title}（{offset // MAX_CHUNK_CHARS + 1}）"
-                chunks.append({"index": chapter.get("index", 0), "title": label, "text": sub})
+            spans = list(range(0, len(text), MAX_CHUNK_CHARS))
+            for offset in spans:
+                label = title if len(spans) == 1 else f"{title}（{offset // MAX_CHUNK_CHARS + 1}）"
+                pieces.append((label, text[offset:offset + MAX_CHUNK_CHARS]))
     else:
         for offset in range(0, len(full_text), MAX_CHUNK_CHARS):
-            chunks.append({
-                "index": offset // MAX_CHUNK_CHARS,
-                "title": f"第 {offset // MAX_CHUNK_CHARS + 1} 段",
-                "text": full_text[offset:offset + MAX_CHUNK_CHARS],
-            })
+            pieces.append((f"第 {offset // MAX_CHUNK_CHARS + 1} 段", full_text[offset:offset + MAX_CHUNK_CHARS]))
+
+    # 贪心合并相邻片段：单块不超过 MAX_CHUNK_CHARS
+    chunks: list[dict] = []
+    for label, text in pieces:
+        if chunks and len(chunks[-1]["text"]) + len(text) <= MAX_CHUNK_CHARS:
+            last = chunks[-1]
+            last["text"] += text
+            last["titles"].append(label)
+        else:
+            chunks.append({"index": len(chunks), "title": label, "text": text, "titles": [label]})
 
     truncated = len(chunks) > MAX_CHUNKS
-    return chunks[:MAX_CHUNKS], truncated
+    chunks = chunks[:MAX_CHUNKS]
+    for chunk in chunks:
+        if len(chunk["titles"]) > 1:
+            chunk["title"] = f"{chunk['titles'][0]} 等 {len(chunk['titles'])} 节"
+        del chunk["titles"]
+    return chunks, truncated
 
 
 def _digest_chunk(gateway: ModelGateway, *, user_id: str, chunk: dict) -> ChunkDigest:
