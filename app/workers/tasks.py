@@ -97,6 +97,30 @@ def enqueue(
     return EnqueueResult(created=True, task_id=row.id, task_name=task_name)
 
 
+def _reclaim_stale(session: Session) -> int:
+    """回收悬挂的 running 行（进程崩溃遗留）：改回 pending 供重跑。
+
+    单进程同步执行下 running 悬挂只可能来自崩溃，重跑安全（副作用侧有
+    exists_pair / content_hash / idempotency_key 等幂等兜底）。attempts 保留
+    ——下次领取继续 +1，毒任务耗尽 max_attempts 仍转 dead，不会无限回收循环。
+    """
+    from app.core.config import settings
+
+    threshold = float(settings.task_stale_seconds)
+    if threshold <= 0:
+        return 0
+    cutoff = _utcnow() - timedelta(seconds=threshold)
+    reclaimed = session.execute(
+        update(TaskRun)
+        .where(TaskRun.status == "running", TaskRun.updated_at < cutoff)
+        .values(status="pending", last_error="stale running reclaimed")
+    ).rowcount
+    session.commit()
+    if reclaimed:
+        logger.warning("reclaimed stale running tasks: %d", reclaimed)
+    return int(reclaimed)
+
+
 def run_pending(session: Session, *, limit: int = 5) -> RunSummary:
     """领取并执行待办任务。
 
@@ -105,6 +129,7 @@ def run_pending(session: Session, *, limit: int = 5) -> RunSummary:
     """
     from app.core.config import settings
 
+    _reclaim_stale(session)
     summary = RunSummary()
     stmt = (
         select(TaskRun)

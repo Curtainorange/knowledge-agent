@@ -154,6 +154,7 @@ class Settings(BaseSettings):
     worker_poll_seconds: float = 15.0    # 轮询间隔
     task_max_attempts: int = 3           # 重试上限，超出转死信
     task_retry_backoff_seconds: float = 1.0  # 重试退避基数（2^(n-1) 倍，测试设 0 即时重试）
+    task_stale_seconds: float = 600.0    # running 超时回收阈值（须大于最长 handler 实测时长）
 
     # --- L2 产物的下游消费（把冲突从「台账」变成「推理原料」）---
     # 未解冲突注入各能力时取几条：开场只取 1 条（显式传入），

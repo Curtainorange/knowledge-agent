@@ -5,7 +5,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from sqlalchemy import select
 
@@ -13,7 +13,7 @@ from app.domain.models.task_run import TaskRun
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.domain.repositories.user_repository import UserRepository
 from app.workers import handlers as _handlers  # noqa: F401  导入即注册 l2_scan 处理器
-from app.workers.tasks import HANDLERS, enqueue, run_pending
+from app.workers.tasks import HANDLERS, _utcnow, enqueue, run_pending
 
 CALLS: list[dict] = []
 
@@ -203,3 +203,66 @@ def test_worker_start_is_noop_when_disabled():
     from app.workers.runner import start_worker
 
     assert start_worker() is False
+
+
+# ---------- stale-running 回收（崩溃悬挂的自愈）----------
+
+
+def _make_stale_running(session, *, key: str, attempts: int = 0, max_attempts: int = 3, task_name: str = "test_echo") -> TaskRun:
+    """构造崩溃遗留的 running 行：状态 running、updated_at 老于回收阈值。"""
+    enqueue(session, task_name=task_name, user_id="u1", payload={"k": key},
+            idempotency_key=key, max_attempts=max_attempts)
+    row = session.scalars(select(TaskRun).where(TaskRun.idempotency_key == key)).one()
+    row.status = "running"
+    row.attempts = attempts
+    row.updated_at = _utcnow() - timedelta(seconds=3600)  # 远超 task_stale_seconds=600
+    session.commit()
+    return row
+
+
+def test_stale_running_row_is_reclaimed_to_pending(session):
+    row = _make_stale_running(session, key="k-stale")
+    summary = run_pending(session)
+
+    assert summary.claimed == 1 and summary.succeeded == 1  # 回收后被领走执行
+    assert CALLS[-1] == {"k": "k-stale"}
+    session.refresh(row)
+    assert row.status == "succeeded"
+
+
+def test_fresh_running_row_is_not_reclaimed(session):
+    enqueue(session, task_name="test_echo", user_id="u1", payload={}, idempotency_key="k-fresh")
+    row = session.scalars(select(TaskRun).where(TaskRun.idempotency_key == "k-fresh")).one()
+    row.status = "running"  # updated_at = 刚刚，未超阈值
+    session.commit()
+
+    summary = run_pending(session)
+
+    assert summary.claimed == 0  # 未超时的 running 不动、不被重复领
+    session.refresh(row)
+    assert row.status == "running"
+
+
+def test_reclaimed_task_runs_and_can_still_go_dead(session):
+    # attempts=2 是崩溃前的进度：回收保留 attempts，领取 +1=3 ≥ max=3 → 失败即死信
+    row = _make_stale_running(session, key="k-dead", attempts=2, max_attempts=3, task_name="test_boom")
+    summary = run_pending(session)
+
+    assert summary.claimed == 1 and summary.dead == 1
+    session.refresh(row)
+    assert row.status == "dead"
+    assert row.attempts == 3  # 从 2 保留累加，不是归零重来
+
+
+def test_reclaim_marks_last_error(session):
+    from app.workers.tasks import _reclaim_stale
+
+    row = _make_stale_running(session, key="k-mark", attempts=1)
+
+    reclaimed = _reclaim_stale(session)
+
+    assert reclaimed == 1
+    session.refresh(row)
+    assert row.status == "pending"
+    assert row.last_error == "stale running reclaimed"
+    assert row.attempts == 1  # attempts 保留

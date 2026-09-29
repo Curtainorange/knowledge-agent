@@ -1,7 +1,7 @@
-"""异步主动链路（worker/beat）—— P0 预留边界，未实现。
+"""异步主动链路（worker）——单进程守护线程 + 落库任务队列。
 
-异步任务（L2 周扫、L3 简报、L4 监测、L5 报告、知识同步/向量化）
-在 P1 引入 Celery/APScheduler 时落地。
+任务框架见 `tasks.py`（幂等入队 / 领取执行 / 重试 / 死信 / stale 回收），
+处理器注册见 `handlers.py`，周期任务的幂等键排程见 `triggers.py`。
 """
 from __future__ import annotations
 
