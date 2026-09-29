@@ -17,7 +17,9 @@
   L2-6 阈值+抑制  confidence < l2_min_confidence 丢弃（架构 §7.3）；
                   同类型冲突被用户忽略 ≥N 次后不再产生该类推荐（UC-L2-03）
 
-幂等（ADR-13）：pair_key（无序主张对）已存在的对永不重复判定入库。
+幂等（ADR-13）：pair_key（无序主张对）已判定过的对永不重复送判——
+冲突表挡重复入库，判定日志挡重复**判定**（非矛盾对不产生冲突行，
+只查冲突表会让同一对每轮重判烧钱）。翻案走 rejudge 受控通道。
 可靠性：主张提取失败不写 claims_scanned_at（下次扫描自动重试）；
 LLM 调用绝不压在写事务里——每完成一个条目/一条冲突立即 commit 释放 SQLite 写锁。
 
@@ -244,7 +246,12 @@ class L2Orchestrator:
         for claim_a, claim_b, sim in pairs:
             pair_key = make_pair_key(claim_a.id, claim_b.id)
             if xrepo.find_by_pair(user_id, pair_key) is not None:
-                continue  # ADR-13 幂等：同对主张只判一次
+                continue  # ADR-13 幂等：同对主张只判一次（已有冲突不再判）
+            # 判定日志即幂等账本：判成**非矛盾**的对不产生冲突行，若只查冲突表，
+            # 同一对稳定主张每轮扫描都会被重新送判烧钱（日志重复膨胀）。
+            # 已有判定记录（终判或 pending 待复核）都不再重判；翻案走受控通道。
+            if log_repo.exists_pair(user_id, pair_key):
+                continue
 
             judgment = self._judge_pair(claim_a, claim_b, titles, user_id=user_id)
             if judgment is None:

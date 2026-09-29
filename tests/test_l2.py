@@ -214,6 +214,32 @@ def test_non_conflict_relations_not_stored(session):
     assert result.pairs_judged == 1
 
 
+def test_non_conflict_pair_not_rejudged_next_scan(session):
+    """成本漏洞回归：判成非矛盾的对不产生冲突行，第二轮扫描不得再烧一次判定。
+
+    幂等的另一半——判定日志即账本。修复前每轮扫描都会把同一对稳定主张
+    重新送判（日志重复膨胀、LLM 费用按扫描次数翻倍）。
+    """
+    from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+    provider_rows = _two_same_topic_items(session)
+    provider_rows["conflict_detection"] = [{
+        "relation": "互补", "conflict_type": "", "detail": "时间尺度不同", "suggestion": "", "confidence": 0.85,
+    }]
+    provider = FakeProvider(provider_rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    first = orch.scan(user_id="u1")
+    assert first.pairs_judged == 1
+
+    second = orch.scan(user_id="u1")
+    assert second.pairs_judged == 0, "已有终判的对不得重复送判"
+    assert provider.calls.count("conflict_detection") == 1, "二轮扫描零新增判定调用"
+
+    logs = L2JudgmentLogRepository(session, user_id="u1").list_recent("u1")
+    assert len(logs) == 1, "判定日志不得重复膨胀"
+
+
 def test_low_confidence_discarded(session):
     provider_rows = _two_same_topic_items(session)
     provider_rows["conflict_detection"] = [{
