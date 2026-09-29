@@ -160,6 +160,10 @@ class Settings(BaseSettings):
     patrol_enabled: bool = True            # 巡检总开关
     l4_intervention_repeat_days: int = 3   # 持续偏离时归因/干预的最小间隔天数（防刷屏）
 
+    # --- 事件驱动反应（第二阶段）：learning_events → 任务/推送映射 ---
+    event_reaction_enabled: bool = True     # 事件反应总开关
+    event_reaction_window_hours: int = 48   # 只扫窗口内的事件（限查询量，幂等键兜底重复）
+
     # --- L2 产物的下游消费（把冲突从「台账」变成「推理原料」）---
     # 未解冲突注入各能力时取几条：开场只取 1 条（显式传入），
     # L3 简报 / L5 诊断 / L4 计划上下文共用此上限（成本与上下文闸门）

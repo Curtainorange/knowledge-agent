@@ -200,3 +200,18 @@ def l2_eval_weekly(payload: dict, session: Session) -> None:
         "l2 eval weekly user=%s precision=%.3f accepted=%d ignored=%d",
         user_id, metrics["precision"], metrics["n_accepted"], metrics["n_ignored"],
     )
+
+
+@register("event_reaction")
+def event_reaction(payload: dict, session: Session) -> None:
+    """执行一条事件驱动反应（映射表见 workers/reactions.py）。
+
+    幂等由入队键 `react:{event.id}:{event_type}` 保证——同一事件只会有一条反应任务。
+    """
+    from app.workers.reactions import execute_reaction
+
+    event_id = str(payload.get("event_id") or "")
+    if not event_id:
+        raise ValueError("event_reaction 缺少 event_id")
+    hit = execute_reaction(session, event_id=event_id)
+    logger.info("event reaction event=%s hit=%s", event_id, hit)
