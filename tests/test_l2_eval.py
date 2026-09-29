@@ -164,3 +164,14 @@ def test_eval_dataset_schema():
         assert it["gold_relation"] in RELATIONS
         if it["gold_relation"] == CONFLICT:
             assert it.get("gold_conflict_type"), f"{it['id']} 矛盾类必须填 gold_conflict_type"
+
+
+def test_eval_dataset_has_review_band_conflicts():
+    """标注集须含中置信边界样本（band=review 的矛盾对），复核翻案/救回才有证据基础。"""
+    path = Path(__file__).parent / "data" / "l2_judge_eval.json"
+    data = json.loads(path.read_text(encoding="utf-8"))
+    band_items = [it for it in data["items"] if it.get("band") == "review"]
+    assert len(band_items) >= 3, "复核带边界样本至少 3 条"
+    for it in band_items:
+        assert it["gold_relation"] == CONFLICT, f"{it['id']} 边界样本应为矛盾类"
+        assert it.get("gold_conflict_type"), f"{it['id']} 矛盾类必须填 gold_conflict_type"
