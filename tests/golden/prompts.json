@@ -15,6 +15,10 @@
     "version": "v1",
     "sha256": "79bc2e01b84da634f02f41d6ab0983201d1d68c65320ed4fae0fa09ed7a923bb"
   },
+  "l2_review": {
+    "version": "v1",
+    "sha256": "d63202329e577899c0fe944b40a20799167ed3c6ee32ad3341ce846654527a4c"
+  },
   "l3_analyze": {
     "version": "v1",
     "sha256": "34260d096bb2f8bd6160d6326bf0aff2b32c5c930a171272261f995baa3eee43"

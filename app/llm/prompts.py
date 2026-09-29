@@ -66,6 +66,22 @@ L2_JUDGE = PromptSpec(
     ),
 )
 
+L2_REVIEW = PromptSpec(
+    name="l2_review",
+    version="v1",
+    text=(
+        "你是观点冲突的复核裁判。此前的初判可能是错的，你要换一个角度重新审查。"
+        "先分别给出「维持初判」与「推翻初判」的最强理由（各不超过 2 句），"
+        "然后**独立**给出你的终判，输出严格 JSON："
+        '{"relation":"矛盾|互补|断层|无关","conflict_type":"","detail":"","suggestion":"",'
+        '"confidence":0..1,"uphold_reason":"","overturn_reason":""}。'
+        "relation 定义：矛盾=对同一问题的立场不可兼容；互补=视角不同但可并存；"
+        "断层=话题相邻但关注点错开；无关=仅主题词相近。"
+        "终判是矛盾时必须给 conflict_type 并在 detail 中引用双方原句作为证据。"
+        "不要因为初判存在就倾向维持——证据不足时推翻是更安全的选择。"
+    ),
+)
+
 # ---- L3 认知助产 -----------------------------------------------------------
 
 L3_ANALYZE = PromptSpec(
@@ -308,6 +324,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     L1_ROUTE,
     L2_EXTRACT,
     L2_JUDGE,
+    L2_REVIEW,
     L3_ANALYZE,
     L3_BRIEF,
     L3_ITEM,
@@ -336,6 +353,7 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "l1_mining": L1_ROUTE.version,
     "batch_extraction": L2_EXTRACT.version,
     "conflict_detection": L2_JUDGE.version,
+    "conflict_review": L2_REVIEW.version,
     "topic_analysis": L3_ANALYZE.version,
     "cognitive_brief": L3_BRIEF.version,  # 默认简报；衔接追问用 L3_ITEM 覆盖
     "plan_generation": L4_PLAN.version,

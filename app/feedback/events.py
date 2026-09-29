@@ -36,6 +36,7 @@ WEREAD_SYNCED = "weread.synced"
 L1_MINE = "l1.mine"
 L2_SCAN = "l2.scan"
 L2_CONFLICT_FEEDBACK = "l2.conflict.feedback"
+L2_JUDGMENT_REVIEWED = "l2.judgment.reviewed"  # 复核合议完成（payload：pair_key / review_state / 是否推翻）
 L3_BRIEF = "l3.brief"
 L3_QUESTION = "l3.question"
 # 学习计划与路径修正

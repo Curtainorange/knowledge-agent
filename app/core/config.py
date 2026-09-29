@@ -131,6 +131,12 @@ class Settings(BaseSettings):
     # 实测：相关但立场不同的主张对多落在 0.4~0.85
     l2_pair_sim_lo: float = 0.35
     l2_pair_sim_hi: float = 0.95
+    # 判定复核（判断层）：低置信「矛盾」判定自动换角度重判。区间横跨丢弃阈值 0.5——
+    # 下沿是被丢弃判定的翻案候选，上沿是勉强入库判定的把关对象；高置信不复核
+    l2_review_enabled: bool = True
+    l2_review_max_per_scan: int = 5   # 单轮扫描复核调用预算（硬闸门，超出转 pending 下轮补）
+    l2_review_lo: float = 0.35
+    l2_review_hi: float = 0.75
 
     # --- L3 认知助产（主题分布 → 「该问但没问」的追问）---
     l3_max_items_per_analysis: int = 60  # 单次分析送入模型的条目上限（成本与上下文闸门）

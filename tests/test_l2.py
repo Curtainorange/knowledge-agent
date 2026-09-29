@@ -752,3 +752,264 @@ def test_judgment_logs_not_written_for_llm_failure(session):
 
 def test_api_scan_requires_auth(client):
     assert client.post("/api/v1/l2/scan").status_code == 401
+
+
+# ---------- L2-7 复核合议（判断层第二道闸） ----------
+
+
+def _review_band_rows(session) -> dict[str, list]:
+    """一对落在复核带内的候选：矛盾判定 conf=0.65 → 校准 0.64 ∈ [0.35, 0.75]。"""
+    rows = _two_same_topic_items(session)
+    rows["conflict_detection"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "A 要坚守战略三年，B 要每月都调整目标",
+        "suggestion": "先统一目标复盘节奏", "confidence": 0.65,
+    }]
+    return rows
+
+
+def _initial_and_review_rows(session, user_id: str = "u1"):
+    from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+    logs = L2JudgmentLogRepository(session, user_id=user_id).list_recent(user_id)
+    initials = [r for r in logs if not r.review_of_id]
+    reviews = [r for r in logs if r.review_of_id]
+    return initials, reviews
+
+
+def test_review_upheld_creates_conflict_with_merged_confidence(session):
+    """低置信矛盾复核维持：合议置信度上调整后过阈值入库，两行日志挂对。"""
+    from app.domain.repositories.learning_event_repository import LearningEventRepository
+
+    rows = _review_band_rows(session)
+    rows["conflict_review"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "双方对目标调整周期的主张不可兼容", "suggestion": "先统一目标复盘节奏",
+        "confidence": 0.9, "uphold_reason": "周期主张确实互斥", "overturn_reason": "未见可调和的解释",
+    }]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    result = orch.scan(user_id="u1")
+
+    assert result.pairs_judged == 1
+    assert result.reviews_run == 1
+    assert result.reviews_overturned == 0
+    assert result.reviews_pending == 0
+    assert result.conflicts_found == 1, "合议维持 → 置信度上调整过阈值入库"
+    assert provider.calls.count("conflict_detection") == 1
+    assert provider.calls.count("conflict_review") == 1, "触发复核才多花这一次调用"
+
+    conflicts = ConflictRepository(session, user_id="u1").list_by_user("u1")
+    assert len(conflicts) == 1
+    # 合议：mean(0.64, 0.89) + 0.05 = 0.815（模型不算术，规则定的）
+    assert abs(conflicts[0].confidence - 0.815) < 1e-6
+
+    initials, reviews = _initial_and_review_rows(session)
+    assert len(initials) == 1 and len(reviews) == 1
+    assert initials[0].review_state == "upheld"
+    assert reviews[0].review_of_id == initials[0].id
+    assert reviews[0].relation == "矛盾"
+
+    events = LearningEventRepository(session, user_id="u1").list_recent(
+        "u1", event_type="l2.judgment.reviewed"
+    )
+    assert len(events) == 1
+    assert events[0].payload["review_state"] == "upheld"
+    assert events[0].payload["overturned"] is False
+
+
+def test_review_overturned_blocks_conflict(session):
+    """低置信矛盾复核推翻：终判非矛盾 → 拦下不入库。"""
+    rows = _review_band_rows(session)
+    rows["conflict_review"] = [{
+        "relation": "无关", "conflict_type": "", "detail": "两者不在同一层面讨论",
+        "suggestion": "", "confidence": 0.9,
+        "uphold_reason": "初判认为周期互斥", "overturn_reason": "一个讲规划节奏一个讲月度复盘，可并存",
+    }]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    result = orch.scan(user_id="u1")
+
+    assert result.reviews_run == 1
+    assert result.reviews_overturned == 1
+    assert result.conflicts_found == 0, "推翻 → 不入库"
+    assert ConflictRepository(session, user_id="u1").list_by_user("u1") == []
+
+    initials, reviews = _initial_and_review_rows(session)
+    assert initials[0].review_state == "overturned"
+    assert reviews[0].relation == "无关"
+
+
+def test_review_rescues_below_threshold_conflict(session):
+    """0.35~0.5 被丢弃带的判定经复核救回：初判 < 阈值本会被丢，合议后入库。"""
+    rows = _review_band_rows(session)
+    rows["conflict_detection"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "A 要坚守战略三年，B 要每月都调整目标",
+        "suggestion": "先统一目标复盘节奏", "confidence": 0.45,
+    }]
+    rows["conflict_review"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "双方对目标调整周期的主张不可兼容", "suggestion": "先统一目标复盘节奏",
+        "confidence": 0.9, "uphold_reason": "周期主张确实互斥", "overturn_reason": "未见可调和的解释",
+    }]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    result = orch.scan(user_id="u1")
+
+    # 初判校准 0.44 < 0.5，无复核会被丢弃；合议 mean(0.44, 0.89)+0.05=0.715 救回
+    assert result.reviews_run == 1
+    assert result.conflicts_found == 1
+    conflicts = ConflictRepository(session, user_id="u1").list_by_user("u1")
+    assert abs(conflicts[0].confidence - 0.715) < 1e-6
+
+
+def test_high_confidence_conflict_skips_review(session):
+    """高置信矛盾（校准 > 0.75）不复核——花钱买不到信息。"""
+    rows = _two_same_topic_items(session)
+    rows["conflict_detection"] = [{
+        "relation": "矛盾", "conflict_type": "立场对立",
+        "detail": "A 要坚守战略三年，B 要每月都调整目标",
+        "suggestion": "先统一目标复盘节奏", "confidence": 0.9,
+    }]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    result = orch.scan(user_id="u1")
+
+    assert result.reviews_run == 0
+    assert provider.calls.count("conflict_review") == 0
+    assert result.conflicts_found == 1
+    initials, reviews = _initial_and_review_rows(session)
+    assert reviews == []
+    assert initials[0].review_state == "none"
+
+
+def _six_review_band_rows(session) -> dict[str, list]:
+    """4 条目同主题 → 6 对，全部落在复核带（conf=0.65）——用于预算闸门测试。"""
+    for i in range(4):
+        _ingest(session, "u1", f"条目{i}", f"内容{i}")
+    return {
+        "batch_extraction": [
+            {"claims": [{"statement": f"应当坚持目标导向的工作方法不轻易改变方向{i}",
+                         "topic": "同一主题", "polarity": 1, "strength": 0.9}]}
+            for i in range(4)
+        ],
+        "conflict_detection": [
+            {"relation": "矛盾", "conflict_type": "立场对立", "detail": "d", "suggestion": "s",
+             "confidence": 0.65}
+            for _ in range(6)
+        ],
+    }
+
+
+_UPHOLD_REVIEW = {
+    "relation": "矛盾", "conflict_type": "立场对立", "detail": "d2", "suggestion": "s2",
+    "confidence": 0.9, "uphold_reason": "u", "overturn_reason": "o",
+}
+
+
+def test_review_budget_leaves_pending(session):
+    """预算硬闸门：6 个待复核只发 5 次复核调用，超出的标 pending 下轮补。"""
+    rows = _six_review_band_rows(session)
+    rows["conflict_review"] = [dict(_UPHOLD_REVIEW) for _ in range(5)]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    result = orch.scan(user_id="u1")
+
+    assert result.pairs_judged == 6
+    assert result.reviews_run == 5, "预算是硬闸门"
+    assert result.reviews_pending == 1
+    assert provider.calls.count("conflict_review") == 5
+
+    initials, _ = _initial_and_review_rows(session)
+    assert len(initials) == 6
+    assert sum(1 for r in initials if r.review_state == "pending") == 1
+    assert sum(1 for r in initials if r.review_state == "upheld") == 5
+
+
+def test_pending_review_resumes_next_scan_without_rejudge(session):
+    """pending 欠账下轮先补：只花复核调用，不重新送判。"""
+    rows = _six_review_band_rows(session)
+    rows["conflict_review"] = [dict(_UPHOLD_REVIEW) for _ in range(6)]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    first = orch.scan(user_id="u1")
+    assert first.reviews_pending == 1
+
+    second = orch.scan(user_id="u1")
+
+    assert second.pairs_judged == 0, "待复核对不重判"
+    assert provider.calls.count("conflict_detection") == 6, "判定调用不增加"
+    assert second.reviews_run == 1, "只补 1 次复核"
+    assert second.reviews_pending == 0
+    assert second.conflicts_found == 1, "补跑后终判照常入库"
+
+    initials, reviews = _initial_and_review_rows(session)
+    assert len(reviews) == 6
+    assert all(r.review_state != "pending" for r in initials)
+
+
+def test_review_failure_marks_pending_and_retries_review_only(session):
+    """复核 LLM/解析失败：原判标 pending，下轮只补复核不重判。"""
+    rows = _review_band_rows(session)
+    rows["conflict_review"] = [
+        "broken json {",
+        {"relation": "无关", "conflict_type": "", "detail": "不在同一层面", "suggestion": "",
+         "confidence": 0.9, "uphold_reason": "u", "overturn_reason": "o"},
+    ]
+    provider = FakeProvider(rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    first = orch.scan(user_id="u1")
+    assert first.reviews_run == 1, "失败的调用也占预算"
+    assert first.reviews_pending == 1
+    assert first.conflicts_found == 0, "复核未完成前暂缓应用终判"
+
+    second = orch.scan(user_id="u1")
+    assert second.pairs_judged == 0
+    assert provider.calls.count("conflict_detection") == 1, "不重判"
+    assert second.reviews_run == 1
+    assert second.reviews_pending == 0
+    assert second.reviews_overturned == 1
+
+    initials, reviews = _initial_and_review_rows(session)
+    assert len(reviews) == 1
+    assert initials[0].review_state == "overturned"
+
+
+def test_api_scan_reports_review_counters(client):
+    """scan 响应带复核计数（判断层可观测）。"""
+    fake = FakeProvider({
+        "batch_extraction": _extraction_rows()["batch_extraction"],
+        "conflict_detection": [{
+            "relation": "矛盾", "conflict_type": "立场对立",
+            "detail": "A 要坚守战略三年，B 要每月都调整目标",
+            "suggestion": "先统一目标复盘节奏", "confidence": 0.65,
+        }],
+        "conflict_review": [{
+            "relation": "无关", "conflict_type": "", "detail": "不在同一层面", "suggestion": "",
+            "confidence": 0.9, "uphold_reason": "u", "overturn_reason": "o",
+        }],
+    })
+    app.dependency_overrides[deps.get_gateway] = lambda: ModelGateway(provider=fake)
+    try:
+        headers = auth_headers(client, "l2_api_rev")
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "战略定力的经营者", "content": "长期专注战略。"}, headers=headers)
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "逆向思维", "content": "随时准备掉头。"}, headers=headers)
+        scan = client.post("/api/v1/l2/scan", headers=headers)
+        assert scan.status_code == 200, scan.text
+        body = scan.json()
+        assert body["reviews_run"] == 1
+        assert body["reviews_overturned"] == 1
+        assert body["reviews_pending"] == 0
+        assert body["conflicts_found"] == 0, "复核推翻 → 不入库"
+    finally:
+        app.dependency_overrides.pop(deps.get_gateway, None)

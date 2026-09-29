@@ -33,6 +33,10 @@ class L2ScanResponse(BaseModel):
     conflicts_found: int
     conflicts_suppressed: int
     conflict_ids: list[str]
+    # 复核计数（判断层）：本轮复核调用 / 推翻初判 / 欠账待复核
+    reviews_run: int = 0
+    reviews_overturned: int = 0
+    reviews_pending: int = 0
     request_id: str
 
 
@@ -84,6 +88,9 @@ def scan(
         conflicts_found=result.conflicts_found,
         conflicts_suppressed=result.conflicts_suppressed,
         conflict_ids=result.conflict_ids,
+        reviews_run=result.reviews_run,
+        reviews_overturned=result.reviews_overturned,
+        reviews_pending=result.reviews_pending,
         request_id=trace.get_request_id() or "",
     )
 

@@ -16,6 +16,9 @@
                   解析失败回退本地 JSON 解析（与 L1 同款顽健路径）
   L2-6 阈值+抑制  confidence < l2_min_confidence 丢弃（架构 §7.3）；
                   同类型冲突被用户忽略 ≥N 次后不再产生该类推荐（UC-L2-03）
+  L2-7 复核合议   低置信「矛盾」（校准值 ∈ [review_lo, review_hi]）换角度重判一次
+                  （conflict_review），规则合议定终判——同判维持加成、分歧推翻压低；
+                  预算硬闸门（l2_review_max_per_scan），欠账标 pending 下轮先补
 
 幂等（ADR-13）：pair_key（无序主张对）已判定过的对永不重复送判——
 冲突表挡重复入库，判定日志挡重复**判定**（非矛盾对不产生冲突行，
@@ -38,9 +41,12 @@ from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
 from app.agent.l2_judge_quality import (
+    FinalVerdict,
     PairSignals,
     calibrate_l2_confidence,
     cites_evidence,
+    merge_review,
+    needs_review,
 )
 from app.core.config import settings
 from app.domain.models.claim import Claim
@@ -53,8 +59,9 @@ from app.domain.repositories.conflict_repository import (
     make_pair_key,
 )
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
+from app.llm.exceptions import LLMError
 from app.llm.gateway import ModelGateway
-from app.llm.prompts import L2_EXTRACT, L2_JUDGE
+from app.llm.prompts import L2_EXTRACT, L2_JUDGE, L2_REVIEW
 from app.llm.structure import JsonParseError, parse_structured
 from app.retrieval.embedding import EmbeddingModel, build_embedding
 from app.retrieval.vector_store import cos_sim
@@ -130,11 +137,19 @@ class ConflictJudgment(BaseModel):
     confidence: float = Field(default=0.5, ge=0.0, le=1.0)
 
 
+class ReviewJudgment(ConflictJudgment):
+    """L2-7 复核裁判输出：在初判 schema 上加自辩两栏（一次调用内先自辩再终判）。"""
+
+    uphold_reason: str = ""
+    overturn_reason: str = ""
+
+
 # ---- 提示词 ----------------------------------------------------------------
 
 # 提示词统一在 app/llm/prompts.py 声明（版本化 + golden set 校验），此处仅取别名
 _EXTRACT_SYS = L2_EXTRACT.text
 _JUDGE_SYS = L2_JUDGE.text
+_REVIEW_SYS = L2_REVIEW.text
 
 
 # ---- 结果结构 --------------------------------------------------------------
@@ -163,6 +178,9 @@ class L2ScanResult:
     # 矛盾逼你修正，印证给你确认——两者都是书与笔记冲撞的产出
     echoes: list[dict] = field(default_factory=list)
     conflict_ids: list[str] = field(default_factory=list)
+    reviews_run: int = 0             # 本轮实际发出的复核调用数（含解析失败的，预算按次计）
+    reviews_overturned: int = 0      # 复核推翻初判的对数（翻案/拦下都算推翻）
+    reviews_pending: int = 0         # 本轮结束仍欠复核的对数（预算耗尽或复核失败）
 
 
 class L2Orchestrator:
@@ -243,6 +261,10 @@ class L2Orchestrator:
         result.book_readings_used = len(book_titles)
         pairs = self._candidate_pairs(all_claims)
 
+        # 待复核候选（二段队列）：(距决策边界距离, 原判行, 初判建议)。
+        # 候选暂缓应用终判——矛盾不入不丢，等复核合议后统一走 `_apply_verdict` 收口。
+        review_candidates: list[tuple[float, object, str]] = []
+
         for claim_a, claim_b, sim in pairs:
             pair_key = make_pair_key(claim_a.id, claim_b.id)
             if xrepo.find_by_pair(user_id, pair_key) is not None:
@@ -266,7 +288,7 @@ class L2Orchestrator:
             # 判定明细落库（**含非矛盾**）：排查「为什么没抓出冲突」与成本审计的
             # 事实来源。自包含（标题与文本随行）——影子主张会被重扫替换，
             # 靠 claim_id 回查会静默丢文本。写入后立即 commit，写锁不跨 LLM 调用。
-            log_repo.create(
+            log_row = log_repo.create(
                 user_id=user_id,
                 pair_key=pair_key,
                 claim_a_id=claim_a.id,
@@ -288,50 +310,40 @@ class L2Orchestrator:
             )
             self._session.commit()
 
-            if judgment.relation != "矛盾":
-                # 印证：书观点与笔记的互补对（跨来源）——矛盾逼你修正，印证给你确认
-                if (
-                    judgment.relation == "互补"
-                    and len(result.echoes) < _MAX_ECHOES
-                    and is_book_source(claim_a.knowledge_item_id) != is_book_source(claim_b.knowledge_item_id)
-                ):
-                    result.echoes.append({
-                        "title_a": titles.get(claim_a.knowledge_item_id, ""),
-                        "title_b": titles.get(claim_b.knowledge_item_id, ""),
-                        "claim_a": claim_a.statement,
-                        "claim_b": claim_b.statement,
-                    })
-                continue
-            if calibrated < settings.l2_min_confidence:
-                logger.info(
-                    "l2 conflict dropped (low confidence raw=%.2f calibrated=%.2f) pair=%s",
-                    judgment.confidence, calibrated, pair_key,
+            if needs_review(
+                relation=judgment.relation,
+                calibrated=calibrated,
+                enabled=settings.l2_review_enabled,
+                lo=settings.l2_review_lo,
+                hi=settings.l2_review_hi,
+            ):
+                # 待复核：本判暂缓应用（矛盾不入不丢），进二段队列按预算复核。
+                # 原判行自包含（文本/来源/极性全在），复核只依赖它。
+                review_candidates.append(
+                    (abs(calibrated - settings.l2_min_confidence), log_row, judgment.suggestion)
                 )
                 continue
 
-            if judgment.conflict_type in suppressed_types:
-                result.conflicts_suppressed += 1
-                logger.info("l2 conflict suppressed type=%s pair=%s", judgment.conflict_type, pair_key)
-                continue
-
-            conflict = xrepo.create(
-                user_id=user_id,
-                item_a_id=claim_a.knowledge_item_id,
-                item_b_id=claim_b.knowledge_item_id,
-                claim_a_id=claim_a.id,
-                claim_b_id=claim_b.id,
-                conflict_type=judgment.conflict_type or "矛盾",
-                detail=judgment.detail,
-                suggestion=judgment.suggestion,
+            self._apply_verdict(
+                user_id=user_id, result=result, xrepo=xrepo,
+                suppressed_types=suppressed_types, pair_key=pair_key,
+                source_a=claim_a.knowledge_item_id, source_b=claim_b.knowledge_item_id,
+                claim_a_id=claim_a.id, claim_b_id=claim_b.id,
+                title_a=titles.get(claim_a.knowledge_item_id, ""),
+                title_b=titles.get(claim_b.knowledge_item_id, ""),
+                claim_a_text=claim_a.statement, claim_b_text=claim_b.statement,
+                relation=judgment.relation, conflict_type=judgment.conflict_type,
+                detail=judgment.detail, suggestion=judgment.suggestion,
                 confidence=calibrated,
             )
-            self._session.commit()  # 立即提交，写锁不跨 LLM 调用
-            result.conflicts_found += 1
-            result.conflict_ids.append(conflict.id)
-            logger.info(
-                "l2 conflict created type=%s conf=%.2f (raw %.2f) pair=%s",
-                judgment.conflict_type, calibrated, judgment.confidence, pair_key,
-            )
+
+        # 二段复核：先补上轮欠账（pending 队列），再按「距决策边界越近越优先」
+        # 处理本轮候选。预算硬闸门；超出的标 pending，下轮扫描补跑。
+        self._run_reviews(
+            user_id=user_id, result=result, xrepo=xrepo, log_repo=log_repo,
+            suppressed_types=suppressed_types,
+            candidates=sorted(review_candidates, key=lambda t: t[0]),
+        )
 
         # 行为埋点：扫描产出的规模指标，供 L4/L5 与成本分析使用（不记冲突正文）
         from app.feedback import events
@@ -347,6 +359,9 @@ class L2Orchestrator:
                 "extraction_failures": result.extraction_failures,
                 "book_readings_used": result.book_readings_used,
                 "echoes_found": len(result.echoes),
+                "reviews_run": result.reviews_run,
+                "reviews_overturned": result.reviews_overturned,
+                "reviews_pending": result.reviews_pending,
             },
         )
         return result
@@ -752,3 +767,238 @@ class L2Orchestrator:
         except JsonParseError as exc:
             logger.warning("l2 judgment failed pair=%s|%s: %s", claim_a.id, claim_b.id, exc)
             return None
+
+    # ---- L2-7 复核合议 ------------------------------------------------------
+
+    def _apply_verdict(
+        self,
+        *,
+        user_id: str,
+        result: L2ScanResult,
+        xrepo: ConflictRepository,
+        suppressed_types: set[str],
+        pair_key: str,
+        source_a: str,
+        source_b: str,
+        claim_a_id: str,
+        claim_b_id: str,
+        title_a: str,
+        title_b: str,
+        claim_a_text: str,
+        claim_b_text: str,
+        relation: str,
+        conflict_type: str,
+        detail: str,
+        suggestion: str,
+        confidence: float,
+    ) -> None:
+        """终判的唯一入库收口（初判直过阈值 / 复核合议后共用）。
+
+        非矛盾：印证展示；若该对曾有冲突（重判翻案场景）则撤回——终判说没有，
+        库里就不该有。矛盾：阈值 + 抑制后 upsert（一 pair_key 一条冲突，
+        被撤回的旧冲突复活而不是再插一行）。
+        """
+        if relation != "矛盾":
+            existing = xrepo.find_by_pair(user_id, pair_key)
+            if existing is not None:
+                xrepo.retract(existing)
+                self._session.commit()
+                logger.info("l2 conflict retracted (verdict non-conflict) pair=%s", pair_key)
+            # 印证：书观点与笔记的互补对（跨来源）——矛盾逼你修正，印证给你确认
+            if (
+                relation == "互补"
+                and len(result.echoes) < _MAX_ECHOES
+                and is_book_source(source_a) != is_book_source(source_b)
+            ):
+                result.echoes.append({
+                    "title_a": title_a,
+                    "title_b": title_b,
+                    "claim_a": claim_a_text,
+                    "claim_b": claim_b_text,
+                })
+            return
+
+        if confidence < settings.l2_min_confidence:
+            logger.info(
+                "l2 conflict dropped (low confidence calibrated=%.2f) pair=%s",
+                confidence, pair_key,
+            )
+            return
+        if conflict_type in suppressed_types:
+            result.conflicts_suppressed += 1
+            logger.info("l2 conflict suppressed type=%s pair=%s", conflict_type, pair_key)
+            return
+
+        existing = xrepo.find_by_pair(user_id, pair_key, include_retracted=True)
+        conflict = xrepo.upsert_from_rejudge(
+            existing,
+            user_id=user_id,
+            item_a_id=source_a,
+            item_b_id=source_b,
+            claim_a_id=claim_a_id,
+            claim_b_id=claim_b_id,
+            conflict_type=conflict_type or "矛盾",
+            detail=detail,
+            suggestion=suggestion,
+            confidence=confidence,
+        )
+        self._session.commit()  # 立即提交，写锁不跨 LLM 调用
+        result.conflicts_found += 1
+        result.conflict_ids.append(conflict.id)
+        logger.info(
+            "l2 conflict created type=%s conf=%.2f pair=%s",
+            conflict_type, confidence, pair_key,
+        )
+
+    def _review_pair(
+        self,
+        *,
+        user_id: str,
+        log_row,
+        log_repo,
+        xrepo: ConflictRepository,
+        result: L2ScanResult,
+        suppressed_types: set[str],
+        initial_suggestion: str = "",
+    ) -> FinalVerdict | None:
+        """换角度重判一次并合议（第二道闸，只花 1 次复核调用，不重判）。
+
+        成功：写复核行（review_of_id 指向原判，日志 append-only）→ 合议终判 →
+        按终判入库/拦下 → 原判行标 upheld/overturned → 埋事件。
+        失败（LLM/解析）：原判行标 pending 返回 None——下轮扫描先补队列。
+        """
+        from app.feedback import events
+
+        messages = [
+            {"role": "system", "content": _REVIEW_SYS},
+            {
+                "role": "user",
+                "content": (
+                    f"主张A（来自《{log_row.title_a}》）：{log_row.claim_a_text}\n"
+                    f"主张B（来自《{log_row.title_b}》）：{log_row.claim_b_text}\n\n"
+                    f"初判：relation={log_row.relation}，conflict_type={log_row.conflict_type}，"
+                    f"detail={log_row.detail}\n"
+                    "请换角度重新审查并输出 JSON。"
+                ),
+            },
+        ]
+        # 预算按「发出的复核调用」计：解析失败也花了钱，必须占预算
+        result.reviews_run += 1
+        try:
+            completion = self._gateway.chat(
+                task_type="conflict_review", messages=messages, user_id=user_id, session=self._session,
+                prompt_version=L2_REVIEW.version, json_model=ReviewJudgment,
+            )
+            review = parse_structured(completion.text, validator=lambda d: ReviewJudgment(**d))
+        except (JsonParseError, LLMError) as exc:
+            logger.warning("l2 review failed pair=%s: %s", log_row.pair_key, exc)
+            log_repo.mark_review_state(log_row, "pending")
+            self._session.commit()
+            result.reviews_pending += 1
+            return None
+
+        review_signals = PairSignals(
+            relation=review.relation,
+            polarity_opposite=log_row.polarity_a * log_row.polarity_b == -1,
+            cross_source=is_book_source(log_row.source_a) != is_book_source(log_row.source_b),
+            sim=log_row.sim,
+            text_a_len=len(log_row.claim_a_text or ""),
+            text_b_len=len(log_row.claim_b_text or ""),
+            evidence_cited=cites_evidence(review.detail, log_row.claim_a_text, log_row.claim_b_text),
+        )
+        review_calibrated = calibrate_l2_confidence(review.confidence, review_signals)
+
+        verdict = merge_review(
+            log_row.relation, log_row.conflict_type, log_row.detail,
+            initial_suggestion, log_row.calibrated_confidence,
+            review_relation=review.relation, review_type=review.conflict_type,
+            review_detail=review.detail, review_suggestion=review.suggestion,
+            review_calibrated=review_calibrated,
+        )
+        log_repo.create(
+            user_id=user_id,
+            pair_key=log_row.pair_key,
+            claim_a_id=log_row.claim_a_id,
+            claim_b_id=log_row.claim_b_id,
+            source_a=log_row.source_a,
+            source_b=log_row.source_b,
+            title_a=log_row.title_a,
+            title_b=log_row.title_b,
+            claim_a_text=log_row.claim_a_text,
+            claim_b_text=log_row.claim_b_text,
+            relation=review.relation,
+            conflict_type=review.conflict_type,
+            confidence=review.confidence,
+            calibrated_confidence=review_calibrated,
+            sim=log_row.sim,
+            review_of_id=log_row.id,
+            polarity_a=log_row.polarity_a,
+            polarity_b=log_row.polarity_b,
+            detail=review.detail,
+        )
+        log_repo.mark_review_state(log_row, verdict.review_state)
+        self._session.commit()
+        if verdict.overturned:
+            result.reviews_overturned += 1
+
+        self._apply_verdict(
+            user_id=user_id, result=result, xrepo=xrepo,
+            suppressed_types=suppressed_types, pair_key=log_row.pair_key,
+            source_a=log_row.source_a, source_b=log_row.source_b,
+            claim_a_id=log_row.claim_a_id, claim_b_id=log_row.claim_b_id,
+            title_a=log_row.title_a, title_b=log_row.title_b,
+            claim_a_text=log_row.claim_a_text, claim_b_text=log_row.claim_b_text,
+            relation=verdict.relation, conflict_type=verdict.conflict_type,
+            detail=verdict.detail, suggestion=verdict.suggestion,
+            confidence=verdict.confidence,
+        )
+        events.record(
+            self._session, user_id=user_id, event_type=events.L2_JUDGMENT_REVIEWED,
+            payload={
+                "pair_key": log_row.pair_key,
+                "review_state": verdict.review_state,
+                "overturned": verdict.overturned,
+                "initial_relation": log_row.relation,
+                "final_relation": verdict.relation,
+            },
+        )
+        return verdict
+
+    def _run_reviews(
+        self,
+        *,
+        user_id: str,
+        result: L2ScanResult,
+        xrepo: ConflictRepository,
+        log_repo,
+        suppressed_types: set[str],
+        candidates: list[tuple[float, object, str]],
+    ) -> None:
+        """二段复核调度：先补上轮欠账（pending 队列），再处理本轮候选。
+
+        预算是硬闸门（l2_review_max_per_scan，按复核调用次数计）：超出的原判行标
+        pending，下轮扫描先补——只花复核调用、不重判。本轮候选按「|校准值 −
+        决策阈值| 越小越优先」送复核（边界样本的信息量最大）。
+        """
+        budget = settings.l2_review_max_per_scan
+
+        for row in log_repo.list_pending_review(user_id, limit=budget):
+            if result.reviews_run >= budget:
+                result.reviews_pending += 1  # 仍欠着，下轮继续补
+                continue
+            self._review_pair(
+                user_id=user_id, log_row=row, log_repo=log_repo, xrepo=xrepo,
+                result=result, suppressed_types=suppressed_types,
+            )
+
+        for _distance, log_row, initial_suggestion in candidates:
+            if result.reviews_run >= budget:
+                log_repo.mark_review_state(log_row, "pending")
+                self._session.commit()
+                result.reviews_pending += 1
+                continue
+            self._review_pair(
+                user_id=user_id, log_row=log_row, log_repo=log_repo, xrepo=xrepo,
+                result=result, suppressed_types=suppressed_types,
+                initial_suggestion=initial_suggestion,
+            )

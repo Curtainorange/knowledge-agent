@@ -23,7 +23,7 @@ from pathlib import Path
 import pytest
 
 from app.agent.l1_orchestrator import L1Route
-from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult
+from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult, ReviewJudgment
 from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
@@ -84,6 +84,7 @@ def _validator_for(name: str):
         "l1_route": lambda d: L1Route(**d),
         "l2_extract": lambda d: ExtractionResult(**d),
         "l2_judge": lambda d: ConflictJudgment(**d),
+        "l2_review": lambda d: ReviewJudgment(**d),
         "l3_analyze": lambda d: TopicAnalysisResult(**d),
         "l3_brief": lambda d: BriefDraft(**d),
         "l3_item": lambda d: BriefDraft(**d),
@@ -112,6 +113,12 @@ def _check(name: str, parsed) -> None:
         assert parsed.relation in ("矛盾", "互补", "断层", "无关")
         if parsed.relation == "矛盾":
             assert parsed.conflict_type, "relation=矛盾 但 conflict_type 为空"
+    elif name == "l2_review":
+        assert parsed.relation in ("矛盾", "互补", "断层", "无关")
+        if parsed.relation == "矛盾":
+            assert parsed.conflict_type, "relation=矛盾 时 conflict_type 为必填"
+        assert parsed.uphold_reason, "复核缺维持初判的最强理由"
+        assert parsed.overturn_reason, "复核缺推翻初判的最强理由"
     elif name == "l3_analyze":
         assert isinstance(parsed.assignments, list)
     elif name in ("l3_brief", "l3_item"):

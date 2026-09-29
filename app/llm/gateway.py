@@ -41,6 +41,9 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     "multi_turn_dialogue": Strategy("multi_turn_dialogue", False, ""),
     "deep_reasoning": Strategy("deep_reasoning", True, ""),
     "conflict_detection": Strategy("conflict_detection", True, ""),
+    # 复核裁判：比初判更需要推理（先自辩再终判），reasoning=on；
+    # 走独立 task_type 便于在 cost_logs 里单独审计复核花费
+    "conflict_review": Strategy("conflict_review", True, ""),
     "plan_generation": Strategy("plan_generation", False, ""),
     "causal_reasoning": Strategy("causal_reasoning", True, ""),
     "cognitive_brief": Strategy("cognitive_brief", False, ""),
@@ -72,6 +75,7 @@ JSON_TASK_TYPES: frozenset[str] = frozenset({
     "l1_mining",
     "batch_extraction",
     "conflict_detection",
+    "conflict_review",
     "topic_analysis",
     "cognitive_brief",
     "plan_generation",
