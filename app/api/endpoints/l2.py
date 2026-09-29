@@ -20,6 +20,7 @@ from app.core import trace
 from app.domain.repositories.claim_repository import ClaimRepository
 from app.domain.repositories.conflict_repository import VALID_STATES, ConflictRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
+from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
 from app.llm.gateway import ModelGateway
 
 router = APIRouter(prefix="/api/v1/l2", tags=["l2"])
@@ -69,6 +70,48 @@ class ConflictStateRequest(BaseModel):
 class ConflictStateResponse(BaseModel):
     conflict_id: str
     user_state: str
+    request_id: str
+
+
+class RejudgeResponse(BaseModel):
+    """翻案终判：终判内容 + 冲突落点（活 / 撤回）。"""
+
+    pair_key: str
+    relation: str
+    conflict_type: str
+    detail: str
+    suggestion: str
+    confidence: float
+    review_state: str        # none / pending / upheld / overturned
+    overturned: bool
+    conflict_id: str | None = None
+    conflict_active: bool = False
+    retracted: bool = False
+    request_id: str
+
+
+class JudgmentOut(BaseModel):
+    """一条判定日志（原判 / 复核行都在内——初判 vs 终判两套预测天然可对比）。"""
+
+    judgment_id: str
+    pair_key: str
+    title_a: str
+    title_b: str
+    claim_a: str
+    claim_b: str
+    relation: str
+    conflict_type: str
+    detail: str
+    confidence: float
+    calibrated_confidence: float
+    review_state: str
+    review_of_id: str
+    created_at: datetime
+
+
+class JudgmentListResponse(BaseModel):
+    items: list[JudgmentOut]
+    total: int
     request_id: str
 
 
@@ -165,5 +208,69 @@ def set_conflict_state(
     return ConflictStateResponse(
         conflict_id=conflict.id,
         user_state=conflict.user_state,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.get("/judgments", response_model=JudgmentListResponse)
+def list_judgments(
+    limit: int = Query(default=50, ge=1, le=200),
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> JudgmentListResponse:
+    """判定日志查询（判断层消费入口）：含非矛盾判定与复核行，append-only。"""
+    rows = L2JudgmentLogRepository(session, user_id=user_id).list_recent(user_id, limit=limit)
+    items = [
+        JudgmentOut(
+            judgment_id=row.id,
+            pair_key=row.pair_key,
+            title_a=row.title_a,
+            title_b=row.title_b,
+            claim_a=row.claim_a_text,
+            claim_b=row.claim_b_text,
+            relation=row.relation,
+            conflict_type=row.conflict_type,
+            detail=row.detail,
+            confidence=row.confidence,
+            calibrated_confidence=row.calibrated_confidence,
+            review_state=row.review_state,
+            review_of_id=row.review_of_id,
+            created_at=row.created_at,
+        )
+        for row in rows
+    ]
+    return JudgmentListResponse(items=items, total=len(items), request_id=trace.get_request_id() or "")
+
+
+@router.post("/judgments/{pair_key}/rejudge", response_model=RejudgeResponse)
+def rejudge_judgment(
+    pair_key: str,
+    user_id: str = Depends(get_user_id),
+    gateway: ModelGateway = Depends(get_gateway),
+    session: Session = Depends(get_session),
+) -> RejudgeResponse:
+    """翻案：强制完整重走 初判 → 校准 → 复核 → 合议（受控打破 pair_key 永久幂等）。
+
+    终判矛盾 → upsert 冲突（复活被撤回的旧冲突）；终判非矛盾 → 撤回已入库冲突。
+    """
+    try:
+        result = L2Orchestrator(gateway, session).rejudge_pair(user_id=user_id, pair_key=pair_key)
+    except LookupError:
+        raise HTTPException(status_code=404, detail="无该对判定记录")
+    if result is None:
+        raise HTTPException(status_code=502, detail="模型判定失败，请稍后重试")
+    v = result.verdict
+    return RejudgeResponse(
+        pair_key=pair_key,
+        relation=v.relation,
+        conflict_type=v.conflict_type,
+        detail=v.detail,
+        suggestion=v.suggestion,
+        confidence=v.confidence,
+        review_state=v.review_state,
+        overturned=v.overturned,
+        conflict_id=result.conflict_id,
+        conflict_active=result.conflict_active,
+        retracted=result.retracted,
         request_id=trace.get_request_id() or "",
     )

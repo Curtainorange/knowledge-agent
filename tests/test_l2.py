@@ -1013,3 +1013,168 @@ def test_api_scan_reports_review_counters(client):
         assert body["conflicts_found"] == 0, "复核推翻 → 不入库"
     finally:
         app.dependency_overrides.pop(deps.get_gateway, None)
+
+
+# ---------- 翻案通道（rejudge）与判定日志消费 ----------
+
+
+def test_rejudge_pair_full_pipeline_writes_new_rows(session):
+    """rejudge 强制完整重走初判→校准→合议：写新的原判行（append-only），冲突 upsert。"""
+    from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+    provider_rows = _two_same_topic_items(session)
+    provider_rows["conflict_detection"] = [
+        {"relation": "矛盾", "conflict_type": "立场对立",
+         "detail": "A 要坚守战略三年，B 要每月都调整目标", "suggestion": "统一节奏", "confidence": 0.9},
+        {"relation": "矛盾", "conflict_type": "前提冲突",
+         "detail": "两者前提假设不同", "suggestion": "对齐前提", "confidence": 0.9},
+    ]
+    provider = FakeProvider(provider_rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    first = orch.scan(user_id="u1")
+    pair_key = ConflictRepository(session, user_id="u1").get(first.conflict_ids[0]).pair_key
+
+    result = orch.rejudge_pair(user_id="u1", pair_key=pair_key)
+
+    assert result is not None
+    assert result.verdict.relation == "矛盾"
+    assert result.verdict.conflict_type == "前提冲突", "重判结论以新行为准"
+    assert result.conflict_active is True
+    assert result.retracted is False
+    assert provider.calls.count("conflict_detection") == 2
+
+    logs = L2JudgmentLogRepository(session, user_id="u1").list_recent("u1")
+    assert len(logs) == 2, "append-only：重判写新原判行，旧行保留"
+    assert [r.conflict_type for r in logs].count("前提冲突") == 1
+
+    conflict = ConflictRepository(session, user_id="u1").get(result.conflict_id)
+    assert conflict.conflict_type == "前提冲突", "一 pair_key 一条冲突，upsert 更新"
+
+
+def test_rejudge_overturn_retracts_and_revive_restores(session):
+    """两条翻案路径：推翻 → 撤回（读路径消失）；再翻回矛盾 → 复活同一冲突。"""
+    provider_rows = _two_same_topic_items(session)
+    provider_rows["conflict_detection"] = [
+        {"relation": "矛盾", "conflict_type": "立场对立",
+         "detail": "A 要坚守战略三年，B 要每月都调整目标", "suggestion": "统一节奏", "confidence": 0.9},
+        {"relation": "无关", "conflict_type": "", "detail": "不在同一层面", "suggestion": "", "confidence": 0.9},
+        {"relation": "矛盾", "conflict_type": "结论互斥",
+         "detail": "结论不能同时成立", "suggestion": "二选一", "confidence": 0.9},
+    ]
+    provider = FakeProvider(provider_rows)
+    orch = L2Orchestrator(ModelGateway(provider=provider), session)
+
+    first = orch.scan(user_id="u1")
+    xrepo = ConflictRepository(session, user_id="u1")
+    original_id = first.conflict_ids[0]
+    pair_key = xrepo.get(original_id).pair_key
+
+    overturned = orch.rejudge_pair(user_id="u1", pair_key=pair_key)
+    assert overturned.verdict.overturned is False  # 无复核环节，overturned 指复核推翻
+    assert overturned.verdict.relation == "无关"
+    assert overturned.retracted is True
+    assert overturned.conflict_active is False
+    assert xrepo.list_by_user("u1") == [], "推翻 → 读路径消失"
+    assert xrepo.find_by_pair("u1", pair_key) is None
+    assert xrepo.find_by_pair("u1", pair_key, include_retracted=True) is not None, "行还在，只是撤回"
+
+    revived = orch.rejudge_pair(user_id="u1", pair_key=pair_key)
+    assert revived.verdict.relation == "矛盾"
+    assert revived.conflict_active is True
+    assert revived.retracted is False
+    assert revived.conflict_id == original_id, "复活旧冲突，不另插一行"
+    active = xrepo.list_by_user("u1")
+    assert len(active) == 1
+    assert active[0].conflict_type == "结论互斥"
+
+
+def test_rejudge_unknown_pair_raises(session):
+    orch = _orchestrator(session, {})
+    with pytest.raises(LookupError):
+        orch.rejudge_pair(user_id="u1", pair_key="no-such-pair")
+
+
+def test_api_rejudge_lifecycle_and_judgments_list(client):
+    """API 全链路：判定日志查询 → 翻案撤回 → 翻案复活；未知 pair 404。"""
+    from urllib.parse import quote
+
+    fake = FakeProvider({
+        "batch_extraction": _extraction_rows()["batch_extraction"],
+        "conflict_detection": [
+            {"relation": "矛盾", "conflict_type": "立场对立",
+             "detail": "A 要坚守战略三年，B 要每月都调整目标", "suggestion": "统一节奏", "confidence": 0.9},
+            {"relation": "无关", "conflict_type": "", "detail": "不在同一层面", "suggestion": "", "confidence": 0.9},
+            {"relation": "矛盾", "conflict_type": "结论互斥",
+             "detail": "结论不能同时成立", "suggestion": "二选一", "confidence": 0.9},
+        ],
+    })
+    app.dependency_overrides[deps.get_gateway] = lambda: ModelGateway(provider=fake)
+    try:
+        headers = auth_headers(client, "l2_rejudge_a")
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "战略定力的经营者", "content": "长期专注战略。"}, headers=headers)
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "逆向思维", "content": "随时准备掉头。"}, headers=headers)
+        scan = client.post("/api/v1/l2/scan", headers=headers)
+        assert scan.status_code == 200, scan.text
+
+        listed = client.get("/api/v1/l2/judgments", headers=headers).json()
+        assert listed["total"] == 1
+        pair_key = listed["items"][0]["pair_key"]
+        assert listed["items"][0]["relation"] == "矛盾"
+        assert listed["items"][0]["review_state"] == "none"
+        assert listed["items"][0]["calibrated_confidence"] > 0
+
+        url = f"/api/v1/l2/judgments/{quote(pair_key, safe='')}/rejudge"
+        overturned = client.post(url, headers=headers)
+        assert overturned.status_code == 200, overturned.text
+        body = overturned.json()
+        assert body["relation"] == "无关"
+        assert body["retracted"] is True
+        assert body["conflict_active"] is False
+        assert client.get("/api/v1/l2/conflicts", headers=headers).json()["total"] == 0
+        assert client.get("/api/v1/l2/judgments", headers=headers).json()["total"] == 2
+
+        revived = client.post(url, headers=headers)
+        assert revived.status_code == 200
+        body = revived.json()
+        assert body["relation"] == "矛盾"
+        assert body["conflict_active"] is True
+        assert client.get("/api/v1/l2/conflicts", headers=headers).json()["total"] == 1
+
+        missing = client.post(
+            "/api/v1/l2/judgments/no-such-pair/rejudge", headers=headers,
+        )
+        assert missing.status_code == 404
+    finally:
+        app.dependency_overrides.pop(deps.get_gateway, None)
+
+
+def test_api_rejudge_llm_failure_returns_502(client):
+    from urllib.parse import quote
+
+    fake = FakeProvider({
+        "batch_extraction": _extraction_rows()["batch_extraction"],
+        "conflict_detection": [
+            {"relation": "矛盾", "conflict_type": "立场对立",
+             "detail": "A 要坚守战略三年，B 要每月都调整目标", "suggestion": "统一节奏", "confidence": 0.9},
+            "broken json {",
+        ],
+    })
+    app.dependency_overrides[deps.get_gateway] = lambda: ModelGateway(provider=fake)
+    try:
+        headers = auth_headers(client, "l2_rejudge_b")
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "战略定力的经营者", "content": "长期专注战略。"}, headers=headers)
+        client.post("/api/v1/knowledge/items",
+                    json={"title": "逆向思维", "content": "随时准备掉头。"}, headers=headers)
+        assert client.post("/api/v1/l2/scan", headers=headers).status_code == 200
+
+        pair_key = client.get("/api/v1/l2/judgments", headers=headers).json()["items"][0]["pair_key"]
+        resp = client.post(
+            f"/api/v1/l2/judgments/{quote(pair_key, safe='')}/rejudge", headers=headers,
+        )
+        assert resp.status_code == 502
+    finally:
+        app.dependency_overrides.pop(deps.get_gateway, None)

@@ -35,6 +35,7 @@ from __future__ import annotations
 import logging
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
+from types import SimpleNamespace
 from typing import Literal
 
 from pydantic import BaseModel, Field
@@ -181,6 +182,16 @@ class L2ScanResult:
     reviews_run: int = 0             # 本轮实际发出的复核调用数（含解析失败的，预算按次计）
     reviews_overturned: int = 0      # 复核推翻初判的对数（翻案/拦下都算推翻）
     reviews_pending: int = 0         # 本轮结束仍欠复核的对数（预算耗尽或复核失败）
+
+
+@dataclass
+class RejudgeResult:
+    """翻案终判的落点信息（供 API 呈现「冲突现在活没活」）。"""
+
+    verdict: FinalVerdict
+    conflict_id: str | None = None   # 终判为矛盾时的冲突 id（upsert 后）
+    conflict_active: bool = False    # 终判为矛盾且已入库/存活
+    retracted: bool = False          # 终判非矛盾且撤回了原有冲突
 
 
 class L2Orchestrator:
@@ -403,6 +414,103 @@ class L2Orchestrator:
             },
         )
         return conflict
+
+    def rejudge_pair(self, *, user_id: str, pair_key: str) -> RejudgeResult | None:
+        """翻案通道（受控打破 pair_key 永久幂等）：强制完整重走 初判→校准→复核→合议。
+
+        素材取判定日志的**自包含快照**（文本/标题/极性/来源全在行里）——claim_id
+        回查会被重扫替换静默丢文本。终判收口复用 `_apply_verdict`：终判矛盾 →
+        upsert（复活被撤回的旧冲突）；终判非矛盾 → 撤回已入库冲突。
+        用户显式翻案不做推荐抑制（suppressed_types 传空）——这是他的直接指令，
+        不是系统推荐。
+
+        返回 None = LLM 判定失败（调用方 502）；该对无判定记录抛 LookupError（404）。
+        复核失败照旧标 pending 并先按初判落地——pending 队列自愈，无需用户重试。
+        """
+        from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+        xrepo = ConflictRepository(self._session, user_id=user_id)
+        log_repo = L2JudgmentLogRepository(self._session, user_id=user_id)
+        row = log_repo.initial_for_pair(user_id, pair_key)
+        if row is None:
+            raise LookupError(f"无该对判定记录：{pair_key}")
+
+        # 日志快照伪装成 Claim 喂给既有判定/信号管线（只用 id/文本/来源/极性四个字段）
+        claim_a = SimpleNamespace(
+            id=row.claim_a_id, statement=row.claim_a_text,
+            knowledge_item_id=row.source_a, polarity=row.polarity_a,
+        )
+        claim_b = SimpleNamespace(
+            id=row.claim_b_id, statement=row.claim_b_text,
+            knowledge_item_id=row.source_b, polarity=row.polarity_b,
+        )
+        titles = {row.source_a: row.title_a, row.source_b: row.title_b}
+
+        judgment = self._judge_pair(claim_a, claim_b, titles, user_id=user_id)
+        if judgment is None:
+            return None
+        signals = self._pair_signals(claim_a, claim_b, judgment, sim=row.sim)
+        calibrated = calibrate_l2_confidence(judgment.confidence, signals)
+
+        # 重判是新的判定事实，append-only 写新原判行（旧两行保留可追溯）
+        new_row = log_repo.create(
+            user_id=user_id, pair_key=pair_key,
+            claim_a_id=row.claim_a_id, claim_b_id=row.claim_b_id,
+            source_a=row.source_a, source_b=row.source_b,
+            title_a=row.title_a, title_b=row.title_b,
+            claim_a_text=row.claim_a_text, claim_b_text=row.claim_b_text,
+            relation=judgment.relation, conflict_type=judgment.conflict_type,
+            confidence=judgment.confidence, calibrated_confidence=calibrated,
+            sim=row.sim, polarity_a=row.polarity_a, polarity_b=row.polarity_b,
+            detail=judgment.detail,
+        )
+        self._session.commit()
+
+        result = L2ScanResult()  # 复用冲突计数通道拿 conflict_id
+        suppressed: set[str] = set()  # 显式翻案不受推荐抑制
+        had_conflict = xrepo.find_by_pair(user_id, pair_key) is not None
+
+        if needs_review(
+            relation=judgment.relation, calibrated=calibrated,
+            enabled=settings.l2_review_enabled, lo=settings.l2_review_lo, hi=settings.l2_review_hi,
+        ):
+            verdict = self._review_pair(
+                user_id=user_id, log_row=new_row, log_repo=log_repo, xrepo=xrepo,
+                result=result, suppressed_types=suppressed,
+                initial_suggestion=judgment.suggestion,
+            )
+            if verdict is not None:
+                return RejudgeResult(
+                    verdict=verdict,
+                    conflict_id=result.conflict_ids[0] if result.conflict_ids else None,
+                    conflict_active=bool(result.conflict_ids),
+                    retracted=had_conflict and verdict.relation != "矛盾",
+                )
+            # 复核失败已标 pending：先按初判落地，欠账由扫描的 pending 队列自愈
+
+        self._apply_verdict(
+            user_id=user_id, result=result, xrepo=xrepo,
+            suppressed_types=suppressed, pair_key=pair_key,
+            source_a=row.source_a, source_b=row.source_b,
+            claim_a_id=row.claim_a_id, claim_b_id=row.claim_b_id,
+            title_a=row.title_a, title_b=row.title_b,
+            claim_a_text=row.claim_a_text, claim_b_text=row.claim_b_text,
+            relation=judgment.relation, conflict_type=judgment.conflict_type,
+            detail=judgment.detail, suggestion=judgment.suggestion,
+            confidence=calibrated,
+        )
+        return RejudgeResult(
+            verdict=FinalVerdict(
+                relation=judgment.relation, conflict_type=judgment.conflict_type,
+                detail=judgment.detail, suggestion=judgment.suggestion,
+                confidence=calibrated,
+                review_state="pending" if new_row.review_state == "pending" else "none",
+                overturned=False,
+            ),
+            conflict_id=result.conflict_ids[0] if result.conflict_ids else None,
+            conflict_active=bool(result.conflict_ids),
+            retracted=had_conflict and judgment.relation != "矛盾",
+        )
 
     # ---- L2-1 主张提取 ---------------------------------------------------
 
