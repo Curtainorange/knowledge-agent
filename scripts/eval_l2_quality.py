@@ -9,6 +9,8 @@
   默认 --limit 10 成本闸门。--with-review 时对低置信矛盾加跑复核合议，
   同批样本输出「初判 vs 终判」两套指标直接对比——复核有没有用的证据。
   置信度口径与运行时一致：用校准值（阈值判的也是校准值），不是模型裸自报。
+  解析失败重试 1 次（对齐运行时「不写判定、下轮重判」），仍失败剔出指标并
+  单独报告，另给「失败按错计」的悲观下界对照——不把管道故障冒充成判定错误。
 
 用法（项目根目录）：
     python scripts/eval_l2_quality.py --from-logs
@@ -135,6 +137,7 @@ def run_golden(limit: int, *, with_review: bool = False, gateway=None) -> int:
 
     rows_initial: list[EvalRow] = []
     rows_final: list[EvalRow] = []
+    parse_failed: list[str] = []  # 重试后仍解析失败的样本 id（剔出指标，单独报告）
     reviews_run = 0
     for it in items:
         # 与 L2 判定完全同口径（_judge_pair）：同提示词、同消息格式、同解析路径
@@ -151,21 +154,29 @@ def run_golden(limit: int, *, with_review: bool = False, gateway=None) -> int:
         ]
         sim = _claim_sim(it["claim_a"], it["claim_b"])
         judgment = None
-        try:
-            completion = gateway.chat(
-                task_type="conflict_detection", messages=messages,
-                prompt_version=L2_JUDGE.version, json_model=ConflictJudgment,
-            )
-            judgment = parse_structured(
-                completion.text, validator=lambda d: ConflictJudgment(**d)
-            )
-            calibrated = calibrate_l2_confidence(
-                judgment.confidence, _signals(judgment.relation, judgment.detail, sim, it)
-            )
-            predicted, confidence = judgment.relation, calibrated
-        except Exception as exc:  # 解析失败按「无关」计并标注，不中断跑批
-            print(f"  [{it['id']}] 解析失败：{exc}")
-            predicted, confidence = "无关", 0.0
+        predicted, confidence = "无关", 0.0
+        # 解析失败重试 1 次：运行时「解析失败不写判定」，下轮扫描会重判该对，
+        # 评测重试一次是对齐该语义。仍失败则剔出指标——运行时它不是一次「判无关」，
+        # 按无关计分是把管道故障冒充成判定错误，会虚低准确率。
+        for attempt in (1, 2):
+            try:
+                completion = gateway.chat(
+                    task_type="conflict_detection", messages=messages,
+                    prompt_version=L2_JUDGE.version, json_model=ConflictJudgment,
+                )
+                judgment = parse_structured(
+                    completion.text, validator=lambda d: ConflictJudgment(**d)
+                )
+                calibrated = calibrate_l2_confidence(
+                    judgment.confidence, _signals(judgment.relation, judgment.detail, sim, it)
+                )
+                predicted, confidence = judgment.relation, calibrated
+                break
+            except Exception as exc:  # noqa: BLE001 - 单条解析失败不中断跑批
+                print(f"  [{it['id']}] 解析失败（第 {attempt} 次）：{exc}")
+        if judgment is None:
+            parse_failed.append(it["id"])
+            continue
         rows_initial.append(EvalRow(predicted=predicted, gold=it["gold_relation"], confidence=confidence))
 
         verdict_relation, verdict_conf = predicted, confidence
@@ -226,6 +237,15 @@ def run_golden(limit: int, *, with_review: bool = False, gateway=None) -> int:
         for b in calibration_buckets(rows):
             if b["n"]:
                 print(f"  桶 [{b['lo']}, {b['hi']}]  n={b['n']}  conf={b['mean_conf']}  acc={b['accuracy']}")
+
+    if parse_failed:
+        n_total, n_kept = len(items), len(rows_initial)
+        n_correct = sum(1 for r in rows_initial if r.predicted == r.gold)
+        print(f"\n== 解析失败样本（{len(parse_failed)} 条：{','.join(parse_failed)}）==")
+        print("已剔出指标（运行时语义：解析失败不写判定，下轮扫描重判，不是一次误判）。")
+        print(f"对照口径——失败按错计（悲观下界）: {round(n_correct / n_total, 4)}"
+              f"（{n_correct}/{n_total}）；有效样本准确率: {relation_accuracy(rows_initial)}"
+              f"（{n_correct}/{n_kept}）")
 
     _report(f"初判指标（limit={limit}）", rows_initial)
     if with_review:

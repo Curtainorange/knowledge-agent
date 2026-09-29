@@ -326,7 +326,10 @@ class ModelGateway:
         )
         try:
             fixed = self._call_with_retry(
-                strat, build_repair_messages(messages, completion.text, error),
+                strat, build_repair_messages(
+                    messages, completion.text, error,
+                    schema_fields=list(json_model.model_fields),
+                ),
                 tools, response_format, json_model,
             )
         except LLMError as exc:

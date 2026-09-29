@@ -85,17 +85,34 @@ _REPAIR_INSTRUCTION = (
     "字段必须齐全、类型正确，字符串里的引号按 JSON 规则转义。"
 )
 
+# 破损输出为空时的占位说明。空 content 回灌没有信息量（模型看不到「哪里破了」），
+# 部分 OpenAI 兼容端点还会直接拒空 assistant 消息；实测有「首轮输出为空 → 修复回合
+# 仍为空」的连环失败（dev_logs/2026-09-29.md E05）。
+_EMPTY_OUTPUT_PLACEHOLDER = "（上一条回复为空）"
 
-def build_repair_messages(messages: list[dict], broken_text: str, error: str) -> list[dict]:
+
+def build_repair_messages(
+    messages: list[dict],
+    broken_text: str,
+    error: str,
+    *,
+    schema_fields: list[str] | None = None,
+) -> list[dict]:
     """构造「修复回合」的消息：把破损输出当作上一轮回复，再要求模型只输出修正后的结果。
 
     为什么值得多花一次调用：结构化输出失败的下游代价是**整条能力降级**——L3 简报退化成
     空简报、L2 判定直接丢弃该候选对、分流回落通用对话——而修复回合只是一次短调用。
     实测 MiMo 在自由文本模式下约 1/6 概率吐出破损 JSON（详见 dev_logs/复盘与教训.md #16）。
+
+    schema_fields：必填字段名清单，写进指令让模型不必回翻上文就知道要出什么形状；
+    破损文本为空时用占位说明代替空 assistant 消息。
     """
     instruction = _REPAIR_INSTRUCTION.replace("{err}", (error or "未知")[:300])
+    if schema_fields:
+        instruction += f"\n必须包含字段：{'、'.join(schema_fields)}。"
+    content = broken_text if broken_text.strip() else _EMPTY_OUTPUT_PLACEHOLDER
     return [
         *messages,
-        {"role": "assistant", "content": broken_text},
+        {"role": "assistant", "content": content},
         {"role": "user", "content": instruction},
     ]

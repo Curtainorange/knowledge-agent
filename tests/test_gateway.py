@@ -224,6 +224,8 @@ def test_json_repair_round_recovers(monkeypatch, session):
     repair = p.calls[1]["messages"]
     assert repair[-2]["role"] == "assistant" and repair[-2]["content"] == "这不是 JSON"
     assert repair[-1]["role"] == "user" and "JSON" in repair[-1]["content"]
+    # 网关把 json_model 字段清单传进修复指令（加固：模型不必回翻上文）
+    assert "topic" in repair[-1]["content"]
 
     # 修复回合是真实调用，token 必须一并记账（否则这部分开销不可见）
     session.flush()

@@ -113,3 +113,39 @@ def test_golden_review_failure_falls_back_to_initial(capsys):
     assert rc == 0
     assert "复核失败沿用初判" in out
     assert "初判 vs 终判" in out
+
+
+def test_golden_parse_failure_retries_once_and_recovers(capsys):
+    """解析失败重试 1 次即成功：计入指标，不做剔除——对齐运行时下轮重判语义。"""
+    mod = _load_module()
+    gateway = StubGateway({
+        "conflict_detection": ["broken json {", _CONFLICT_HIGH],
+    })
+
+    rc = mod.run_golden(1, with_review=True, gateway=gateway)
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert gateway.calls.count("conflict_detection") == 2, "首次解析失败补一次重试"
+    assert "解析失败（第 1 次）" in out
+    assert "解析失败样本" not in out, "重试成功不进剔除报告"
+    assert "relation 准确率: 1.0" in out
+
+
+def test_golden_parse_failure_excluded_and_reported(capsys):
+    """两次都解析失败：剔出指标（不冒充「判无关」），单独报告 + 悲观下界对照。"""
+    mod = _load_module()
+    gateway = StubGateway({
+        "conflict_detection": ["broken {", "还是 broken {"],
+    })
+
+    rc = mod.run_golden(1, with_review=True, gateway=gateway)
+    out = capsys.readouterr().out
+
+    assert rc == 0
+    assert gateway.calls.count("conflict_detection") == 2
+    assert "解析失败（第 2 次）" in out
+    assert "解析失败样本（1 条：E01）" in out
+    assert "已剔出指标" in out
+    assert "失败按错计（悲观下界）: 0.0（0/1）" in out
+    assert "初判指标（limit=1）（n=0）" in out, "剔除后不进指标行"

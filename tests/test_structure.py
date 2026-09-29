@@ -9,7 +9,7 @@ import json
 
 import pytest
 
-from app.llm.structure import JsonParseError, parse_json, parse_structured
+from app.llm.structure import JsonParseError, build_repair_messages, parse_json, parse_structured
 
 
 def test_plain_json():
@@ -62,3 +62,29 @@ def test_validator_failure_becomes_parse_error():
 
 def test_structured_returns_validated_value():
     assert parse_structured('{"a": 2}', validator=lambda d: d["a"] * 10) == 20
+
+
+# ---------- 修复回合消息（加固）----------
+
+
+def test_repair_messages_embed_broken_output_and_error():
+    msgs = build_repair_messages([{"role": "user", "content": "x"}], "破的输出", "非 JSON")
+    assert msgs[-2] == {"role": "assistant", "content": "破的输出"}
+    assert "非 JSON" in msgs[-1]["content"]
+
+
+def test_repair_messages_placeholder_for_empty_output():
+    """破损输出为空时用占位说明——空 assistant 消息无信息量，部分端点还会拒收。"""
+    msgs = build_repair_messages([{"role": "user", "content": "x"}], "", "非 JSON")
+    assert msgs[-2]["content"] == "（上一条回复为空）"
+    msgs = build_repair_messages([{"role": "user", "content": "x"}], "   \n", "非 JSON")
+    assert msgs[-2]["content"] == "（上一条回复为空）"
+
+
+def test_repair_messages_list_schema_fields():
+    """字段清单写进指令，模型不必回翻上文就知道要出什么形状。"""
+    msgs = build_repair_messages(
+        [{"role": "user", "content": "x"}], "破的", "非 JSON",
+        schema_fields=["relation", "confidence"],
+    )
+    assert "relation、confidence" in msgs[-1]["content"]
