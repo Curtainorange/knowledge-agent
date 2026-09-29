@@ -1,0 +1,86 @@
+{
+  "version": "v1",
+  "note": "L2 判定人工标注集（骨架）。gold_relation 枚举：矛盾/互补/断层/无关。矛盾类须填 gold_conflict_type。构建方式见 scripts/export_l2_eval_pairs.py。",
+  "items": [
+    {
+      "id": "E01",
+      "title_a": "深度工作",
+      "title_b": "碎片时间学习法",
+      "claim_a": "专注的整块时间才能产生有价值的深度产出，多任务切换是效率杀手",
+      "claim_b": "利用好每天的碎片时间同样能完成深度学习，整块时间并非必要条件",
+      "gold_relation": "矛盾",
+      "gold_conflict_type": "立场对立",
+      "note": "对「深度学习是否必须整块时间」持相反立场"
+    },
+    {
+      "id": "E02",
+      "title_a": "刻意练习",
+      "title_b": "刻意练习读书笔记",
+      "claim_a": "进步来自舒适区边缘的刻意练习，必须有明确目标和即时反馈",
+      "claim_b": "刻意练习的核心是停留在舒适区边缘，配合即时反馈纠正错误",
+      "gold_relation": "互补",
+      "gold_conflict_type": "",
+      "note": "同一观点的书与笔记，互相印证"
+    },
+    {
+      "id": "E03",
+      "title_a": "番茄工作法",
+      "title_b": "贝叶斯定理",
+      "claim_a": "25 分钟专注加 5 分钟休息的节奏能维持全天的注意力",
+      "claim_b": "后验概率正比于似然乘先验，新证据更新对假设的置信度",
+      "gold_relation": "无关",
+      "gold_conflict_type": "",
+      "note": "时间管理 vs 概率论，风马牛不相及"
+    },
+    {
+      "id": "E04",
+      "title_a": "目标管理笔记",
+      "title_b": "统计学基础",
+      "claim_a": "制定季度 OKR 后应每周复盘进度并调整关键结果",
+      "claim_b": "置信区间是对总体参数不确定性的度量，95% 区间意味着重复抽样 95% 覆盖真值",
+      "gold_relation": "断层",
+      "gold_conflict_type": "",
+      "note": "同属方法论语境但无法对话，中间缺桥接概念"
+    },
+    {
+      "id": "E05",
+      "title_a": "习惯的力量",
+      "title_b": "意志力有限论笔记",
+      "claim_a": "习惯一旦形成就不再消耗意志力，靠的是 cue-routine-reward 回路",
+      "claim_b": "意志力是有限资源，持续自控会耗尽它，因此要靠意志力坚持而非依赖习惯",
+      "gold_relation": "矛盾",
+      "gold_conflict_type": "立场对立",
+      "note": "对「坚持靠习惯还是靠意志力」立场相反"
+    },
+    {
+      "id": "E06",
+      "title_a": "认知升级",
+      "title_b": "成长型思维",
+      "claim_a": "承认自己的无知是认知升级的第一步",
+      "claim_b": "相信能力可以通过努力提升，失败是成长的机会",
+      "gold_relation": "断层",
+      "gold_conflict_type": "",
+      "note": "都在谈自我提升，但主张点不同且不直接对话"
+    },
+    {
+      "id": "E07",
+      "title_a": "世界尽头的咖啡馆",
+      "title_b": "职业生涯规划笔记",
+      "claim_a": "不必等到退休才去做自己真正想做的事，现在就可以为 PFE 行动",
+      "claim_b": "职业发展要先积累资本和能力，等条件成熟再转向自己热爱的方向",
+      "gold_relation": "矛盾",
+      "gold_conflict_type": "立场对立",
+      "note": "「现在就做 vs 等条件成熟」的行动时机对立"
+    },
+    {
+      "id": "E08",
+      "title_a": "费曼学习法",
+      "title_b": "输出倒逼输入",
+      "claim_a": "把概念讲给外行听，讲不清楚的地方就是没学会的地方",
+      "claim_b": "通过写作和教授他人来倒逼自己把知识学透",
+      "gold_relation": "互补",
+      "gold_conflict_type": "",
+      "note": "同一方法的两种表述，互相印证"
+    }
+  ]
+}
