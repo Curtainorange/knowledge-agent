@@ -151,6 +151,43 @@ def test_assemble_caps_blocks_and_questions():
     assert sum(1 for line in digest.body.splitlines() if line.startswith("· 问")) == 2  # 追问上限 2
 
 
+def test_assemble_week_label_injectable():
+    """周标签可注入 now——测试能稳定断言 ISO 周格式。"""
+    digest = assemble(
+        CoachMaterials(blocks=[CoachBlock(label="x", summary="s", next_step="n")]),
+        [], now=datetime(2026, 9, 28),  # ISO 2026-W40 周一
+    )
+    assert digest.week_label == "2026-W40"
+    assert "2026-W40" in digest.title
+
+
+def test_eval_line_suppressed_on_zero_labels(session):
+    """弱真值 0/0 没有信息量，不拼「采纳 0 / 忽略 0」噪音。"""
+    LearningEventRepository(session).append(
+        user_id="u1", event_type=events.L2_EVAL_WEEKLY,
+        payload={"n_accepted": 0, "n_ignored": 0, "precision": 0.0},
+    )
+    session.commit()
+    _add_diagnosis(session)
+
+    materials = collect_materials(session, "u1")
+
+    assert materials.eval_line == ""
+    assert any(b.label == "待决定建议" for b in materials.blocks)  # 诊断块不受影响
+
+
+def test_eval_line_shown_with_weak_label_data(session):
+    LearningEventRepository(session).append(
+        user_id="u1", event_type=events.L2_EVAL_WEEKLY,
+        payload={"n_accepted": 3, "n_ignored": 1, "precision": 0.75},
+    )
+    session.commit()
+
+    materials = collect_materials(session, "u1")
+
+    assert "采纳 3 / 忽略 1" in materials.eval_line
+
+
 # ---------- 周 handler 全链路 ----------
 
 

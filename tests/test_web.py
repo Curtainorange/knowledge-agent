@@ -181,6 +181,13 @@ def test_notify_page_is_isolated(client):
     assert "goal-form" not in body
 
 
+def test_notify_badges_cover_push_types(client):
+    """徽章文案映射必须覆盖实际会推送的 push_type——缺映射会把英文代号直接亮给用户。"""
+    body = client.get("/notify.html").text
+    for fragment in ("conflict:", "question:", "brief:", "diagnosis:", "coach:"):
+        assert fragment in body, fragment
+
+
 def test_nav_links_to_l5_and_notify_everywhere(client):
     """L5 与通知的后端早已就绪，导航入口必须有落点（缺入口等于没有）。"""
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):

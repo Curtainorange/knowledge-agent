@@ -86,14 +86,16 @@ def collect_materials(session: Session, user_id: str, now: datetime | None = Non
     # ③ 目标追踪块（进度 + 催办/达成确认 + 干预未决跟进；规则见 goal_tracking）
     materials.blocks.extend(_goal_blocks(session, user_id, now))
 
-    # 附注：弱真值基线（最近一次周体检）
+    # 附注：弱真值基线（最近一次周体检）。0/0 没有信息量，不拼噪音
     latest_eval = event_repo.list_recent(user_id, event_type=events.L2_EVAL_WEEKLY, limit=1)
     if latest_eval:
         payload = latest_eval[0].payload or {}
-        materials.eval_line = (
-            f"判定精度基线：采纳 {payload.get('n_accepted', 0)} / "
-            f"忽略 {payload.get('n_ignored', 0)}"
-        )
+        n_accepted = int(payload.get("n_accepted", 0) or 0)
+        n_ignored = int(payload.get("n_ignored", 0) or 0)
+        if n_accepted + n_ignored > 0:
+            materials.eval_line = (
+                f"判定精度基线：采纳 {n_accepted} / 忽略 {n_ignored}"
+            )
 
     return materials
 
@@ -136,9 +138,10 @@ def assemble(
     questions: list | None = None,
     *,
     max_items: int = 3,
+    now: datetime | None = None,
 ) -> CoachDigest | None:
     """纯本地模板拼装。空材料返回 None（无内容不打扰）。questions 元素须有
-    question / next_step 属性（L3 DepthQuestion）。"""
+    question / next_step 属性（L3 DepthQuestion）。now 可注入，供测试稳定断言周标签。"""
     questions = questions or []
     blocks = [b for b in materials.blocks if b.next_step.strip()][:max_items]
     usable_questions = [
@@ -147,8 +150,8 @@ def assemble(
     if not blocks and not usable_questions:
         return None
 
-    now = datetime.now(timezone.utc)
-    week_label = f"{now.year}-W{now.isocalendar()[1]:02d}"
+    stamp = now or datetime.now(timezone.utc)
+    week_label = f"{stamp.year}-W{stamp.isocalendar()[1]:02d}"
     lines: list[str] = []
     for block in blocks:
         lines.append(f"【{block.label}】{block.summary}")

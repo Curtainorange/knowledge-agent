@@ -120,3 +120,12 @@ def test_pending_adjustment_silent_once_decided(session):
 def test_pending_adjustment_ignores_old_deviations(session):
     _emit(session, events.L4_DEVIATION_CHECKED, hours_ago=24 * 10)  # 10 天前的旧账
     assert pending_adjustment(session, "u1") is None
+
+
+def test_pending_adjustment_window_follows_config(session, monkeypatch):
+    """回看窗口取 l4_intervention_repeat_days，不硬编码——配置收窄窗口跟着收窄。"""
+    from app.core.config import settings
+
+    monkeypatch.setattr(settings, "l4_intervention_repeat_days", 1)
+    _emit(session, events.L4_DEVIATION_CHECKED, hours_ago=48)  # 2 天前
+    assert pending_adjustment(session, "u1") is None  # 1 天窗口外不翻旧账

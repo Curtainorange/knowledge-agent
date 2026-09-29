@@ -14,6 +14,7 @@ from datetime import datetime, timedelta, timezone
 
 from sqlalchemy.orm import Session
 
+from app.core.config import settings
 from app.domain.repositories.learning_event_repository import LearningEventRepository
 from app.domain.repositories.learning_plan_repository import (
     LearningGoalRepository,
@@ -92,11 +93,11 @@ def completion_confirm(snapshot: GoalSnapshot) -> str | None:
 def pending_adjustment(session: Session, user_id: str, now: datetime | None = None) -> str | None:
     """最近一次偏离归因后没有调整决定 → 跟进句；已决定则 None。纯读。
 
-    回看窗口 3 天，与 l4_intervention_repeat_days 护栏期对齐——更早的未决偏离
-    已经被后续巡检覆盖，翻旧账只会变成每周噪音。
+    回看窗口取 `l4_intervention_repeat_days`，与巡检归因护栏期对齐——更早的
+    未决偏离已经被后续巡检覆盖，翻旧账只会变成每周噪音。
     """
     now = (now or datetime.now(timezone.utc)).replace(tzinfo=None)
-    since = now - timedelta(days=3)
+    since = now - timedelta(days=max(1, int(settings.l4_intervention_repeat_days)))
     event_repo = LearningEventRepository(session, user_id=user_id)
 
     checked = [
