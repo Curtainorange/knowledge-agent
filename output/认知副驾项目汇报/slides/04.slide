@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '26px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>项目是什么 · 解决什么问题</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>项目概览</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 24, padding: '0 40px' }}>
+        <Box style={{ width: 700, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ height: 176, padding: '24px 28px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <FAIcon name='bookmark' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
+                    <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>收藏即遗忘</Text>
+                </Box>
+                <Text style={{ fontSize: 21, color: '#4A5568', marginTop: 12, lineHeight: 1.6 }}>
+                    书签、收藏夹、稍后读越堆越厚；真要用的时候只记得「橙色封面、好像讲拖延症」，精准搜索返回的却是「未找到」。
+                </Text>
+            </Box>
+            <Box style={{ height: 176, padding: '24px 28px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <FAIcon name='book' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
+                    <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>阅读未消化</Text>
+                </Box>
+                <Text style={{ fontSize: 21, color: '#4A5568', marginTop: 12, lineHeight: 1.6 }}>
+                    划线划了很多，读完还是说不出这本书主张什么、和自己的想法哪里不一样——阅读行为发生了，认知没有发生。
+                </Text>
+            </Box>
+            <Box style={{ height: 176, padding: '24px 28px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                    <FAIcon name='puzzle-piece' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
+                    <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>积累无体系</Text>
+                </Box>
+                <Text style={{ fontSize: 21, color: '#4A5568', marginTop: 12, lineHeight: 1.6 }}>
+                    笔记散落在各个工具里，半年前收藏的和昨天收藏的观点可能正好相反——自己不知道，更没有人提醒。
+                </Text>
+            </Box>
+        </Box>
+        <Box style={{ flex: 1, height: 568, background: '#0E3F8C', borderRadius: 10, padding: '40px 36px', justifyContent: 'space-between' }}>
+            <Box>
+                <Text style={{ fontSize: 20, color: '#9FBCE8', letterSpacing: 3 }}>定位宣言</Text>
+                <Text style={{ fontSize: 32, fontWeight: 'bold', color: '#FFFFFF', marginTop: 18, lineHeight: 1.5 }}>
+                    认知副驾<br />不是又一个笔记软件
+                </Text>
+                <Box style={{ width: 48, height: 3, background: '#FFC107', marginTop: 20 }} />
+            </Box>
+            <Text style={{ fontSize: 22, color: '#E8EFF8', lineHeight: 1.75 }}>
+                笔记软件和信息系统帮你<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「管住」已知</span>；
+                认知副驾做的是另一半：<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「照亮」未知</span>——
+                你的矛盾在哪、盲区在哪、病根在哪，并<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「逼你」修正</span>。
+            </Text>
+            <Box style={{ padding: '16px 20px', background: 'rgba(255,255,255,0.08)', borderRadius: 8 }}>
+                <Text style={{ fontSize: 19, color: '#BBD0F0', lineHeight: 1.6 }}>
+                    实现方式：五层能力梯度（L1–L5），从被动响应到主动诊断，每一层都做信息系统做不到的事。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>04 / 14</Text>
+    </Box>
+</Slide>

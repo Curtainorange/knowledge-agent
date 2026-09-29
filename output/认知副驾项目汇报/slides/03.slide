@@ -1,0 +1,36 @@
+<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='1180' cy='140' r='300' fill='#1E4FA8' opacity='0.3' />
+    </svg>
+    <Box style={{ position: 'absolute', top: 108, left: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 32 }}>
+        <Text style={{ fontSize: 200, fontWeight: 'bold', color: '#FFFFFF', opacity: 0.28, lineHeight: 1 }}>01</Text>
+        <Box style={{ paddingBottom: 26 }}>
+            <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 4 }}>从 0 到现在</Text>
+            <Box style={{ width: 64, height: 4, background: '#FFC107', marginTop: 16 }} />
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', top: 448, left: 96, width: 1080 }}>
+        <Text style={{ fontSize: 24, color: '#E8EFF8', lineHeight: 1.8 }}>
+            项目始于 9 月 6 日的第一次提交，到今天共 <span style={{ fontWeight: 'bold', color: '#FFC107' }}>24 天、154 次提交</span>。
+            中间经历三个阶段：先用最小骨架验证「一次模型调用全链路可追踪、可计费」，
+            再把五层能力逐层做成闭环，最后进入判定质量与自主性的深水区。
+        </Text>
+    </Box>
+    <Box style={{ position: 'absolute', bottom: 84, left: 96, flexDirection: 'row', gap: 20, alignItems: 'center' }}>
+        <Box style={{ padding: '12px 28px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>阶段一 · 骨架验证</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 22, height: 22 }} />
+        </Box>
+        <Box style={{ padding: '12px 28px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>阶段二 · 能力闭环</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center' }}>
+            <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 22, height: 22 }} />
+        </Box>
+        <Box style={{ padding: '12px 28px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 20, color: '#FFFFFF' }}>阶段三 · 深度与自主性</Text>
+        </Box>
+    </Box>
+</Slide>

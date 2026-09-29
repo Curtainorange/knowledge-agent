@@ -1,0 +1,74 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '20px 40px 12px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>维度四 · 功能完善性（20 分）</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>按评分细则四个子项逐一对齐</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 20, padding: '6px 40px 0 40px' }}>
+        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
+            <Box>
+                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>功能完成度</Text>
+                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>8 分</Text>
+                    </Box>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
+                    策划承诺的核心功能全部实现、可现场演示。<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>10 项能力全部接入对话入口</span>，一句话即可调用。
+                </Text>
+            </Box>
+            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>挖掘 / 冲突 / 简报 / 计划 / 诊断 / 录入 / 同步 / 书架</Text>
+        </Box>
+        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
+            <Box>
+                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>稳定与容错</Text>
+                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>5 分</Text>
+                    </Box>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
+                    模型故障自动切备用供应商；检索失败降级关键词通道；会话过期<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>静默续期</span>；异常输入有兜底提示，不裸抛错误。
+                </Text>
+            </Box>
+            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>降级有边界：模拟结果绝不冒充真实结果</Text>
+        </Box>
+        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
+            <Box>
+                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>界面体验</Text>
+                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>4 分</Text>
+                    </Box>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
+                    登录即落地<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>对话工作台</span>，耗时能力先回「进行中」卡、完成后就地改写；9 个功能页全保留，信息直给、无冗余装饰。
+                </Text>
+            </Box>
+            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>结果以卡片回写会话，打开即见最终状态</Text>
+        </Box>
+        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
+            <Box>
+                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>代码质量</Text>
+                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
+                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>3 分</Text>
+                    </Box>
+                </Box>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
+                    分层清晰（网关 / 领域 / 能力 / 前端），仓储层结构性强制账号隔离；<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>647 项测试全绿</span>、提交粒度真实、20 条复盘沉淀。
+                </Text>
+            </Box>
+            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>测试全程模拟调用，不联网、秒级可回归</Text>
+        </Box>
+    </Box>
+    <Box style={{ margin: '16px 40px 0 40px', padding: '14px 24px', background: '#0E3F8C', borderRadius: 8 }}>
+        <Text style={{ fontSize: 20, color: '#FFFFFF', textAlign: 'center' }}>
+            稳定性的底气来自工程习惯：每一次降级都设计过边界，每一个静默失败都被写进复盘并加了测试断言
+        </Text>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>11 / 14</Text>
+    </Box>
+</Slide>

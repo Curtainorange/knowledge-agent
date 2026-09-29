@@ -1,0 +1,69 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '20px 40px 12px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>维度五 · 开发工作量（10 分）</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>规模 · 过程 · 迭代深度</Text>
+    </Box>
+    <Box style={{ flex: 1, padding: '4px 40px 0 40px', flexDirection: 'column', justifyContent: 'space-between' }}>
+        <Table
+            style={{ width: 1200, height: 252 }}
+            defaultTextStyle={{ fontSize: 17, textAlign: 'center', color: '#1A2230' }}
+            defaultCellStyle={{
+                border: {
+                    left: { width: 1, color: '#D6DCE5' },
+                    right: { width: 1, color: '#D6DCE5' },
+                    top: { width: 1, color: '#D6DCE5' },
+                    bottom: { width: 1, color: '#D6DCE5' },
+                },
+                background: { color: '#FFFFFF' },
+            }}
+            cells={[
+                [
+                    { text: '阶段', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    { text: '时间', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    { text: '测试规模', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    { text: '关键进展', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                ],
+                [
+                    { text: '骨架验证 → 能力闭环', textStyle: { bold: true, fontSize: 16 } },
+                    { text: '09-06 → 09-21', textStyle: { fontSize: 16 } },
+                    { text: '7 → 299 项', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 } },
+                    { text: '五层能力全部闭环；阅读器（txt/epub/pdf）＋微信读书同步；认证、任务框架、推送调度', textStyle: { textAlign: 'left', fontSize: 15 } },
+                ],
+                [
+                    { text: '对话收口 → 双层重做', textStyle: { bold: true, fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '09-21 → 09-23', textStyle: { fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '299 → 522 项', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '10 项能力全部接入对话；模型层双供应商链；检索层库内重构＋评估护栏', textStyle: { textAlign: 'left', fontSize: 15 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                ],
+                [
+                    { text: '判定增强 → 自主性', textStyle: { bold: true, fontSize: 16 } },
+                    { text: '09-24 → 09-29', textStyle: { fontSize: 16 } },
+                    { text: '522 → 647 项', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 } },
+                    { text: 'L2 置信度校准＋复核机制；4 本真书影子主张链路；自动巡检、事件反应、学习教练', textStyle: { textAlign: 'left', fontSize: 15 } },
+                ],
+            ]}
+        />
+        <Box style={{ flexDirection: 'row', gap: 18 }}>
+            <Box style={{ flex: 1, padding: '16px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>中期检查已达标：</span>第 10 周时五层能力与阅读链路均已可用，完成度远超 50% 计分线；当前核心功能全部可演示。
+                </Text>
+            </Box>
+            <Box style={{ flex: 1, padding: '16px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>迭代有深度：</span>判定质量真实评测四轮，回归承诺「不低于基线 0.83」并已兑现；每轮迭代伴随功能增强、性能优化与缺陷修复。
+                </Text>
+            </Box>
+        </Box>
+        <Box style={{ padding: '14px 22px', background: '#F7F9FC', borderRadius: 8, border: '1px solid #D6DCE5', marginBottom: 6 }}>
+            <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>关于 AI 辅助开发：</span>全程使用 AI 辅助编程，但每一行代码经 647 项测试、每日开发日志与 20 条复盘文档把关——原理说得清、改动可追溯，这正是「投入过程」可核查的证据。
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>12 / 14</Text>
+    </Box>
+</Slide>

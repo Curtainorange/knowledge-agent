@@ -1,0 +1,45 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '18px 40px 10px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>24 天 · 从 0 到可用系统</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>2026-09-06 首次提交 → 09-29</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 40, padding: '6px 40px 0 40px', alignItems: 'center' }}>
+        <Box style={{ width: 470, height: 430, background: '#0E3F8C', borderRadius: 12, padding: '44px 44px', justifyContent: 'space-between' }}>
+            <Box>
+                <Text style={{ fontSize: 22, color: '#9FBCE8', letterSpacing: 2 }}>Git 提交</Text>
+                <Text style={{ fontSize: 132, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.05, marginTop: 8 }}>154</Text>
+                <Text style={{ fontSize: 24, color: '#FFC107', fontWeight: 'bold', marginTop: 4 }}>次</Text>
+            </Box>
+            <Text style={{ fontSize: 21, color: '#E8EFF8', lineHeight: 1.7 }}>
+                其中 <span style={{ fontWeight: 'bold', color: '#FFC107' }}>20 天</span>有提交记录，粒度真实、主题明确——过程可追溯，工作量可核查。
+            </Text>
+        </Box>
+        <Box style={{ flex: 1, height: 430, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 20, padding: '0 0 18px 0', borderBottom: '2px solid #E8EFF8' }}>
+                <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>647</Text>
+                <Text style={{ fontSize: 22, color: '#4A5568', paddingBottom: 8 }}>项自动化测试全绿</Text>
+                <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>起点 7 项 · 92 倍</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 20, padding: '0 0 18px 0', borderBottom: '2px solid #E8EFF8' }}>
+                <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>2.6<span style={{ fontSize: 40 }}>万行</span></Text>
+                <Text style={{ fontSize: 22, color: '#4A5568', paddingBottom: 8 }}>代码总量</Text>
+                <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>后端 122 文件 · 测试 55 文件 · 前端 13 页</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 20 }}>
+                <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>5<span style={{ fontSize: 40 }}> 层</span></Text>
+                <Text style={{ fontSize: 22, color: '#4A5568', paddingBottom: 8 }}>能力全部闭环 L1–L5</Text>
+                <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>46 个接口 · 15+ 张数据表</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ margin: '12px 40px 0 40px', padding: '14px 26px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
+        <Text style={{ fontSize: 21, color: '#1A2230', lineHeight: 1.6 }}>
+            <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>这个规模的含义：</span>不是最后一周突击出来的，而是 24 天里每天都有提交、测试与开发日志的持续迭代——工作量维度可以直接按提交记录核查。
+        </Text>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>05 / 14</Text>
+    </Box>
+</Slide>

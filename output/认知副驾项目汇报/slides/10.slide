@@ -1,0 +1,75 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 28, padding: '22px 40px 0 40px' }}>
+        <Box style={{ width: 330, height: 592, background: '#0E3F8C', borderRadius: 10, padding: '36px 30px', justifyContent: 'space-between' }}>
+            <Box>
+                <Text style={{ fontSize: 18, color: '#9FBCE8', letterSpacing: 3 }}>维度三</Text>
+                <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#FFFFFF', marginTop: 12 }}>技术先进性</Text>
+                <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 18 }}>
+                    <Text style={{ fontSize: 64, fontWeight: 'bold', color: '#FFC107', lineHeight: 1 }}>20</Text>
+                    <Text style={{ fontSize: 22, color: '#BBD0F0', paddingBottom: 6 }}>分</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'column', gap: 10 }}>
+                <Text style={{ fontSize: 19, color: '#E8EFF8', lineHeight: 1.6 }}>对照评分细则三个子项：</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>技术选型 · 6 分</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>AI 应用深度 · 8 分</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>技术难度 · 6 分</Text>
+            </Box>
+            <Text style={{ fontSize: 18, color: '#BBD0F0', lineHeight: 1.6 }}>每个名词都落到「我怎么做、为什么这样做」。</Text>
+        </Box>
+        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', padding: '16px 16px 8px 16px', alignItems: 'center' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#0E3F8C' }}>RAG 与生成全链路（全部环节均已落地）</Text>
+                <svg width={812} height={148} viewBox='0 0 812 148'>
+                    <rect x='8' y='42' width='116' height='56' rx='8' fill='#E8EFF8' stroke='#3D7BD9' strokeWidth='1' />
+                    <text x='66' y='66' fontSize='16' fill='#0E3F8C' textAnchor='middle' fontWeight='bold'>知识录入</text>
+                    <text x='66' y='86' fontSize='13' fill='#4A5568' textAnchor='middle'>条目即分块</text>
+                    <polygon points='128,64 142,70 128,76' fill='#3D7BD9' />
+                    <rect x='146' y='42' width='116' height='56' rx='8' fill='#E8EFF8' stroke='#3D7BD9' strokeWidth='1' />
+                    <text x='204' y='66' fontSize='16' fill='#0E3F8C' textAnchor='middle' fontWeight='bold'>向量化</text>
+                    <text x='204' y='86' fontSize='13' fill='#4A5568' textAnchor='middle'>BGE 本地离线</text>
+                    <polygon points='266,64 280,70 266,76' fill='#3D7BD9' />
+                    <rect x='284' y='42' width='116' height='56' rx='8' fill='#E8EFF8' stroke='#3D7BD9' strokeWidth='1' />
+                    <text x='342' y='66' fontSize='16' fill='#0E3F8C' textAnchor='middle' fontWeight='bold'>混合召回</text>
+                    <text x='342' y='86' fontSize='13' fill='#4A5568' textAnchor='middle'>向量＋关键词</text>
+                    <polygon points='404,64 418,70 404,76' fill='#3D7BD9' />
+                    <rect x='422' y='42' width='116' height='56' rx='8' fill='#E8EFF8' stroke='#3D7BD9' strokeWidth='1' />
+                    <text x='480' y='66' fontSize='16' fill='#0E3F8C' textAnchor='middle' fontWeight='bold'>RRF 融合</text>
+                    <text x='480' y='86' fontSize='13' fill='#4A5568' textAnchor='middle'>按排名免调参</text>
+                    <polygon points='542,64 556,70 542,76' fill='#3D7BD9' />
+                    <rect x='560' y='42' width='116' height='56' rx='8' fill='#FFC107' opacity='0.9' />
+                    <text x='618' y='66' fontSize='16' fill='#1A2230' textAnchor='middle' fontWeight='bold'>评估护栏</text>
+                    <text x='618' y='86' fontSize='13' fill='#1A2230' textAnchor='middle'>recall≥0.95</text>
+                    <polygon points='680,64 694,70 680,76' fill='#3D7BD9' />
+                    <rect x='698' y='42' width='108' height='56' rx='8' fill='#0E3F8C' />
+                    <text x='752' y='66' fontSize='16' fill='#FFFFFF' textAnchor='middle' fontWeight='bold'>受约束生成</text>
+                    <text x='752' y='86' fontSize='13' fill='#BBD0F0' textAnchor='middle'>Schema 6/6</text>
+                    <text x='8' y='128' fontSize='15' fill='#8B97A8'>检索失败自动降级关键词通道，不丢条目、不阻断主链路；嵌入模型记录版本，可增量重建</text>
+                </svg>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <FAIcon name='shield' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
+                <Text style={{ flex: 1, fontSize: 19, color: '#1A2230', lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 'bold' }}>双供应商链：</span>DeepSeek ＋ MiMo 互为备份，失败重试满 3 次自动回退，切换时模型名、输出约束、计费单价全部重算——模型是插拔组件，不是系统地基
+                </Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <FAIcon name='cog' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
+                <Text style={{ flex: 1, fontSize: 19, color: '#1A2230', lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 'bold' }}>AI 应用深度：</span>意图路由规则与模型分流；结构化输出交给服务端 Schema 约束（对比实验 6/6 全过，自由文本解析 3 次挂 1）；思考模式按任务开关控成本
+                </Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <FAIcon name='chart-line' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
+                <Text style={{ flex: 1, fontSize: 19, color: '#1A2230', lineHeight: 1.55 }}>
+                    <span style={{ fontWeight: 'bold' }}>技术难度：</span>库内向量检索（pgvector 可选后端）＋ RRF 免调参融合；L2 判定真实评测 relation 准确率 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>0.83</span>、矛盾 P/R/F1 全 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>1.0</span>，并有回归承诺
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>10 / 14</Text>
+    </Box>
+</Slide>

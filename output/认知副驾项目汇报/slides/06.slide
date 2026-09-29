@@ -1,0 +1,75 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '20px 40px 12px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>系统全貌 · 五层能力梯度</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>从被动响应到主动诊断</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 32, padding: '4px 40px 0 40px' }}>
+        <Box style={{ width: 640, alignItems: 'center', justifyContent: 'center' }}>
+            <svg width={620} height={470} viewBox='0 0 620 470'>
+                <text x='12' y='24' fontSize='19' fill='#4A5568'>被动响应</text>
+                <text x='500' y='24' fontSize='19' fill='#1E4FA8' fontWeight='bold'>主动诊断</text>
+                <line x1='120' y1='30' x2='480' y2='30' stroke='#D6DCE5' strokeWidth='1.5' />
+                <polygon points='480,24 494,30 480,36' fill='#1E4FA8' />
+                <rect x='10' y='278' width='104' height='160' rx='6' fill='#BBD0F0' />
+                <text x='62' y='312' fontSize='24' fontWeight='bold' fill='#0E3F8C' textAnchor='middle'>L1</text>
+                <text x='62' y='342' fontSize='19' fill='#0E3F8C' textAnchor='middle'>模糊挖掘</text>
+                <rect x='130' y='210' width='104' height='228' rx='6' fill='#8FB0E4' />
+                <text x='182' y='244' fontSize='24' fontWeight='bold' fill='#0E3F8C' textAnchor='middle'>L2</text>
+                <text x='182' y='274' fontSize='19' fill='#0E3F8C' textAnchor='middle'>冲突检测</text>
+                <rect x='250' y='142' width='104' height='296' rx='6' fill='#5C8AD4' />
+                <text x='302' y='176' fontSize='24' fontWeight='bold' fill='#FFFFFF' textAnchor='middle'>L3</text>
+                <text x='302' y='206' fontSize='19' fill='#FFFFFF' textAnchor='middle'>认知助产</text>
+                <rect x='370' y='74' width='104' height='364' rx='6' fill='#3D7BD9' />
+                <text x='422' y='108' fontSize='24' fontWeight='bold' fill='#FFFFFF' textAnchor='middle'>L4</text>
+                <text x='422' y='138' fontSize='19' fill='#FFFFFF' textAnchor='middle'>路径修正</text>
+                <rect x='490' y='6' width='104' height='432' rx='6' fill='#1E4FA8' />
+                <text x='542' y='40' fontSize='24' fontWeight='bold' fill='#FFFFFF' textAnchor='middle'>L5</text>
+                <text x='542' y='70' fontSize='19' fill='#FFFFFF' textAnchor='middle'>偏误诊断</text>
+                <line x1='0' y1='442' x2='620' y2='442' stroke='#0E3F8C' strokeWidth='2' />
+                <text x='10' y='466' fontSize='17' fill='#8B97A8'>认知加工深度递增：从「帮你找回」到「替你看病」</text>
+            </svg>
+        </Box>
+        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between', padding: '6px 0' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Box style={{ width: 52, height: 34, background: '#E8EFF8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#0E3F8C' }}>L1</Text>
+                </Box>
+                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 1.5 }}>凭模糊线索找回知识，线索不足主动追问</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Box style={{ width: 52, height: 34, background: '#E8EFF8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#0E3F8C' }}>L2</Text>
+                </Box>
+                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 1.5 }}>发现知识体系里的「内战」：对立主张自动识别</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Box style={{ width: 52, height: 34, background: '#E8EFF8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#0E3F8C' }}>L3</Text>
+                </Box>
+                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 1.5 }}>生成你「该问但没问」的问题，点名结构性盲区</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Box style={{ width: 52, height: 34, background: '#E8EFF8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#0E3F8C' }}>L4</Text>
+                </Box>
+                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 1.5 }}>计划赶不上变化时自主重排，偏离信号本地计算</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+                <Box style={{ width: 52, height: 34, background: '#E8EFF8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#0E3F8C' }}>L5</Text>
+                </Box>
+                <Text style={{ fontSize: 20, color: '#4A5568', lineHeight: 1.5 }}>链式归因解释行为背后的「病根」，建议回写计划</Text>
+            </Box>
+            <Box style={{ padding: '14px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
+                    <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>四块基础设施：</span>统一模型网关 · 异步任务框架（幂等/重试/死信）· 行为埋点 · 推送与调度
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>06 / 14</Text>
+    </Box>
+</Slide>

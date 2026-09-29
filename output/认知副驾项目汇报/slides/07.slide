@@ -1,0 +1,39 @@
+<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='1160' cy='600' r='320' fill='#1E4FA8' opacity='0.3' />
+    </svg>
+    <Box style={{ position: 'absolute', top: 96, left: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 32 }}>
+        <Text style={{ fontSize: 200, fontWeight: 'bold', color: '#FFFFFF', opacity: 0.28, lineHeight: 1 }}>02</Text>
+        <Box style={{ paddingBottom: 26 }}>
+            <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 4 }}>对照评价标准 · 逐维度汇报</Text>
+            <Box style={{ width: 64, height: 4, background: '#FFC107', marginTop: 16 }} />
+            <Text style={{ fontSize: 22, color: '#BBD0F0', marginTop: 18 }}>按评分表顺序给证据：每个维度先亮分值，再讲做到了什么</Text>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', top: 470, left: 96, width: 1088, flexDirection: 'row', gap: 16 }}>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>实用性</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>15</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>创新性</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>技术先进性</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>功能完善性</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>10</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>开发工作量</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>15</Text>
+            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>现场表现</Text>
+        </Box>
+    </Box>
+</Slide>

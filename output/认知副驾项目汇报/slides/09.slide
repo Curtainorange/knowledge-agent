@@ -1,0 +1,86 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '20px 40px 12px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>维度二 · 创新性（15 分）：和现有方案比，好在哪里</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>结构对比 · 不靠名词</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 26, padding: '6px 40px 0 40px' }}>
+        <Box style={{ width: 730, flexDirection: 'column' }}>
+            <Table
+                style={{ width: 730, height: 356 }}
+                defaultTextStyle={{ fontSize: 17, textAlign: 'center', color: '#1A2230' }}
+                defaultCellStyle={{
+                    border: {
+                        left: { width: 1, color: '#D6DCE5' },
+                        right: { width: 1, color: '#D6DCE5' },
+                        top: { width: 1, color: '#D6DCE5' },
+                        bottom: { width: 1, color: '#D6DCE5' },
+                    },
+                    background: { color: '#FFFFFF' },
+                }}
+                cells={[
+                    [
+                        { text: '判定问题', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        { text: '网页 AI（豆包类）', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        { text: '笔记软件（Notion 类）', textStyle: { bold: true, color: '#FFFFFF', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                        { text: '认知副驾', textStyle: { bold: true, color: '#FFC107', fontSize: 17 }, cellStyle: { background: { color: '#0E3F8C' } } },
+                    ],
+                    [
+                        { text: '有跨会话的持久状态？', textStyle: { textAlign: 'left', fontSize: 16 } },
+                        { text: '✗ 对话完就忘', textStyle: { color: '#D9534F', fontSize: 16 } },
+                        { text: '△ 只存内容', textStyle: { color: '#B8860B', fontSize: 16 } },
+                        { text: '✓ 知识＋观点＋行为轨迹', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F0F5FC' } } },
+                    ],
+                    [
+                        { text: '能改变外部世界？', textStyle: { textAlign: 'left', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✗ 输出即结束', textStyle: { color: '#D9534F', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✗ 靠手动整理', textStyle: { color: '#D9534F', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✓ 写库·改计划·触发扫描', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F0F5FC' } } },
+                    ],
+                    [
+                        { text: '会主动发起？', textStyle: { textAlign: 'left', fontSize: 16 } },
+                        { text: '✗ 一问一答', textStyle: { color: '#D9534F', fontSize: 16 } },
+                        { text: '✗ 等你打开', textStyle: { color: '#D9534F', fontSize: 16 } },
+                        { text: '✓ 定时巡检·推送简报', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F0F5FC' } } },
+                    ],
+                    [
+                        { text: '输出能反向改进自己？', textStyle: { textAlign: 'left', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✗ 无状态', textStyle: { color: '#D9534F', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✗ 不理解内容', textStyle: { color: '#D9534F', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                        { text: '✓ 采纳诊断→计划改写', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F0F5FC' } } },
+                    ],
+                ]}
+            />
+            <Text style={{ fontSize: 16, color: '#8B97A8', marginTop: 10 }}>四个判定问题上，纯大模型与笔记软件几乎全是「否」——这是结构差别，不是能力强弱。</Text>
+        </Box>
+        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ padding: '18px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>选题创新 · 切「认知过程」</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.55 }}>
+                    不做内容存储的又一套轮子，管的是你的盲区、矛盾与病根——信息系统覆盖不到的那一半。
+                </Text>
+            </Box>
+            <Box style={{ padding: '18px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>方案创新 · 冲突检测与影子主张</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.55 }}>
+                    L2 识别同主题对立主张；书籍通读提取观点，与个人笔记跨来源对撞——已用 4 本真书验证。
+                </Text>
+            </Box>
+            <Box style={{ padding: '18px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8' }}>
+                <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>工程创新 · 先向量后模型</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.55 }}>
+                    让便宜的向量先判断「值不值得让贵的模型看」，判定候选对从全量两两比较压到每次 ≤20 对。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ margin: '14px 40px 0 40px', padding: '13px 24px', background: '#0E3F8C', borderRadius: 8 }}>
+        <Text style={{ fontSize: 21, color: '#FFFFFF', textAlign: 'center' }}>
+            创新落在结构上，不落在名词上——这张对比表就是「和现有方案比，我好在哪里」的回答
+        </Text>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>09 / 14</Text>
+    </Box>
+</Slide>
