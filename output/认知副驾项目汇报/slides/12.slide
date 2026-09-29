@@ -34,7 +34,7 @@
                     { text: '对话收口 → 双层重做', textStyle: { bold: true, fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
                     { text: '09-21 → 09-23', textStyle: { fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
                     { text: '299 → 522 项', textStyle: { bold: true, color: '#1E4FA8', fontSize: 16 }, cellStyle: { background: { color: '#F7F9FC' } } },
-                    { text: '10 项能力全部接入对话；模型层双供应商链；检索层库内重构＋评估护栏', textStyle: { textAlign: 'left', fontSize: 15 }, cellStyle: { background: { color: '#F7F9FC' } } },
+                    { text: '10 项能力全部接入对话；检索层库内重构＋pgvector 向量库＋评估护栏', textStyle: { textAlign: 'left', fontSize: 15 }, cellStyle: { background: { color: '#F7F9FC' } } },
                 ],
                 [
                     { text: '判定增强 → 自主性', textStyle: { bold: true, fontSize: 16 } },
@@ -58,7 +58,7 @@
         </Box>
         <Box style={{ padding: '14px 22px', background: '#F7F9FC', borderRadius: 8, border: '1px solid #D6DCE5', marginBottom: 6 }}>
             <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
-                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>关于 AI 辅助开发：</span>全程使用 AI 辅助编程，但每一行代码经 647 项测试、每日开发日志与 20 条复盘文档把关——原理说得清、改动可追溯，这正是「投入过程」可核查的证据。
+                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>关于 AI 辅助开发：</span>全程使用 AI 辅助编程，但每一处改动经 647 项测试、每日开发日志与 20 条复盘文档把关——原理说得清、改动可追溯，这正是「投入过程」可核查的证据。
             </Text>
         </Box>
     </Box>

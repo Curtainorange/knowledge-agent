@@ -16,7 +16,12 @@
             </Text>
         </Box>
         <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between', padding: '4px 0' }}>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '22px 26px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ padding: '10px 20px', background: '#FAFBFD', borderRadius: 10, border: '2px dashed #B0B9C8', alignItems: 'center', justifyContent: 'center', height: 112 }}>
+                <FAIcon name='image' style={{ fill: '#B0B9C8', width: 26, height: 26 }} />
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#8B97A8', marginTop: 5 }}>【预留】此处插入系统演示截图</Text>
+                <Text style={{ fontSize: 15, color: '#A8B2C0', marginTop: 3 }}>对话工作台 · 能力卡片 · 微信读书同步界面</Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
                 <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
                     <FAIcon name='sync' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
                 </Box>
@@ -27,7 +32,7 @@
                     </Text>
                 </Box>
             </Box>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '22px 26px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
                 <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
                     <FAIcon name='book' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
                 </Box>
@@ -38,7 +43,7 @@
                     </Text>
                 </Box>
             </Box>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '22px 26px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
                 <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
                     <FAIcon name='database' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
                 </Box>
@@ -49,7 +54,7 @@
                     </Text>
                 </Box>
             </Box>
-            <Box style={{ padding: '16px 24px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
+            <Box style={{ padding: '12px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
                 <Text style={{ fontSize: 20, color: '#1A2230', lineHeight: 1.6 }}>
                     <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>佐证：</span>项目连续 21 天开发日志、每日真实使用轨迹——这个系统先服务了开发者自己，才谈得上智能。
                 </Text>

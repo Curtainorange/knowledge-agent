@@ -49,9 +49,9 @@
                 </svg>
             </Box>
             <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
-                <FAIcon name='shield' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
+                <FAIcon name='database' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
                 <Text style={{ flex: 1, fontSize: 19, color: '#1A2230', lineHeight: 1.55 }}>
-                    <span style={{ fontWeight: 'bold' }}>双供应商链：</span>DeepSeek ＋ MiMo 互为备份，失败重试满 3 次自动回退，切换时模型名、输出约束、计费单价全部重算——模型是插拔组件，不是系统地基
+                    <span style={{ fontWeight: 'bold' }}>RAG 向量库：</span>本地 BGE 中文向量模型（bge-small-zh-v1.5 · 512 维 · ONNX 离线部署）＋ PostgreSQL pgvector 库内余弦检索；向量＋关键词双通道召回、RRF 免调参融合，评估护栏 recall@5 ≥ 0.95
                 </Text>
             </Box>
             <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
@@ -63,7 +63,7 @@
             <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 16, padding: '16px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
                 <FAIcon name='chart-line' style={{ fill: '#1E4FA8', width: 28, height: 28 }} />
                 <Text style={{ flex: 1, fontSize: 19, color: '#1A2230', lineHeight: 1.55 }}>
-                    <span style={{ fontWeight: 'bold' }}>技术难度：</span>库内向量检索（pgvector 可选后端）＋ RRF 免调参融合；L2 判定真实评测 relation 准确率 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>0.83</span>、矛盾 P/R/F1 全 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>1.0</span>，并有回归承诺
+                    <span style={{ fontWeight: 'bold' }}>技术难度：</span>向量先筛把 L2 的 O(n²) 候选对压到 ≤20 对；L2 判定真实评测 relation 准确率 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>0.83</span>、矛盾 P/R/F1 全 <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>1.0</span>，并有回归承诺
                 </Text>
             </Box>
         </Box>

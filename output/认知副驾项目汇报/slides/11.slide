@@ -28,7 +28,7 @@
                     </Box>
                 </Box>
                 <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
-                    模型故障自动切备用供应商；检索失败降级关键词通道；会话过期<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>静默续期</span>；异常输入有兜底提示，不裸抛错误。
+                    检索失败自动降级关键词通道；向量模型不可用自动切换哈希兜底；会话过期<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>静默续期</span>；异常输入有兜底提示，不裸抛错误。
                 </Text>
             </Box>
             <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>降级有边界：模拟结果绝不冒充真实结果</Text>

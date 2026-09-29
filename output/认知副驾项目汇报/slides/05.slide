@@ -22,9 +22,9 @@
                 <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>起点 7 项 · 92 倍</Text>
             </Box>
             <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 20, padding: '0 0 18px 0', borderBottom: '2px solid #E8EFF8' }}>
-                <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>2.6<span style={{ fontSize: 40 }}>万行</span></Text>
-                <Text style={{ fontSize: 22, color: '#4A5568', paddingBottom: 8 }}>代码总量</Text>
-                <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>后端 122 文件 · 测试 55 文件 · 前端 13 页</Text>
+                <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>10<span style={{ fontSize: 40 }}> 项</span></Text>
+                <Text style={{ fontSize: 22, color: '#4A5568', paddingBottom: 8 }}>能力全部接入对话入口</Text>
+                <Text style={{ fontSize: 20, color: '#8B97A8', paddingBottom: 8, marginLeft: 'auto' }}>对话即入口 · 一句话调用</Text>
             </Box>
             <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 20 }}>
                 <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1E4FA8', lineHeight: 1 }}>5<span style={{ fontSize: 40 }}> 层</span></Text>
