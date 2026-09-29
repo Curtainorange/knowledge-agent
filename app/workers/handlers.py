@@ -215,3 +215,41 @@ def event_reaction(payload: dict, session: Session) -> None:
         raise ValueError("event_reaction 缺少 event_id")
     hit = execute_reaction(session, event_id=event_id)
     logger.info("event reaction event=%s hit=%s", event_id, hit)
+
+
+@register("coach_weekly")
+def coach_weekly(payload: dict, session: Session) -> None:
+    """主动学习教练周聚合：L3/L4/L5 建议纯本地拼成教练提示，周频推送。
+
+    聚合零 LLM；唯一模型成本是 L3 `brief()`（周频 ≤2 次调用，空库快路径
+    返回 empty 零调用）。empty/degraded 降级 questions=[]，有材料仍照常推。
+    空材料（assemble 返回 None）不推送——无内容不打扰。
+    """
+    from app.agent.coach import assemble, collect_materials
+    from app.agent.l3_orchestrator import L3Orchestrator
+    from app.agent.push_service import PushService
+    from app.core.config import settings
+    from app.llm.gateway import ModelGateway
+
+    user_id = str(payload.get("user_id") or "")
+    if not user_id:
+        raise ValueError("coach_weekly 缺少 user_id")
+
+    questions: list = []
+    brief = L3Orchestrator(ModelGateway(), session).brief(user_id=user_id)
+    if brief.state == "ok":
+        questions = brief.questions
+    else:
+        logger.info("coach weekly brief degraded user=%s state=%s", user_id, brief.state)
+
+    materials = collect_materials(session, user_id)
+    digest = assemble(materials, questions, max_items=settings.coach_max_items)
+    if digest is None:
+        logger.info("coach weekly skipped user=%s (空材料)", user_id)
+        return
+
+    outcome = PushService(session).enqueue(
+        user_id=user_id, push_type="coach",
+        title=digest.title, body=digest.body, subject=digest.week_label,
+    )
+    logger.info("coach weekly user=%s status=%s", user_id, outcome.status)

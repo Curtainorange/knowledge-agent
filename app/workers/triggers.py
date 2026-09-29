@@ -178,3 +178,45 @@ def ensure_patrols(session: Session, user_ids: list[str]) -> int:
         )
         created += (1 if daily and daily.created else 0) + (1 if weekly and weekly.created else 0)
     return created
+
+
+# ---- 主动学习教练（第二阶段）------------------------------------------------
+# 固定周频聚合（不随 push_frequency 变——否则 daily 用户的 L3 成本 ×7）。
+# 聚合本身纯本地零 LLM，唯一 LLM 成本是周频一次 L3 brief。
+
+TASK_COACH_WEEKLY = "coach_weekly"
+
+
+def coach_weekly_key(user_id: str, now: datetime | None = None) -> str:
+    iso = (now or _utcnow()).isocalendar()
+    return f"coach:weekly:{user_id}:{iso[0]}-W{iso[1]:02d}"
+
+
+def enqueue_coach_weekly(session: Session, *, user_id: str) -> EnqueueResult | None:
+    """入队一次教练周聚合。异常只记日志。"""
+    key = coach_weekly_key(user_id)
+    try:
+        result = enqueue(
+            session,
+            task_name=TASK_COACH_WEEKLY,
+            user_id=user_id,
+            payload={"user_id": user_id},
+            idempotency_key=key,
+        )
+    except Exception as exc:
+        logger.warning("enqueue coach failed user=%s err=%s", user_id, exc)
+        return None
+    if result.created:
+        logger.info("coach weekly queued user=%s key=%s", user_id, key)
+    return result
+
+
+def ensure_coach_schedules(session: Session, user_ids: list[str]) -> int:
+    """确保每个活跃用户本周的教练聚合已排队；返回本轮新入队数。"""
+    if not settings.coach_enabled:
+        return 0
+    created = 0
+    for user_id in user_ids:
+        result = enqueue_coach_weekly(session, user_id=user_id)
+        created += 1 if result and result.created else 0
+    return created

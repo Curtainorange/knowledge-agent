@@ -18,7 +18,12 @@ from app.domain.repositories.user_repository import UserRepository
 from app.workers import handlers  # noqa: F401  导入即注册任务处理器
 from app.workers.tasks import RunSummary, run_pending
 from app.workers.reactions import ensure_event_reactions
-from app.workers.triggers import ensure_patrols, ensure_push_schedules, ensure_weekly_scans
+from app.workers.triggers import (
+    ensure_coach_schedules,
+    ensure_patrols,
+    ensure_push_schedules,
+    ensure_weekly_scans,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -52,6 +57,9 @@ def run_once(session) -> RunSummary:
     reacted = ensure_event_reactions(session, user_ids)
     if reacted:
         logger.info("event reactions queued: %d", reacted)
+    coached = ensure_coach_schedules(session, user_ids)
+    if coached:
+        logger.info("coach weekly queued: %d", coached)
     return run_pending(session)
 
 

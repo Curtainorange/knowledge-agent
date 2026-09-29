@@ -164,6 +164,10 @@ class Settings(BaseSettings):
     event_reaction_enabled: bool = True     # 事件反应总开关
     event_reaction_window_hours: int = 48   # 只扫窗口内的事件（限查询量，幂等键兜底重复）
 
+    # --- 主动学习教练（第二阶段）：L3/L4/L5 建议纯本地聚合为周教练提示 ---
+    coach_enabled: bool = True     # 教练周聚合开关
+    coach_max_items: int = 3       # 教练正文块数上限（防刷屏；聚合固定周频不随 push_frequency 变）
+
     # --- L2 产物的下游消费（把冲突从「台账」变成「推理原料」）---
     # 未解冲突注入各能力时取几条：开场只取 1 条（显式传入），
     # L3 简报 / L5 诊断 / L4 计划上下文共用此上限（成本与上下文闸门）
