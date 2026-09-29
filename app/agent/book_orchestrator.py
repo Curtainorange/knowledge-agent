@@ -46,8 +46,9 @@ MAX_CHUNKS = 24            # 块数上限：28.8 万字封顶，超出截断并�
 
 
 class ChunkDigest(BaseModel):
-    """一块原文的阅读笔记。"""
+    """一块原文的阅读笔记。topic 是领域标签（2-6 字），供 L2 影子主张走主题通道。"""
 
+    topic: str = ""
     gist: str = ""
     points: list[str] = Field(default_factory=list)
 
@@ -229,6 +230,7 @@ def read_whole_book(
             notes.append({
                 "index": chunk["index"], "title": chunk["title"],
                 "book_title": book.title,
+                "topic": digest.topic.strip()[:64],
                 "gist": digest.gist.strip(),
                 "points": [p.strip() for p in digest.points if p and p.strip()][:5],
             })
@@ -237,7 +239,7 @@ def read_whole_book(
             logger.warning("book digest chunk failed book=%s chunk=%s err=%s", book.id, chunk["title"], exc)
             notes.append({
                 "index": chunk["index"], "title": chunk["title"],
-                "book_title": book.title, "gist": "", "points": [],
+                "book_title": book.title, "topic": "", "gist": "", "points": [],
             })
 
     usable = [note for note in notes if note["gist"]]
@@ -254,7 +256,8 @@ def read_whole_book(
         total_chars=book.total_chars,
         summary=summary,
         chapters_note=[
-            {"index": n["index"], "title": n["title"], "gist": n["gist"], "points": n["points"]}
+            {"index": n["index"], "title": n["title"], "topic": n["topic"],
+             "gist": n["gist"], "points": n["points"]}
             for n in notes
         ],
         chunk_count=len(chunks),

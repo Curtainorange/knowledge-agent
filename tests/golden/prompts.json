@@ -40,8 +40,8 @@
     "sha256": "70d36ccf5534f4fd84a9838dd93589e31b5e6a4fe987966e8d9be69c48eeda31"
   },
   "book_digest_chunk": {
-    "version": "v1",
-    "sha256": "d644437bd80048157c6dc92ea356cda16feb6abead648b9801f78defc699839c"
+    "version": "v2",
+    "sha256": "42bf6c078a270146aa17e7c0eaf91ed961fa716fff0833e589aeca043e569c1f"
   },
   "book_digest_summary": {
     "version": "v1",

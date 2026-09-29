@@ -65,6 +65,18 @@ _BOOK_SOURCE_PREFIX = "book:"
 # 不设上限的话，一本 24 块的书 × 每块 5 要点会单独吃掉整轮配对预算。
 _MAX_CLAIMS_PER_READING = 40
 
+# 无观点文本标记：封面 / 目录 / 版权页 / 残句在通读笔记里也会产出「要点」，
+# 它们没有可比对的观点，放进漏斗只会白占判定预算（真书实测踩到）。
+_NOISE_MARKERS = (
+    "原文仅显示", "无可供提炼", "无法提炼", "文本残缺", "无法概括",
+    "未包含任何正文", "无实质内容", "未包含实质内容", "版权", "目录页",
+    "导航性栏目", "只列出了", "仅显示「",
+)
+
+
+def _is_noisy_viewpoint(text: str) -> bool:
+    return any(marker in text for marker in _NOISE_MARKERS)
+
 
 def book_source_key(book_id: str) -> str:
     """书籍影子主张的来源键（Claim.knowledge_item_id / Conflict.item_*_id 共用）。"""
@@ -398,18 +410,24 @@ class L2Orchestrator:
     def _reading_to_claims(reading, *, book_title: str) -> list[ExtractedClaim]:
         """通读笔记 → 影子主张：每章取要点（缺要点的章节用 gist 兜底），限量。
 
+        topic 优先用通读时模型打的**领域标签**（BOOK_DIGEST_CHUNK v2 起）——
+        它与笔记主张的主题标签出自同一套打标签逻辑，能走 topic 通道配对；
+        旧笔记（v1 时期）没有标签则回退书名（此时书观点只能靠语义通道）。
+
         statement 保持纯观点文本（书名语境由判定提示词带出）——把它拼进 statement
         会污染 embedding 相似度：同一观点在不同书名前缀下算不出相近的向量。
         """
         claims: list[ExtractedClaim] = []
-        topic = (book_title or "").strip()[:64]
+        fallback_topic = (book_title or "").strip()[:64]
         for chapter in reading.chapters_note or []:
-            if not chapter.get("gist"):
+            if not chapter.get("gist") or _is_noisy_viewpoint(chapter["gist"]):
                 continue
+            topic = (chapter.get("topic") or "").strip()[:64] or fallback_topic
             points = [str(p).strip() for p in (chapter.get("points") or []) if str(p).strip()]
+            points = [p for p in points if not _is_noisy_viewpoint(p)]
             statements = points[:2] if points else [str(chapter.get("gist", "")).strip()]
             for statement in statements:
-                if not statement:
+                if not statement or _is_noisy_viewpoint(statement):
                     continue
                 claims.append(ExtractedClaim(
                     statement=statement[:_MAX_CLAIM_STATEMENT],
@@ -488,7 +506,16 @@ class L2Orchestrator:
         def priority(pair: tuple[Claim, Claim, float]) -> float:
             a, b, sim = pair
             opposite = 2.0 if a.polarity * b.polarity == -1 else 0.0
-            return opposite * 10 + sim  # 极性相反优先，其次语义越近越优先
+            # 跨来源（书观点 vs 笔记 / 书 vs 书）优先送判：书观点是新增信息，
+            # 若不加权，topic 通道的书对会被「同主题笔记对」按 sim 挤出名额
+            # （真书实测：书×笔 0/20 入选）。幂等保证每对只判一次，额度不失控。
+            cross_source = (
+                2.0
+                if is_book_source(a.knowledge_item_id) != is_book_source(b.knowledge_item_id)
+                or (is_book_source(a.knowledge_item_id) and is_book_source(b.knowledge_item_id))
+                else 0.0
+            )
+            return opposite * 10 + cross_source * 10 + sim
 
         pairs.sort(key=priority, reverse=True)
         return [(a, b) for a, b, _ in pairs[: settings.l2_max_pairs_per_scan]]
