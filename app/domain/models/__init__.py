@@ -9,6 +9,7 @@ from app.domain.models.book import Book
 from app.domain.models.book_agent_reading import BookAgentReading  # 显式 import：未导入时 metadata 不注册此表，create_all / alembic 都不会建
 from app.domain.models.claim import Claim
 from app.domain.models.conflict import Conflict  # 显式 import：未导入时 SQLAlchemy metadata 不会注册此表，init_db / alembic 都会跳过建表
+from app.domain.models.l2_judgment_log import L2JudgmentLog  # 显式 import：同上
 from app.domain.models.learning_event import LearningEvent
 from app.domain.models.conversation import Conversation
 from app.domain.models.learning_goal import LearningGoal
@@ -28,6 +29,7 @@ __all__ = [
     "BookAgentReading",
     "Claim",
     "Conflict",
+    "L2JudgmentLog",
     "LearningEvent",
     "Conversation",
     "LearningGoal",

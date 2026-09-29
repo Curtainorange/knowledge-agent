@@ -142,6 +142,83 @@ def test_parse_epub_extracts_images(tmp_path):
     assert "图前文字" in parsed.full_text and "图后文字" in parsed.full_text
 
 
+def test_upload_rejects_scanned_book(client, tmp_path):
+    """图片多 + 几乎无可读文本 = 扫描版，上传即拦。
+
+    真书实测《天才假象》：209 图 + 2.4k 字符的占位符与元数据乱码，
+    直到通读才发现没有可读文本——拦截必须前移到上传。
+    """
+    headers = auth_headers(client, "book_scanned_reject")
+
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    n_images = 35
+    manifest_items = "".join(
+        f'<item id="img{i}" href="images/pic{i}.png" media-type="image/png"/>'
+        for i in range(n_images)
+    )
+    opf = (
+        '<?xml version="1.0"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">扫描版</dc:title></metadata>'
+        f'<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>{manifest_items}</manifest>'
+        '<spine><itemref idref="c1"/></spine></package>'
+    )
+    c1 = "<html><body><h1>封面</h1>" + "".join(
+        f'<img src="images/pic{i}.png"/>' for i in range(n_images)
+    ) + "<p>仅此一行文字</p></body></html>"
+    path = tmp_path / "scanned.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("OEBPS/content.opf", opf)
+        zf.writestr("OEBPS/c1.xhtml", c1)
+        for i in range(n_images):
+            zf.writestr(f"OEBPS/images/pic{i}.png", _PNG_BYTES)
+
+    resp = _upload(client, headers, "扫描版.epub", path.read_bytes())
+    assert resp.status_code == 400
+    assert "扫描版" in resp.json()["detail"]
+
+
+def test_upload_accepts_illustrated_book_with_real_text(client, tmp_path):
+    """正常图文书（少量插图 + 真正文）不受扫描版拦截影响。"""
+    headers = auth_headers(client, "book_illustrated_ok")
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    manifest_items = "".join(
+        f'<item id="img{i}" href="images/pic{i}.png" media-type="image/png"/>'
+        for i in range(5)
+    )
+    opf = (
+        '<?xml version="1.0"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">图文书</dc:title></metadata>'
+        f'<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>{manifest_items}</manifest>'
+        '<spine><itemref idref="c1"/></spine></package>'
+    )
+    c1 = "<html><body>" + "".join(
+        f'<img src="images/pic{i}.png"/>' for i in range(5)
+    ) + "<p>" + ("正文内容。" * 300) + "</p></body></html>"  # 1200+ 字正文
+    path = tmp_path / "illustrated.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("OEBPS/content.opf", opf)
+        zf.writestr("OEBPS/c1.xhtml", c1)
+        for i in range(5):
+            zf.writestr(f"OEBPS/images/pic{i}.png", _PNG_BYTES)
+
+    resp = _upload(client, headers, "图文书.epub", path.read_bytes())
+    assert resp.status_code == 201, resp.text
+
+
 def test_book_image_endpoint(client, tmp_path):
     """上传带图 epub 后，章节含占位符，图片可通过端点访问。"""
     headers = auth_headers(client, "book_img_api")

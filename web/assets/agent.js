@@ -365,6 +365,23 @@ window.CCA = (function () {
     return '<div class="conflict' + (done ? ' done' : '') + '">' + body + '</div>';
   }
 
+  /* 书观点 ↔ 笔记的互补对：矛盾逼你修正，印证给你确认。 */
+  function echoesHtml(card) {
+    var echoes = card.echoes || [];
+    if (!echoes.length) {
+      return '';
+    }
+    var rows = echoes.map(function (e) {
+      return '<div class="cand"><div class="cand-main">' +
+        '<div class="cand-title">' + esc(e.title_a) + ' ↔ ' + esc(e.title_b) + '</div>' +
+        '<div class="cand-snip">' + esc(e.claim_a) + '</div>' +
+        '<div class="cand-snip">' + esc(e.claim_b) + '</div>' +
+      '</div></div>';
+    }).join('');
+    return '<details class="candidates"><summary>互相印证（' + echoes.length + '）</summary>' +
+      rows + '</details>';
+  }
+
   function l2ConflictsHtml(card) {
     var items = card.items || [];
     var parts = [];
@@ -373,6 +390,7 @@ window.CCA = (function () {
     } else {
       parts.push(items.map(function (c) { return conflictHtml(c, card.key); }).join(''));
     }
+    parts.push(echoesHtml(card));
     var summary = card.summary || {};
     if (typeof summary.scanned_items === 'number') {
       parts.push('<div class="meta">本次扫描 ' + Number(summary.scanned_items) + ' 条 · 判定 ' +

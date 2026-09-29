@@ -1,6 +1,7 @@
 """书籍业务服务：上传（存文件 + 解析入库）、进度、划词存知识。"""
 from __future__ import annotations
 
+import re
 from uuid import uuid4
 
 from sqlalchemy import select
@@ -24,6 +25,25 @@ _PARSERS = {
     "epub": parser.parse_epub,
     "pdf": parser.parse_pdf,
 }
+
+# 扫描版（图片书）拦截阈值：真书实测《天才假象》epub=209 图 + 2.4k 字符的图片
+# 占位符与元数据乱码，通读到一半才发现没有可读文本。图片多 + 去占位后文本少
+# 即判为扫描版，在**上传时**就拒绝（阈值偏保守，正常图文书远够不到）。
+_SCANNED_BOOK_MIN_IMAGES = 30
+_SCANNED_BOOK_MAX_TEXT = 5_000
+_IMAGE_TAG = re.compile(r"\[\[IMG:[^\]]+\]\]")
+
+
+def _reject_scanned_book(parsed) -> None:
+    """图片多、去图占位后几乎没有可读文本 → 判为扫描版，直接拒绝入库。"""
+    if not parsed.images or len(parsed.images) < _SCANNED_BOOK_MIN_IMAGES:
+        return
+    clean_chars = len(_IMAGE_TAG.sub("", parsed.full_text or "").strip())
+    if clean_chars < _SCANNED_BOOK_MAX_TEXT:
+        raise ValueError(
+            "这本书看起来是扫描版（大量图片、几乎没有可读文本），"
+            "无法阅读、通读与冲突检测；请换文字版后再上传。"
+        )
 
 
 def _books_root() -> Path:
@@ -51,6 +71,7 @@ class BookService:
         dest.write_bytes(content)
 
         parsed = _PARSERS[book_format](dest, title=Path(filename).stem)
+        _reject_scanned_book(parsed)
 
         # 插图落盘：存到 <books_dir>/<user>/<book_id>/images/<name>，
         # 阅读器按 full_text 里的 [[IMG:name]] 占位符回填显示

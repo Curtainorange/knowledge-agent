@@ -147,6 +147,9 @@ def test_digest_end_to_end_isolated_from_user_reading(client, session, provider)
     assert card["summary"].startswith("全书围绕")
     assert len(card["chapters"]) == 1
     assert card["sends"] and "聊聊" in card["sends"][0]["message"]
+    assert any(s["message"] == "扫描知识冲突" for s in card["sends"]), (
+        "通读卡要有「顺手扫一遍冲突」按钮，把新书观点立刻和笔记对撞"
+    )
 
     # 隔离不变量：智能体的阅读成果只落在独立表里
     reading = BookAgentReadingRepository(session, user_id=user.user_id).get_by_book(book_id)

@@ -65,6 +65,9 @@ _BOOK_SOURCE_PREFIX = "book:"
 # 不设上限的话，一本 24 块的书 × 每块 5 要点会单独吃掉整轮配对预算。
 _MAX_CLAIMS_PER_READING = 40
 
+# 每轮扫描随卡展示的「印证」上限：矛盾才是本能力的主产出，印证是补充
+_MAX_ECHOES = 3
+
 # 无观点文本标记：封面 / 目录 / 版权页 / 残句在通读笔记里也会产出「要点」，
 # 它们没有可比对的观点，放进漏斗只会白占判定预算（真书实测踩到）。
 _NOISE_MARKERS = (
@@ -149,6 +152,9 @@ class L2ScanResult:
     conflicts_found: int = 0         # 新入库冲突数
     conflicts_suppressed: int = 0    # 因反馈抑制未入库数
     book_readings_used: int = 0      # 参与本轮的通读笔记份数
+    # 本轮发现的「印证」（书观点 ↔ 笔记的互补对，跨来源、最多 3 条）：
+    # 矛盾逼你修正，印证给你确认——两者都是书与笔记冲撞的产出
+    echoes: list[dict] = field(default_factory=list)
     conflict_ids: list[str] = field(default_factory=list)
 
 
@@ -170,6 +176,9 @@ class L2Orchestrator:
         krepo = KnowledgeRepository(self._session, user_id=user_id)
         crepo = ClaimRepository(self._session, user_id=user_id)
         xrepo = ConflictRepository(self._session, user_id=user_id)
+        from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+        log_repo = L2JudgmentLogRepository(self._session, user_id=user_id)
 
         items = {i.id: i for i in krepo.list_active(user_id)}
 
@@ -237,8 +246,43 @@ class L2Orchestrator:
                 continue  # LLM 失败：不入库，下轮重试
             result.pairs_judged += 1
 
+            # 判定明细落库（**含非矛盾**）：排查「为什么没抓出冲突」与成本审计的
+            # 事实来源。自包含（标题与文本随行）——影子主张会被重扫替换，
+            # 靠 claim_id 回查会静默丢文本。写入后立即 commit，写锁不跨 LLM 调用。
+            log_repo.create(
+                user_id=user_id,
+                pair_key=pair_key,
+                claim_a_id=claim_a.id,
+                claim_b_id=claim_b.id,
+                source_a=claim_a.knowledge_item_id,
+                source_b=claim_b.knowledge_item_id,
+                title_a=titles.get(claim_a.knowledge_item_id, ""),
+                title_b=titles.get(claim_b.knowledge_item_id, ""),
+                claim_a_text=claim_a.statement,
+                claim_b_text=claim_b.statement,
+                relation=judgment.relation,
+                conflict_type=judgment.conflict_type,
+                confidence=judgment.confidence,
+                polarity_a=claim_a.polarity,
+                polarity_b=claim_b.polarity,
+                detail=judgment.detail,
+            )
+            self._session.commit()
+
             if judgment.relation != "矛盾":
-                continue  # 互补/断层/无关：仅记录日志，不落库
+                # 印证：书观点与笔记的互补对（跨来源）——矛盾逼你修正，印证给你确认
+                if (
+                    judgment.relation == "互补"
+                    and len(result.echoes) < _MAX_ECHOES
+                    and is_book_source(claim_a.knowledge_item_id) != is_book_source(claim_b.knowledge_item_id)
+                ):
+                    result.echoes.append({
+                        "title_a": titles.get(claim_a.knowledge_item_id, ""),
+                        "title_b": titles.get(claim_b.knowledge_item_id, ""),
+                        "claim_a": claim_a.statement,
+                        "claim_b": claim_b.statement,
+                    })
+                continue
             if judgment.confidence < settings.l2_min_confidence:
                 logger.info(
                     "l2 conflict dropped (low confidence %.2f) pair=%s",
@@ -283,6 +327,7 @@ class L2Orchestrator:
                 "conflicts_suppressed": result.conflicts_suppressed,
                 "extraction_failures": result.extraction_failures,
                 "book_readings_used": result.book_readings_used,
+                "echoes_found": len(result.echoes),
             },
         )
         return result

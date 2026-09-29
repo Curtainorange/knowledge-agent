@@ -181,6 +181,8 @@ async def upload_book(
 
     try:
         book = BookService(session).upload(user_id=user_id, filename=filename, content=content)
+    except ValueError as exc:  # 业务性拒绝（如扫描版图片书），文案直出
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
     except Exception as exc:  # 解析失败等
         raise HTTPException(status_code=400, detail=f"解析失败：{exc}") from exc
     return _book_out(book)

@@ -240,8 +240,13 @@ def book_digest_card(*, key: str, outcome) -> dict:
         "truncated": bool(outcome.truncated),
         "note": outcome.note,
         "href": "",
+        # 「聊聊」接着讨论，「顺手扫」把新书的观点立刻和笔记对撞——
+        # 通读的价值一半在讨论、一半在冲突，两个出口都给到
         "sends": (
-            [_send(f"聊聊《{outcome.title}》", f"聊聊《{outcome.title}》这本书")]
+            [
+                _send(f"聊聊《{outcome.title}》", f"聊聊《{outcome.title}》这本书"),
+                _send("顺手扫一遍冲突", "扫描知识冲突"),
+            ]
             if outcome.state in ("ok", "reused")
             else []
         ),
@@ -470,6 +475,8 @@ def l2_conflicts_card(*, key: str, items: list[dict], summary: dict) -> dict:
         "key": key,
         "items": items,
         "summary": summary,
+        # 书观点 ↔ 笔记的互补对（快照，只随本次扫描结果变化）
+        "echoes": [dict(e) for e in (summary.get("echoes") or [])],
         "href": spec.href if spec else "",
     }
 
@@ -486,7 +493,11 @@ def scan_reply(summary: dict) -> str:
     if found:
         parts.append(f"发现 {found} 处矛盾")
     else:
-        parts.append("没有发现新的矛盾")
+        echoes = summary.get("echoes") or []
+        if echoes:
+            parts.append(f"没有新的矛盾，但有 {len(echoes)} 处书与笔记互相印证")
+        else:
+            parts.append("没有发现新的矛盾")
     suppressed = int(summary.get("conflicts_suppressed") or 0)
     if suppressed:
         parts.append(f"另有 {suppressed} 处因你反复忽略的同类冲突被收敛")

@@ -676,5 +676,53 @@ def test_book_claims_rebuilt_only_when_reading_updated(session):
     assert third_ids and third_ids != first_ids
 
 
+def test_judgment_logs_persist_and_echoes_collected(session):
+    """每一对送判主张都落判定日志（含非矛盾）；书×笔的互补对收集为「印证」。"""
+    from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+    source = _seed_reading(session, "u3", book_title="技能习得")
+    _ingest(session, "u3", "天赋论", "没有天赋苦练也没用。")
+    orch = _orchestrator(session, {
+        "batch_extraction": [{
+            "claims": [
+                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+            ]
+        }],
+        "conflict_detection": [
+            {"relation": "互补", "detail": "书与笔记互相支撑", "confidence": 0.8},
+            {"relation": "互补", "detail": "同一结论的另一面", "confidence": 0.7},
+        ],
+    })
+
+    result = orch.scan(user_id="u3")
+
+    logs = L2JudgmentLogRepository(session, user_id="u3").list_recent("u3")
+    assert len(logs) == result.pairs_judged > 0
+    assert all(log.relation == "互补" for log in logs)
+    assert all("通读笔记" in (log.title_a + log.title_b) for log in logs)
+    assert len(result.echoes) == 2, "两条跨来源互补对都应收集为印证"
+    assert result.echoes[0]["title_a"].endswith("通读笔记") or \
+        result.echoes[0]["title_b"].endswith("通读笔记")
+
+
+def test_judgment_logs_not_written_for_llm_failure(session):
+    """判定解析失败时不写日志（该对下轮重试，日志只记真实发生过的判定）。"""
+    from app.domain.repositories.l2_judgment_log_repository import L2JudgmentLogRepository
+
+    source = _seed_reading(session, "u4", book_title="技能习得")
+    _ingest(session, "u4", "天赋论", "没有天赋苦练也没用。")
+    orch = _orchestrator(session, {
+        "batch_extraction": [{
+            "claims": [
+                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+            ]
+        }],
+        "conflict_detection": ["不是 JSON", "不是 JSON"],
+    })
+    result = orch.scan(user_id="u4")
+    assert result.pairs_judged == 0
+    assert L2JudgmentLogRepository(session, user_id="u4").list_recent("u4") == []
+
+
 def test_api_scan_requires_auth(client):
     assert client.post("/api/v1/l2/scan").status_code == 401
