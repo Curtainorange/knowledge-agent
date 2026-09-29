@@ -17,7 +17,7 @@ from app.domain.db import SessionLocal
 from app.domain.repositories.user_repository import UserRepository
 from app.workers import handlers  # noqa: F401  导入即注册任务处理器
 from app.workers.tasks import RunSummary, run_pending
-from app.workers.triggers import ensure_push_schedules, ensure_weekly_scans
+from app.workers.triggers import ensure_patrols, ensure_push_schedules, ensure_weekly_scans
 
 logger = logging.getLogger(__name__)
 
@@ -45,6 +45,9 @@ def run_once(session) -> RunSummary:
     pushed = ensure_push_schedules(session, user_ids)
     if pushed:
         logger.info("push schedules queued: %d", pushed)
+    patrolled = ensure_patrols(session, user_ids)
+    if patrolled:
+        logger.info("patrols queued: %d", patrolled)
     return run_pending(session)
 
 

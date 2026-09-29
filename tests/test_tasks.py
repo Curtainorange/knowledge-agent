@@ -162,6 +162,7 @@ def test_run_once_enqueues_weekly_scan_only_once(session, monkeypatch):
 
     # 聚焦 L2 周扫幂等，关闭推送调度（推送调度在 test_push_schedule 单独测）
     monkeypatch.setattr(settings, "push_schedule_enabled", False)
+    monkeypatch.setattr(settings, "patrol_enabled", False)  # 巡检在 test_patrol 单独测
 
     users = UserRepository(session)
     users.create_user(username="wk_a", password_hash="x")

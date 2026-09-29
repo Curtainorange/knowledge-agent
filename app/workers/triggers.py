@@ -121,3 +121,60 @@ def ensure_push_schedules(session: Session, user_ids: list[str]) -> int:
         monthly = enqueue_push(user_id, session, monthly=True)
         created += (1 if weekly and weekly.created else 0) + (1 if monthly and monthly.created else 0)
     return created
+
+
+# ---- 自主巡检（第二阶段）----------------------------------------------------
+# L4 偏离日巡检：日粒度匹配 `l4_idle_days_threshold=3` 的语义（周粒度会把
+# 3 天阈值稀释成 3~7 天，把干预时延拉长砸掉 G4 指标）。
+# L2 弱真值周体检：零 LLM，只写事件供教练周聚合引用——不单独推送。
+
+TASK_L4_DEVIATION_CHECK = "l4_deviation_check"
+TASK_L2_EVAL_WEEKLY = "l2_eval_weekly"
+
+
+def l4_deviation_key(user_id: str, now: datetime | None = None) -> str:
+    stamp = (now or _utcnow()).strftime("%Y-%m-%d")
+    return f"l4:deviation:{user_id}:{stamp}"
+
+
+def l2_eval_weekly_key(user_id: str, now: datetime | None = None) -> str:
+    iso = (now or _utcnow()).isocalendar()
+    return f"eval:weekly:{user_id}:{iso[0]}-W{iso[1]:02d}"
+
+
+def enqueue_patrol(
+    session: Session, *, user_id: str, task_name: str, key: str
+) -> EnqueueResult | None:
+    """入队一次巡检任务（日偏离检查 / 周弱真值体检）。异常只记日志。"""
+    try:
+        result = enqueue(
+            session,
+            task_name=task_name,
+            user_id=user_id,
+            payload={"user_id": user_id},
+            idempotency_key=key,
+        )
+    except Exception as exc:
+        logger.warning("enqueue patrol failed user=%s task=%s err=%s", user_id, task_name, exc)
+        return None
+    if result.created:
+        logger.info("patrol queued user=%s task=%s key=%s", user_id, task_name, key)
+    return result
+
+
+def ensure_patrols(session: Session, user_ids: list[str]) -> int:
+    """确保每个活跃用户的巡检已排队（偏离日检 + 弱真值周体检）；返回本轮新入队数。"""
+    if not settings.patrol_enabled:
+        return 0
+    created = 0
+    for user_id in user_ids:
+        daily = enqueue_patrol(
+            session, user_id=user_id,
+            task_name=TASK_L4_DEVIATION_CHECK, key=l4_deviation_key(user_id),
+        )
+        weekly = enqueue_patrol(
+            session, user_id=user_id,
+            task_name=TASK_L2_EVAL_WEEKLY, key=l2_eval_weekly_key(user_id),
+        )
+        created += (1 if daily and daily.created else 0) + (1 if weekly and weekly.created else 0)
+    return created

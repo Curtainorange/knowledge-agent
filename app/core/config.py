@@ -156,6 +156,10 @@ class Settings(BaseSettings):
     task_retry_backoff_seconds: float = 1.0  # 重试退避基数（2^(n-1) 倍，测试设 0 即时重试）
     task_stale_seconds: float = 600.0    # running 超时回收阈值（须大于最长 handler 实测时长）
 
+    # --- 自主巡检（第二阶段）：L4 偏离日巡检 + L2 弱真值周体检 ---
+    patrol_enabled: bool = True            # 巡检总开关
+    l4_intervention_repeat_days: int = 3   # 持续偏离时归因/干预的最小间隔天数（防刷屏）
+
     # --- L2 产物的下游消费（把冲突从「台账」变成「推理原料」）---
     # 未解冲突注入各能力时取几条：开场只取 1 条（显式传入），
     # L3 简报 / L5 诊断 / L4 计划上下文共用此上限（成本与上下文闸门）
