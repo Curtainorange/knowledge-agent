@@ -35,6 +35,11 @@ from typing import Literal
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent.l2_judge_quality import (
+    PairSignals,
+    calibrate_l2_confidence,
+    cites_evidence,
+)
 from app.core.config import settings
 from app.domain.models.claim import Claim
 from app.domain.models.conflict import Conflict
@@ -236,7 +241,7 @@ class L2Orchestrator:
         result.book_readings_used = len(book_titles)
         pairs = self._candidate_pairs(all_claims)
 
-        for claim_a, claim_b in pairs:
+        for claim_a, claim_b, sim in pairs:
             pair_key = make_pair_key(claim_a.id, claim_b.id)
             if xrepo.find_by_pair(user_id, pair_key) is not None:
                 continue  # ADR-13 幂等：同对主张只判一次
@@ -245,6 +250,11 @@ class L2Orchestrator:
             if judgment is None:
                 continue  # LLM 失败：不入库，下轮重试
             result.pairs_judged += 1
+
+            # 置信度校准（判断层，ADR-15 范式）：不信任模型裸自报，用本地信号
+            # 缩放+微调。阈值判校准值——「模型自信」与「证据充分」分开把关。
+            signals = self._pair_signals(claim_a, claim_b, judgment, sim=sim)
+            calibrated = calibrate_l2_confidence(judgment.confidence, signals)
 
             # 判定明细落库（**含非矛盾**）：排查「为什么没抓出冲突」与成本审计的
             # 事实来源。自包含（标题与文本随行）——影子主张会被重扫替换，
@@ -263,6 +273,8 @@ class L2Orchestrator:
                 relation=judgment.relation,
                 conflict_type=judgment.conflict_type,
                 confidence=judgment.confidence,
+                calibrated_confidence=calibrated,
+                sim=sim,
                 polarity_a=claim_a.polarity,
                 polarity_b=claim_b.polarity,
                 detail=judgment.detail,
@@ -283,10 +295,10 @@ class L2Orchestrator:
                         "claim_b": claim_b.statement,
                     })
                 continue
-            if judgment.confidence < settings.l2_min_confidence:
+            if calibrated < settings.l2_min_confidence:
                 logger.info(
-                    "l2 conflict dropped (low confidence %.2f) pair=%s",
-                    judgment.confidence, pair_key,
+                    "l2 conflict dropped (low confidence raw=%.2f calibrated=%.2f) pair=%s",
+                    judgment.confidence, calibrated, pair_key,
                 )
                 continue
 
@@ -304,14 +316,14 @@ class L2Orchestrator:
                 conflict_type=judgment.conflict_type or "矛盾",
                 detail=judgment.detail,
                 suggestion=judgment.suggestion,
-                confidence=judgment.confidence,
+                confidence=calibrated,
             )
             self._session.commit()  # 立即提交，写锁不跨 LLM 调用
             result.conflicts_found += 1
             result.conflict_ids.append(conflict.id)
             logger.info(
-                "l2 conflict created type=%s conf=%.2f pair=%s",
-                judgment.conflict_type, judgment.confidence, pair_key,
+                "l2 conflict created type=%s conf=%.2f (raw %.2f) pair=%s",
+                judgment.conflict_type, calibrated, judgment.confidence, pair_key,
             )
 
         # 行为埋点：扫描产出的规模指标，供 L4/L5 与成本分析使用（不记冲突正文）
@@ -518,7 +530,7 @@ class L2Orchestrator:
 
     # ---- L2-2~4 候选对生成 -------------------------------------------------
 
-    def _candidate_pairs(self, claims: list[Claim]) -> list[tuple[Claim, Claim]]:
+    def _candidate_pairs(self, claims: list[Claim]) -> list[tuple[Claim, Claim, float | None]]:
         """候选对生成：topic 通道 ∪ 语义近邻通道，按立场/相似度排序，上限闸门。
 
         - topic 通道：归一化后同主题即组对（召回廉价但受 LLM 标签措辞影响——
@@ -527,6 +539,7 @@ class L2Orchestrator:
           太近≈重复表述、太远≈无关，两端都排除（架构 §7.2 要点）；
           向量取自 `Claim.embedding`（缺失才补算回写，见 `_claim_vectors`）
         - embedding 不可用时自动退化为纯 topic 通道，不阻断扫描
+        - 返回 (a, b, sim)：sim 随对带走（置信度校准的信号），topic 通道无向量时 None
         """
         if not claims:
             return []
@@ -544,12 +557,13 @@ class L2Orchestrator:
                     and (a.topic or "").strip() == (b.topic or "").strip()
                 )
                 if same_topic:
-                    pairs.append((a, b, sim if sim is not None else 0.0))
+                    pairs.append((a, b, sim))
                 elif sim is not None and settings.l2_pair_sim_lo <= sim <= settings.l2_pair_sim_hi:
                     pairs.append((a, b, sim))
 
-        def priority(pair: tuple[Claim, Claim, float]) -> float:
+        def priority(pair: tuple[Claim, Claim, float | None]) -> float:
             a, b, sim = pair
+            sim = sim if sim is not None else 0.0
             opposite = 2.0 if a.polarity * b.polarity == -1 else 0.0
             # 跨来源（书观点 vs 笔记 / 书 vs 书）优先送判：书观点是新增信息，
             # 若不加权，topic 通道的书对会被「同主题笔记对」按 sim 挤出名额
@@ -563,7 +577,8 @@ class L2Orchestrator:
             return opposite * 10 + cross_source * 10 + sim
 
         pairs.sort(key=priority, reverse=True)
-        return [(a, b) for a, b, _ in pairs[: settings.l2_max_pairs_per_scan]]
+        # 返回三元组带 sim：判定后的置信度校准要它做信号（topic 通道无向量时为 None）
+        return [(a, b, sim) for a, b, sim in pairs[: settings.l2_max_pairs_per_scan]]
 
     @staticmethod
     def _claim_embed_text(statement: str | None) -> str:
@@ -679,6 +694,26 @@ class L2Orchestrator:
         }
 
     # ---- L2-5 LLM 判定 ------------------------------------------------------
+
+    @staticmethod
+    def _pair_signals(
+        claim_a: Claim, claim_b: Claim, judgment: ConflictJudgment, *, sim: float | None
+    ) -> PairSignals:
+        """送判对的本地信号快照（置信度校准用；全部离线可算，不问模型）。"""
+        return PairSignals(
+            relation=judgment.relation,
+            polarity_opposite=claim_a.polarity * claim_b.polarity == -1,
+            cross_source=(
+                is_book_source(claim_a.knowledge_item_id)
+                != is_book_source(claim_b.knowledge_item_id)
+            ),
+            sim=sim,
+            text_a_len=len(claim_a.statement or ""),
+            text_b_len=len(claim_b.statement or ""),
+            evidence_cited=cites_evidence(
+                judgment.detail, claim_a.statement, claim_b.statement
+            ),
+        )
 
     def _judge_pair(
         self,

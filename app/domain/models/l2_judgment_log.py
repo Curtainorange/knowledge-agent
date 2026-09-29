@@ -37,6 +37,15 @@ class L2JudgmentLog(Base, TimestampMixin):
     relation: Mapped[str] = mapped_column(String(8))          # 矛盾 | 互补 | 断层 | 无关
     conflict_type: Mapped[str] = mapped_column(String(32), default="")
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    # 校准后置信度（判断层）：confidence 保留模型裸自报，校准值供阈值与评测对比
+    calibrated_confidence: Mapped[float] = mapped_column(Float, default=0.0)
+    # 送判时的余弦相似度快照（校准信号 + 评测分析；topic 通道可能没有）
+    sim: Mapped[float | None] = mapped_column(Float, nullable=True)
+    # 非空 = 本行是对该 id 原判的复核结论（日志 append-only，复核写新行不覆盖）
+    review_of_id: Mapped[str] = mapped_column(String(36), default="")
+    # 原判行的复核状态：none（不需复核）/ pending（预算耗尽或复核失败）/
+    # upheld（复核维持）/ overturned（复核推翻）。复核行自身固定 none
+    review_state: Mapped[str] = mapped_column(String(16), default="none")
     polarity_a: Mapped[int] = mapped_column(SmallInteger, default=0)
     polarity_b: Mapped[int] = mapped_column(SmallInteger, default=0)
     detail: Mapped[str] = mapped_column(Text, default="")

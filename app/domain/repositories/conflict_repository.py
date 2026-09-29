@@ -1,5 +1,11 @@
-"""冲突仓储：L2 冲突检测产物的读写与用户反馈状态，强制 user_id 作用域。"""
+"""冲突仓储：L2 冲突检测产物的读写与用户反馈状态，强制 user_id 作用域。
+
+读路径默认过滤 `retracted_at IS NULL`（重判/复核推翻的冲突不算数）；
+翻案 upsert 需要找到被撤回的旧行时用 `find_by_pair(..., include_retracted=True)`。
+"""
 from __future__ import annotations
+
+from datetime import datetime, timezone
 
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
@@ -57,17 +63,23 @@ class ConflictRepository(BaseRepository[Conflict]):
         self._guard(conflict.user_id)
         return conflict
 
-    def find_by_pair(self, user_id: str, pair_key: str) -> Conflict | None:
-        """同一对主张是否已判定过（无论结果），避免重复入库。"""
+    def find_by_pair(
+        self, user_id: str, pair_key: str, *, include_retracted: bool = False
+    ) -> Conflict | None:
+        """同一对主张是否已判定过（无论结果），避免重复入库。默认跳过已撤回。"""
         self._guard(user_id)
         stmt = select(Conflict).where(Conflict.user_id == user_id, Conflict.pair_key == pair_key)
+        if not include_retracted:
+            stmt = stmt.where(Conflict.retracted_at.is_(None))
         return self._session.scalars(stmt).first()
 
     def list_by_user(
         self, user_id: str, *, state: str | None = None, limit: int = 50
     ) -> list[Conflict]:
         self._guard(user_id)
-        stmt = select(Conflict).where(Conflict.user_id == user_id)
+        stmt = select(Conflict).where(
+            Conflict.user_id == user_id, Conflict.retracted_at.is_(None)
+        )
         if state:
             stmt = stmt.where(Conflict.user_state == state)
         stmt = stmt.order_by(Conflict.created_at.desc(), Conflict.id.asc()).limit(limit)
@@ -77,7 +89,7 @@ class ConflictRepository(BaseRepository[Conflict]):
         self._guard(user_id)
         stmt = (
             select(Conflict.user_state, func.count())
-            .where(Conflict.user_id == user_id)
+            .where(Conflict.user_id == user_id, Conflict.retracted_at.is_(None))
             .group_by(Conflict.user_state)
         )
         return {str(state): int(count) for state, count in self._session.execute(stmt)}
@@ -87,10 +99,58 @@ class ConflictRepository(BaseRepository[Conflict]):
         self._guard(user_id)
         stmt = (
             select(Conflict.conflict_type, func.count())
-            .where(Conflict.user_id == user_id, Conflict.user_state == "ignored")
+            .where(
+                Conflict.user_id == user_id,
+                Conflict.user_state == "ignored",
+                Conflict.retracted_at.is_(None),
+            )
             .group_by(Conflict.conflict_type)
         )
         return {str(t): int(c) for t, c in self._session.execute(stmt)}
+
+    def upsert_from_rejudge(
+        self,
+        conflict: Conflict | None,
+        *,
+        user_id: str,
+        item_a_id: str,
+        item_b_id: str,
+        claim_a_id: str | None,
+        claim_b_id: str | None,
+        conflict_type: str,
+        detail: str = "",
+        suggestion: str = "",
+        confidence: float = 0.0,
+    ) -> Conflict:
+        """重判/翻案后的唯一入库出口：已存在则更新并复活，不存在则创建。"""
+        if conflict is not None:
+            conflict.item_a_id = item_a_id
+            conflict.item_b_id = item_b_id
+            conflict.claim_a_id = claim_a_id
+            conflict.claim_b_id = claim_b_id
+            conflict.conflict_type = conflict_type
+            conflict.detail = detail
+            conflict.suggestion = suggestion
+            conflict.confidence = float(confidence)
+            conflict.retracted_at = None  # 复活
+            self._session.flush()
+            return conflict
+        return self.create(
+            user_id=user_id,
+            item_a_id=item_a_id,
+            item_b_id=item_b_id,
+            claim_a_id=claim_a_id,
+            claim_b_id=claim_b_id,
+            conflict_type=conflict_type,
+            detail=detail,
+            suggestion=suggestion,
+            confidence=confidence,
+        )
+
+    def retract(self, conflict: Conflict) -> Conflict:
+        conflict.retracted_at = datetime.now(timezone.utc)
+        self._session.flush()
+        return conflict
 
     def set_state(self, conflict: Conflict, state: str) -> Conflict:
         if state not in VALID_STATES:

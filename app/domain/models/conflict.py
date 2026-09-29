@@ -9,9 +9,10 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import Float, Index, String, Text
+from sqlalchemy import DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.base import Base, TimestampMixin
@@ -39,3 +40,5 @@ class Conflict(Base, TimestampMixin):
     confidence: Mapped[float] = mapped_column(Float, default=0.0)
     # unseen / ignored / accepted
     user_state: Mapped[str] = mapped_column(String(16), default="unseen")
+    # 非空 = 重判/复核推翻后撤回（判断层翻案通道）。所有读路径过滤已撤回
+    retracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

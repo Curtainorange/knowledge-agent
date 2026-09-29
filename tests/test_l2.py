@@ -70,7 +70,7 @@ def test_scan_extracts_claims_and_marks_scanned(session):
     orch = _orchestrator(session, {
         "batch_extraction": [{
             "claims": [
-                {"statement": "应坚守既定战略至少三年", "topic": "决策策略", "polarity": 1, "strength": 0.9},
+                {"statement": "应当坚守既定战略至少三年不因短期波动而动摇", "topic": "决策策略", "polarity": 1, "strength": 0.9},
                 {"statement": "频繁调整方向会损耗组织", "topic": "组织", "polarity": 1, "strength": 0.6},
             ]
         }],
@@ -92,7 +92,7 @@ def test_scan_persists_claim_embedding(session):
     orch = _orchestrator(session, {
         "batch_extraction": [{
             "claims": [
-                {"statement": "应坚守既定战略至少三年", "topic": "决策策略", "polarity": 1, "strength": 0.9},
+                {"statement": "应当坚守既定战略至少三年不因短期波动而动摇", "topic": "决策策略", "polarity": 1, "strength": 0.9},
             ]
         }],
     })
@@ -170,8 +170,8 @@ def _extraction_rows() -> dict[str, list]:
     """两条「长期主义 vs 敏捷」条目的主张提取预案（纯数据，不写库）。"""
     return {
         "batch_extraction": [
-            {"claims": [{"statement": "应坚守既定战略至少三年", "topic": "决策策略", "polarity": 1, "strength": 0.9}]},
-            {"claims": [{"statement": "应根据市场反馈每月调整方向", "topic": "决策策略", "polarity": -1, "strength": 0.9}]},
+            {"claims": [{"statement": "应当坚守既定战略至少三年不因短期波动而动摇", "topic": "决策策略", "polarity": 1, "strength": 0.9}]},
+            {"claims": [{"statement": "应当根据市场反馈每月调整方向快速试错迭代", "topic": "决策策略", "polarity": -1, "strength": 0.9}]},
         ],
     }
 
@@ -608,7 +608,7 @@ def _seed_reading(session, user_id: str, *, book_title: str) -> str:
         summary="总评",
         chapters_note=[{
             "index": 0, "title": "第一章", "gist": "总括",
-            "points": ["一万小时练习即可成就专家", "天赋在技能习得中的作用可以忽略"],
+            "points": ["一万小时的刻意练习即可成就专家天赋并不重要", "天赋在技能习得中的作用可以忽略不计练习才是关键"],
         }],
     ))
     session.commit()
@@ -625,7 +625,7 @@ def test_scan_includes_book_reading_claims(session):
     orch = _orchestrator(session, {
         "batch_extraction": [{
             "claims": [
-                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+                {"statement": "如果没有天赋那么再怎么苦练也很难取得大成就", "topic": "技能习得", "polarity": -1, "strength": 0.9},
             ]
         }],
         "conflict_detection": [{
@@ -685,7 +685,7 @@ def test_judgment_logs_persist_and_echoes_collected(session):
     orch = _orchestrator(session, {
         "batch_extraction": [{
             "claims": [
-                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+                {"statement": "如果没有天赋那么再怎么苦练也很难取得大成就", "topic": "技能习得", "polarity": -1, "strength": 0.9},
             ]
         }],
         "conflict_detection": [
@@ -714,7 +714,7 @@ def test_judgment_logs_not_written_for_llm_failure(session):
     orch = _orchestrator(session, {
         "batch_extraction": [{
             "claims": [
-                {"statement": "没有天赋苦练也没用", "topic": "技能习得", "polarity": -1, "strength": 0.9},
+                {"statement": "如果没有天赋那么再怎么苦练也很难取得大成就", "topic": "技能习得", "polarity": -1, "strength": 0.9},
             ]
         }],
         "conflict_detection": ["不是 JSON", "不是 JSON"],
