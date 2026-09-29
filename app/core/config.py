@@ -148,6 +148,7 @@ class Settings(BaseSettings):
     l4_window_days: int = 7            # 行为统计窗口（本窗口 / 上一窗口对比）
     l4_spike_factor: float = 3.0       # 新增内容突增倍数（上一窗口 ≥1 条时才判）
     l4_max_tasks: int = 12             # 计划任务数上限（需求：最多 12 周）
+    l4_deadline_nudge_days: int = 3    # 目标截止前多少天开始催办（自主目标追踪）
 
     # --- 异步任务框架（幂等 + 重试 + 死信；单进程内轮询，不依赖 Redis/Celery）---
     worker_enabled: bool = True          # 测试里关闭，避免后台线程干扰

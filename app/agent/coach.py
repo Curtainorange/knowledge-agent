@@ -19,12 +19,10 @@ from datetime import datetime, timedelta, timezone
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.agent import goal_tracking
+from app.core.config import settings
 from app.domain.models.cognitive_diagnosis import CognitiveDiagnosis
 from app.domain.repositories.learning_event_repository import LearningEventRepository
-from app.domain.repositories.learning_plan_repository import (
-    LearningPlanRepository,
-    PlanTaskRepository,
-)
 from app.feedback import events
 
 
@@ -85,10 +83,8 @@ def collect_materials(session: Session, user_id: str, now: datetime | None = Non
             next_step="打开计划页确认是否需要调整本周任务",
         ))
 
-    # ③ 目标进度一行（C5 在 goal_tracking 里展开催办/确认规则）
-    goal_block = _goal_progress_block(session, user_id)
-    if goal_block is not None:
-        materials.blocks.append(goal_block)
+    # ③ 目标追踪块（进度 + 催办/达成确认 + 干预未决跟进；规则见 goal_tracking）
+    materials.blocks.extend(_goal_blocks(session, user_id, now))
 
     # 附注：弱真值基线（最近一次周体检）
     latest_eval = event_repo.list_recent(user_id, event_type=events.L2_EVAL_WEEKLY, limit=1)
@@ -102,18 +98,37 @@ def collect_materials(session: Session, user_id: str, now: datetime | None = Non
     return materials
 
 
-def _goal_progress_block(session: Session, user_id: str) -> CoachBlock | None:
-    plan = LearningPlanRepository(session, user_id=user_id).latest_for_user(user_id)
-    if plan is None:
-        return None
-    progress = PlanTaskRepository(session).progress(plan.id)
-    if not progress.get("total"):
-        return None
-    return CoachBlock(
-        label="目标进度",
-        summary=f"计划任务 {progress.get('done', 0)}/{progress.get('total', 0)} 已完成",
-        next_step="完成一项本周任务并把它标记为已完成",
-    )
+def _goal_blocks(session: Session, user_id: str, now: datetime) -> list[CoachBlock]:
+    """目标追踪块：进度 + 情景化下一步（催办 > 达成确认 > 常规推进）+ 干预未决跟进。
+
+    全部走 goal_tracking 纯规则，**不写 goal.achieved / plan_task.status**。
+    """
+    blocks: list[CoachBlock] = []
+    snapshot = goal_tracking.goal_snapshot(session, user_id, now)
+    if snapshot is not None and snapshot.total:
+        if snapshot.days_to_deadline is None:
+            timing = ""
+        elif snapshot.days_to_deadline >= 0:
+            timing = f"（距截止 {snapshot.days_to_deadline} 天）"
+        else:
+            timing = f"（已过期 {abs(snapshot.days_to_deadline)} 天）"
+        nudge = goal_tracking.deadline_nudge(
+            snapshot, nudge_days=settings.l4_deadline_nudge_days
+        )
+        confirm = goal_tracking.completion_confirm(snapshot)
+        blocks.append(CoachBlock(
+            label="目标进度",
+            summary=f"计划任务 {snapshot.done}/{snapshot.total} 已完成{timing}",
+            next_step=nudge or confirm or "完成一项本周任务并把它标记为已完成",
+        ))
+    pending = goal_tracking.pending_adjustment(session, user_id, now)
+    if pending:
+        blocks.append(CoachBlock(
+            label="待决定调整",
+            summary=pending,
+            next_step="打开计划页决定是否按建议调整",
+        ))
+    return blocks
 
 
 def assemble(
