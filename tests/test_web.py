@@ -226,6 +226,15 @@ def test_mobile_skeleton_in_css(client):
     assert ".as-cards" in css
 
 
+def test_mobile_high_freq_pages_in_css(client):
+    """高频三页移动方案：对话 flex 贴底（dvh 随键盘收缩）、通知表单单列、知识库搜索吸顶。"""
+    css = client.get("/assets/style.css").text
+    assert "100dvh" in css            # 对话区随动态视口收缩（键盘不遮输入框）
+    assert "#pref-form" in css        # 偏好表单单列
+    assert "#kb-search" in css        # 搜索框吸顶
+    assert "position:sticky" in css
+
+
 def test_reader_has_toc_and_chapter_navigation(client):
     """阅读器要能顺畅跳章：侧边目录 + 上/下章 + 进度条（而不是只有一个下拉）。"""
     body = client.get("/reader.html").text

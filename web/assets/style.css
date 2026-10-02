@@ -693,3 +693,26 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
     text-align:left;flex:0 0 auto;
   }
 }
+
+/* ============ 高频页移动适配（M2a：对话 / 通知 / 知识库）============ */
+@media(max-width:720px){
+  /* 对话工作台：卡片区撑满视口余量，消息流内部滚动、输入区贴底
+     ——键盘弹起时 dvh 随视口收缩，输入框不会被键盘盖住（flex 方案，零 JS）。
+     vh 是旧浏览器回退。150px ≈ 移动顶栏 + 底部导航 + 留白，富余一点好过裁切。 */
+  main.single{padding:10px 12px 0}
+  .agent-wrap{height:calc(100vh - 150px);height:calc(100dvh - 150px);min-height:300px}
+  .agent-wrap>.card{display:flex;flex-direction:column;height:100%;margin-bottom:0}
+  .agent-head{margin-bottom:6px}
+  .agent-log{flex:1 1 auto;min-height:0;max-height:none}
+  .composer{flex:0 0 auto}
+  .composer button{flex:0 0 auto;min-width:64px}
+
+  /* 通知页：偏好表单单列、卡片操作按钮放宽（采纳/已读是高频操作） */
+  #pref-form{flex-direction:column;align-items:stretch}
+  #pref-form select,#pref-form button{width:100%}
+  .cf-actions button{flex:1;min-width:120px}
+
+  /* 知识库：取消内滚列表（触屏上页面滚动比内滚自然），搜索框吸顶 */
+  .list{max-height:none;overflow:visible}
+  #kb-search{position:sticky;top:54px;z-index:10}
+}
