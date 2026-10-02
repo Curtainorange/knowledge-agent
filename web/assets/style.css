@@ -628,3 +628,68 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 .book-row .book-side a:hover{border-color:var(--accent);background:var(--accent-weak)}
 @media(max-width:700px){.book-row{flex-wrap:wrap}}
 @media(max-width:700px){.agent-log{max-height:none}}
+
+/* ============ 移动端骨架（手机适配 · 全局）============
+   设计取舍：底部导航用**纯 CSS** 实现（fixed 横滑条 + scroll-snap），
+   零 JS、零 HTML 结构变更——8 个入口横滑全部露出，不做「5+更多」收纳
+   （收纳需要 JS 交互，先拿零风险版本，嫌挤再升级）。
+   断点 720px 覆盖手机竖屏；桌面布局不受影响。 */
+@media(max-width:720px){
+  /* 顶栏瘦身：导航脱出到屏幕底部，只留品牌与账号 */
+  header.topbar{padding:10px 14px;gap:10px}
+  .brand .sub{display:none}
+  .who-name{max-width:110px}
+
+  /* 底部导航条：fixed + 横向滚动 + scroll-snap；刘海/手势条用 env() 避让 */
+  .nav{
+    position:fixed;left:0;right:0;bottom:0;z-index:80;margin:0;
+    display:flex;gap:2px;
+    overflow-x:auto;overflow-y:hidden;
+    scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
+    padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+    background:rgba(255,255,255,.92);
+    -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
+    border-top:1px solid var(--border);
+    box-shadow:0 -4px 16px rgba(26,32,51,.08);
+  }
+  .nav::-webkit-scrollbar{display:none}
+  .nav a{
+    flex:0 0 auto;scroll-snap-align:center;
+    display:inline-flex;align-items:center;justify-content:center;
+    min-height:44px;min-width:44px;padding:10px 15px;font-size:14px;
+  }
+
+  /* 内容让出底部导航 */
+  body{
+    padding-bottom:calc(84px + env(safe-area-inset-bottom,0px));
+    font-size:15px;
+  }
+
+  /* 触控目标补课：按钮/输入 ≥44px；输入框 16px 防 iOS 聚焦缩放 */
+  button,button.sm{min-height:44px;padding:10px 16px;font-size:14px}
+  button.sm{padding:9px 14px}
+  button.link{min-height:44px;padding:12px 4px}
+  input,textarea,select{font-size:16px;padding:11px 12px}
+  .chip{min-height:40px;padding:8px 14px}
+
+  /* 提示条避开底部导航 */
+  #toast{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+}
+
+/* 表格 → 键值卡片（窄屏通用类；各页在 M2 起启用，
+   td 需带 data-label 提供字段名：.as-cards td::before{content:attr(data-label)}） */
+@media(max-width:720px){
+  .as-cards thead{display:none}
+  .as-cards tr{
+    display:block;border:1px solid var(--border);border-radius:var(--radius-sm);
+    padding:10px 12px;margin-bottom:8px;background:#fff;
+  }
+  .as-cards td{
+    display:flex;justify-content:space-between;gap:12px;
+    padding:5px 0;border:none;text-align:right;word-break:break-word;
+  }
+  .as-cards td::before{
+    content:attr(data-label);color:var(--muted);font-size:12.5px;
+    text-align:left;flex:0 0 auto;
+  }
+}

@@ -196,6 +196,36 @@ def test_nav_links_to_l5_and_notify_everywhere(client):
         assert "/notify.html" in body, path
 
 
+# ---------- 移动端骨架（阶段 1 · M1）----------
+
+NAV_PAGES = (
+    "/app.html", "/knowledge.html", "/mine.html", "/books.html", "/reading_log.html",
+    "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
+)
+
+
+def test_all_pages_declare_viewport(client):
+    """手机适配的前提：每页都声明 viewport（缺它移动端按桌面宽度渲染）。"""
+    for path in PAGES:
+        assert 'name="viewport"' in client.get(path).text, path
+
+
+def test_nav_entries_cover_all_capabilities(client):
+    """顶栏导航 8 入口齐全——移动端底部横滑条与它同源复用，缺一项手机上就进不去。"""
+    for path in NAV_PAGES:
+        body = client.get(path).text
+        for key in ("app", "knowledge", "books", "conflicts", "brief", "l4", "l5", "notify"):
+            assert f'data-nav="{key}"' in body, (path, key)
+
+
+def test_mobile_skeleton_in_css(client):
+    """移动端骨架三件套：底部导航断点、安全区避让、表格转卡片通用类。"""
+    css = client.get("/assets/style.css").text
+    assert "@media(max-width:720px)" in css
+    assert "safe-area-inset-bottom" in css
+    assert ".as-cards" in css
+
+
 def test_reader_has_toc_and_chapter_navigation(client):
     """阅读器要能顺畅跳章：侧边目录 + 上/下章 + 进度条（而不是只有一个下拉）。"""
     body = client.get("/reader.html").text
