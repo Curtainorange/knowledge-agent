@@ -55,7 +55,7 @@ async def static_cache_middleware(request: Request, call_next):
     但保证取到的一定是当前版本。
     """
     response = await call_next(request)
-    if request.url.path.endswith((".html", ".js", ".css")):
+    if request.url.path.endswith((".html", ".js", ".css", ".webmanifest")):
         response.headers["Cache-Control"] = "no-cache"
     return response
 
@@ -233,3 +233,19 @@ def l5_page() -> FileResponse:
 @app.get("/notify.html", include_in_schema=False)
 def notify_page() -> FileResponse:
     return _page("notify.html")
+
+
+# ---- PWA（安装到手机桌面）----
+# Service Worker 必须挂在**根路径**：放 /assets 下 scope 只覆盖 /assets/，
+# 整站页面都不受它控制，安装引导也就无从谈起。
+@app.get("/manifest.webmanifest", include_in_schema=False)
+def pwa_manifest() -> FileResponse:
+    return FileResponse(
+        WEB_DIR / "manifest.webmanifest",
+        media_type="application/manifest+json",
+    )
+
+
+@app.get("/sw.js", include_in_schema=False)
+def service_worker() -> FileResponse:
+    return FileResponse(WEB_DIR / "sw.js", media_type="text/javascript")

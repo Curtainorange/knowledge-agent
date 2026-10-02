@@ -386,6 +386,22 @@ mark.flash{outline:2px solid var(--accent);outline-offset:1px}
 }
 .more-menu button:hover{background:var(--accent-weak);color:var(--accent)}
 
+/* PWA 安装引导轻提示条（app.js 动态插入；可关，不强拦） */
+#pwa-install{
+  position:fixed;left:12px;right:12px;bottom:16px;z-index:90;
+  display:flex;align-items:center;gap:10px;flex-wrap:wrap;
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  padding:12px 14px;box-shadow:var(--shadow-md);font-size:13.5px;
+}
+#pwa-install span{flex:1;min-width:180px;color:var(--text-2)}
+#pwa-install button{min-height:38px;padding:8px 16px;border-radius:10px;cursor:pointer;font-size:13.5px}
+#pwa-install #pwa-install-ok{background:var(--accent-grad);color:#fff;border:none}
+#pwa-install #pwa-install-no{background:none;border:1px solid var(--border);color:var(--muted)}
+@media(max-width:720px){
+  /* 移动端让开底部导航条（与 toast 同一高度带） */
+  #pwa-install{bottom:calc(92px + env(safe-area-inset-bottom,0px))}
+}
+
 /* ============ L1 挖掘 ============ */
 .log{
   min-height:260px;max-height:56vh;overflow:auto;background:#fafbfe;

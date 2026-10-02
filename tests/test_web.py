@@ -59,7 +59,10 @@ def test_shared_assets_served(client):
 def test_static_assets_are_revalidated(client):
     """前端静态资源必须「先校验再使用」，否则用户会拿着旧版 JS 跑新后端——
     表现为「BUG 修了却没生效」。本项目已为此误判多次。"""
-    for path in ("/knowledge.html", "/assets/app.js", "/assets/agent.js", "/assets/style.css"):
+    for path in (
+        "/knowledge.html", "/assets/app.js", "/assets/agent.js", "/assets/style.css",
+        "/sw.js", "/manifest.webmanifest",
+    ):
         resp = client.get(path)
         assert resp.headers.get("cache-control") == "no-cache", path
     # 接口响应不该被加上这个头（它们是动态内容，缓存策略另说）
@@ -287,3 +290,54 @@ def test_api_routes_unaffected(client):
     assert client.get("/health").status_code == 200
     headers = auth_headers(client, "web_user")
     assert client.get("/api/v1/knowledge/items", headers=headers).status_code == 200
+
+
+# ---------- PWA 安装（阶段 1 · M4）----------
+
+
+def test_pwa_manifest_is_installable(client):
+    """manifest 可安装元数据齐全：中文名 / standalone / 图标 192+512 + maskable。"""
+    resp = client.get("/manifest.webmanifest")
+    assert resp.status_code == 200
+    assert "manifest" in resp.headers["content-type"]
+
+    data = resp.json()
+    assert data["name"] == "认知副驾"
+    assert data["display"] == "standalone"
+    assert data["start_url"] == "/app.html"
+    sizes = {icon["sizes"] for icon in data["icons"]}
+    assert "192x192" in sizes and "512x512" in sizes
+    purposes = {icon.get("purpose") for icon in data["icons"]}
+    assert "maskable" in purposes
+    for icon in data["icons"]:
+        assert client.get(icon["src"]).status_code == 200, icon["src"]
+
+
+def test_service_worker_is_network_first(client):
+    """SW 必须网络优先——缓存旧 JS 跑新后端是本项目踩过的坑；
+    /api/ 响应含 JWT，绝不进缓存。SW 还要挂根路径（scope 才覆盖全站）。"""
+    resp = client.get("/sw.js")
+    assert resp.status_code == 200
+    assert "javascript" in resp.headers["content-type"]
+
+    sw = resp.text
+    assert "fetch(req)" in sw                          # 先走网络
+    assert "caches.match" in sw                        # 网络失败才兜底
+    assert "url.pathname.indexOf('/api/')" in sw       # API 直连不缓存
+    assert "register('/sw.js')" in client.get("/assets/app.js").text  # 根路径注册
+
+
+def test_all_pages_link_manifest(client):
+    """每页都挂 manifest 与主题色：安装机会可能出现在任何页面。"""
+    for path in PAGES:
+        body = client.get(path).text
+        assert 'rel="manifest"' in body, path
+        assert 'name="theme-color"' in body, path
+
+
+def test_install_prompt_is_dismissible(client):
+    """安装引导是轻提示：可「不用了」关闭并记住，不强拦使用。"""
+    js = client.get("/assets/app.js").text
+    assert "beforeinstallprompt" in js
+    assert "pwa_install_dismissed" in js
+    assert "pwa-install" in client.get("/assets/style.css").text

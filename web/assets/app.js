@@ -272,6 +272,53 @@ window.CC = (function () {
     }
   }
 
+  /* ---------- PWA：Service Worker + 安装引导 ----------
+     SW 注册在根路径 /sw.js（放 /assets 下 scope 只覆盖子路径，整站不受控）。
+     策略是网络优先、缓存只兜底——见 sw.js 头注释的教训说明。
+     安装引导只在浏览器给出安装机会时轻提示一次：「不用了」记 localStorage
+     不再打扰；注册/提示失败都不影响正常使用（file:// 或非安全上下文直接跳过）。 */
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', function () {
+      navigator.serviceWorker.register('/sw.js').catch(function () { /* 无碍使用 */ });
+    });
+  }
+
+  var _installPrompt = null;
+
+  function showInstallBar() {
+    if ($('#pwa-install')) {
+      return;
+    }
+    var bar = document.createElement('div');
+    bar.id = 'pwa-install';
+    bar.innerHTML = '<span>把「认知副驾」装到手机桌面，随时打开</span>' +
+      '<button type="button" id="pwa-install-ok">安装</button>' +
+      '<button type="button" id="pwa-install-no">不用了</button>';
+    document.body.appendChild(bar);
+    $('#pwa-install-ok').addEventListener('click', function () {
+      bar.parentNode.removeChild(bar);
+      if (!_installPrompt) {
+        return;
+      }
+      _installPrompt.prompt();
+      _installPrompt.userChoice.finally(function () {
+        _installPrompt = null;
+      });
+    });
+    $('#pwa-install-no').addEventListener('click', function () {
+      localStorage.setItem('pwa_install_dismissed', '1');
+      bar.parentNode.removeChild(bar);
+    });
+  }
+
+  window.addEventListener('beforeinstallprompt', function (e) {
+    e.preventDefault(); // 不用浏览器默认安装气泡，走自己的轻提示
+    _installPrompt = e;
+    if (!localStorage.getItem('pwa_install_dismissed')) {
+      showInstallBar();
+    }
+  });
+
   return {
     $: $,
     esc: esc,

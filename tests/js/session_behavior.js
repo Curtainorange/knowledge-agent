@@ -81,7 +81,13 @@ function makeEnv(opts) {
       json: () => Promise.resolve(reply.body || {})
     });
   };
-  const sandbox = { window: {}, document, location, localStorage, fetch, console };
+  /* window / navigator：app.js 注册 PWA 的 SW 与安装提示要用
+     （真实浏览器必有；这里按「只 stub 用到的 API」哲学补上即可） */
+  const sandbox = {
+    window: { addEventListener() {} },
+    navigator: {},
+    document, location, localStorage, fetch, console
+  };
   vm.createContext(sandbox);
   vm.runInContext(code, sandbox);
   return {
