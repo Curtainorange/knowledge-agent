@@ -235,6 +235,14 @@ def test_mobile_high_freq_pages_in_css(client):
     assert "position:sticky" in css
 
 
+def test_mobile_secondary_pages_in_css(client):
+    """其余页窄屏要点：行内表单纵向堆叠、登录页收紧留白、挖掘日志取消内滚。"""
+    css = client.get("/assets/style.css").text
+    assert ".inline-form{flex-direction:column" in css
+    assert ".auth-wrap{padding:36px 16px}" in css
+    assert ".log{max-height:none}" in css
+
+
 def test_reader_has_toc_and_chapter_navigation(client):
     """阅读器要能顺畅跳章：侧边目录 + 上/下章 + 进度条（而不是只有一个下拉）。"""
     body = client.get("/reader.html").text

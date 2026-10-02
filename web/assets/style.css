@@ -716,3 +716,23 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
   .list{max-height:none;overflow:visible}
   #kb-search{position:sticky;top:54px;z-index:10}
 }
+
+/* ============ 其余页移动适配（M2b：书架/冲突/简报/路径/诊断/挖掘/阅读日志/登录/首页）============
+   这些页主体已是卡片流（全站无 <table>），窄屏主要是「行内表单排不下」
+   与「留白过大」两类问题；冲突对比卡与任务行已有 700px 断点兜底。 */
+@media(max-width:720px){
+  main{padding:14px 12px}
+
+  /* 行内表单排不下「输入+下拉+按钮」→ 纵向堆叠 */
+  .inline-form{flex-direction:column;align-items:stretch}
+  .inline-form select{width:100%}
+
+  /* 挖掘页消息日志同样取消内滚 */
+  .log{max-height:none}
+
+  /* 登录页收紧上留白；首页 hero 字号与留白降一档 */
+  .auth-wrap{padding:36px 16px}
+  .hero{padding:22px 0 16px}
+  .hero h1{font-size:25px}
+  .hero .lead{font-size:14px}
+}
