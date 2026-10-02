@@ -256,6 +256,23 @@ def test_reader_has_toc_and_chapter_navigation(client):
     assert "restoreScroll" in body       # 章内位置恢复（图片加载后校准）
 
 
+def test_reader_mobile_experience(client):
+    """阅读器移动体验（M3）：触控翻章、字号三档、抽屉上滑关闭、顶栏收纳进 ⋯。"""
+    body = client.get("/reader.html").text
+    assert "touchstart" in body and "touchend" in body  # 滑动翻章 + 触摸划词弹层
+    assert "FONT_TIERS = [15, 18, 22]" in body          # 字号三档（小/中/大）
+    assert "bindSwipeUpClose" in body                   # 抽屉 panel-head 上滑关闭
+    assert "btn-more" in body and "more-menu" in body    # ⋯ 收纳菜单
+    assert "more-back" in body and "more-logout" in body  # 收纳的是书架/退出
+    assert "reader-page" in body                        # 阅读页专属标记（无底部导航让位）
+
+    css = client.get("/assets/style.css").text
+    assert "body.reader-page" in css                    # 去掉底部导航的 84px 空隙
+    assert "#btn-more{display:inline-flex}" in css      # 移动端才露出 ⋯
+    assert ".toc-panel,.notes-panel{" in css            # 全屏抽屉
+    assert ".more-menu[hidden]" in css                  # display:flex 不吃 hidden 属性，须显式兜底
+
+
 def test_reading_log_page_has_group_switch_and_chart(client):
     """阅读日志支持 日/周/月 切换与趋势图。"""
     body = client.get("/reading_log.html").text

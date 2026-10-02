@@ -6,22 +6,28 @@
 <title>阅读器 · 认知副驾</title>
 <link rel="stylesheet" href="/assets/style.css">
 </head>
-<body data-page="books">
+<body data-page="books" class="reader-page">
 
 <header class="topbar">
   <div class="brand">认知副驾<span class="sub">阅读器</span></div>
   <div class="reader-tools">
-    <button id="btn-back" class="sm">← 书架</button>
+    <button id="btn-back" class="sm"><span class="lbl-full">← 书架</span><span class="lbl-short">←</span></button>
     <button id="btn-toc" class="sm">目录</button>
     <span class="reader-indicator" id="chapter-indicator">—</span>
   </div>
   <div class="who">
-    <button id="btn-notes" class="sm">本书知识 <span id="notes-count">0</span></button>
+    <button id="btn-notes" class="sm"><span class="lbl-full">本书知识</span><span class="lbl-short">知识</span> <span id="notes-count">0</span></button>
     <button id="font-down" class="sm" title="缩小字号">A-</button>
     <button id="font-up" class="sm" title="放大字号">A+</button>
+    <button id="btn-more" class="sm" title="更多" aria-haspopup="true">⋯</button>
     <button id="btn-logout">退出</button>
   </div>
 </header>
+
+<div class="more-menu" id="more-menu" hidden>
+  <button id="more-back">← 书架</button>
+  <button id="more-logout">退出登录</button>
+</div>
 
 <main class="single">
   <div class="card reader-card">
@@ -83,11 +89,25 @@
   var esc = CC.esc;
 
   var bookId = new URLSearchParams(location.search).get('book');
+
+  /* 字号三档（小/中/大）：移动端顶栏放不下连续调节，A-/A+ 在三档间步进 */
+  var FONT_TIERS = [15, 18, 22];
+
+  function tierIndex(px) {
+    var best = 0;
+    for (var i = 1; i < FONT_TIERS.length; i++) {
+      if (Math.abs(FONT_TIERS[i] - px) < Math.abs(FONT_TIERS[best] - px)) {
+        best = i;
+      }
+    }
+    return best;
+  }
+
   var state = {
     book: null,
     chapter: null,
     notes: [],
-    font: Number(localStorage.getItem('reader_font') || 18),
+    font: FONT_TIERS[tierIndex(Number(localStorage.getItem('reader_font') || 18))],
     saveTimer: null,
     pendingSelection: null
   };
@@ -501,6 +521,54 @@
     }
   });
 
+  /* 触控：左右滑翻章——水平位移 ≥60px 且主导（>|1.5×垂直|）才触发，
+     纵向阅读滚动原样放行；触摸端没有 mouseup，划词弹层由 touchend 接住
+     （松开后选区才稳定，延后一拍取选区）。 */
+  (function () {
+    var body = $('#reader-body');
+    var startX = 0;
+    var startY = 0;
+    var multi = false;
+
+    body.addEventListener('touchstart', function (e) {
+      if (e.touches.length !== 1) {
+        multi = true;
+        return;
+      }
+      multi = false;
+      startX = e.touches[0].clientX;
+      startY = e.touches[0].clientY;
+    }, { passive: true });
+
+    body.addEventListener('touchend', function (e) {
+      if (multi || !$('#img-lightbox').hidden || !drawer.hidden) {
+        return;
+      }
+      var t = e.changedTouches[0];
+      var dx = t.clientX - startX;
+      var dy = t.clientY - startY;
+      if (Math.abs(dx) >= 60 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        hidePop();
+        if (dx < 0) {
+          goNext();
+        } else {
+          goPrev();
+        }
+        return;
+      }
+      setTimeout(function () {
+        var info = getSelectionInfo();
+        if (!info) {
+          hidePop();
+          return;
+        }
+        state.pendingSelection = info;
+        var rect = window.getSelection().getRangeAt(0).getBoundingClientRect();
+        showPop(rect.left + rect.width / 2, rect.top);
+      }, 30);
+    }, { passive: true });
+  })();
+
   // 快捷键：Ctrl/Cmd + Enter 存摘录；← / → 翻章；Esc 关闭浮层
   document.addEventListener('keydown', function (event) {
     var tag = (event.target.tagName || '').toUpperCase();
@@ -524,6 +592,7 @@
       drawer.hidden = true;
       $('#notes-panel').hidden = true;
       $('#toc-panel').hidden = true;
+      $('#more-menu').hidden = true;
       closeLightbox();
       return;
     }
@@ -588,6 +657,49 @@
     goChapter(Number(item.getAttribute('data-index')));
   });
 
+  /* 抽屉上滑关闭：手势只挂在 panel-head（它不随内容滚动），
+     与 toc/notes 列表的纵向滚动零冲突 */
+  function bindSwipeUpClose(panel, close) {
+    var head = panel.querySelector('.panel-head');
+    var y0 = null;
+    head.addEventListener('touchstart', function (e) {
+      y0 = e.touches.length === 1 ? e.touches[0].clientY : null;
+    }, { passive: true });
+    head.addEventListener('touchend', function (e) {
+      if (y0 == null) {
+        return;
+      }
+      var dy = e.changedTouches[0].clientY - y0;
+      y0 = null;
+      if (dy <= -40) {
+        close();
+      }
+    }, { passive: true });
+  }
+  bindSwipeUpClose($('#toc-panel'), function () { $('#toc-panel').hidden = true; });
+  bindSwipeUpClose($('#notes-panel'), function () { $('#notes-panel').hidden = true; });
+
+  /* 顶栏收纳（移动）：书架/退出进 ⋯ 菜单；菜单动作转发给原按钮，
+     复用其既有逻辑（退出=app.js 会话清理，书架=保存进度后跳转） */
+  var moreMenu = $('#more-menu');
+  $('#btn-more').addEventListener('click', function (e) {
+    e.stopPropagation();
+    moreMenu.hidden = !moreMenu.hidden;
+  });
+  document.addEventListener('click', function (e) {
+    if (!moreMenu.hidden && !moreMenu.contains(e.target)) {
+      moreMenu.hidden = true;
+    }
+  });
+  $('#more-back').addEventListener('click', function () {
+    moreMenu.hidden = true;
+    $('#btn-back').click(); // display:none 的原按钮仍可编程触发
+  });
+  $('#more-logout').addEventListener('click', function () {
+    moreMenu.hidden = true;
+    $('#btn-logout').click();
+  });
+
   /* 翻章 / 回到顶部 */
   $('#btn-prev').addEventListener('click', goPrev);
   $('#btn-next').addEventListener('click', goNext);
@@ -613,14 +725,22 @@
   });
   $('#img-lightbox').addEventListener('click', closeLightbox);
 
-  $('#font-down').addEventListener('click', function () {
-    state.font = Math.max(14, state.font - 2);
+  function stepFont(dir) {
+    var i = tierIndex(state.font) + dir;
+    if (i < 0) {
+      CC.toast('已是最小字号');
+      return;
+    }
+    if (i >= FONT_TIERS.length) {
+      CC.toast('已是最大字号');
+      return;
+    }
+    state.font = FONT_TIERS[i];
     applyFont();
-  });
-  $('#font-up').addEventListener('click', function () {
-    state.font = Math.min(28, state.font + 2);
-    applyFont();
-  });
+    CC.toast('字号：' + ['小', '中', '大'][i]);
+  }
+  $('#font-down').addEventListener('click', function () { stepFont(-1); });
+  $('#font-up').addEventListener('click', function () { stepFont(1); });
   $('#reader-body').addEventListener('scroll', function () {
     scheduleSave();
     updateNavAndProgress(); // 滚动时同步进度条
