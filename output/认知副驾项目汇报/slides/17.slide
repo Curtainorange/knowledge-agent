@@ -1,0 +1,70 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 28, padding: '22px 40px 0 40px' }}>
+        <Box style={{ width: 330, height: 585, background: '#0E3F8C', borderRadius: 10, padding: '34px 30px', justifyContent: 'space-between' }}>
+            <Box>
+                <Text style={{ fontSize: 18, color: '#9FBCE8', letterSpacing: 3 }}>维度三</Text>
+                <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#FFFFFF', marginTop: 12 }}>技术先进性</Text>
+                <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 16 }}>
+                    <Text style={{ fontSize: 62, fontWeight: 'bold', color: '#FFC107', lineHeight: 1 }}>20</Text>
+                    <Text style={{ fontSize: 22, color: '#BBD0F0', paddingBottom: 6 }}>分</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'column', gap: 8 }}>
+                <Text style={{ fontSize: 19, color: '#E8EFF8', lineHeight: 1.6 }}>对照评分细则三个子项：</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>技术选型 · 6 分</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>AI 应用深度 · 8 分</Text>
+                <Text style={{ fontSize: 19, color: '#FFC107', lineHeight: 1.6 }}>技术难度 · 6 分</Text>
+            </Box>
+            <Text style={{ fontSize: 18, color: '#BBD0F0', lineHeight: 1.6 }}>每个名词都落到「我怎么做、为什么这样做、边界在哪」。</Text>
+        </Box>
+        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ flexDirection: 'row', gap: 18, height: 172, padding: '16px 20px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ width: 112, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C', lineHeight: 1 }}>6<span style={{ fontSize: 18 }}> 分</span></Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8', textAlign: 'center' }}>技术选型</Text>
+                </Box>
+                <Box style={{ width: 1, height: '100%', background: '#D6DCE5' }} />
+                <Box style={{ flex: 1, justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>五层架构与三处选型理由 → 见 P07</Text>
+                    <Text style={{ fontSize: 17, color: '#4A5568', lineHeight: 1.55 }}>
+                        前端 / 接口 / 能力 / 支撑 / 存储五层，层间只通过接口说话；FastAPI 类型即契约、前端零框架无构建、SQLite 对单人规模是负复杂度选择。
+                    </Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8' }}>证明方式：现场可展示分层目录与 46 个接口的契约定义</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', gap: 18, height: 172, padding: '16px 20px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ width: 112, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C', lineHeight: 1 }}>8<span style={{ fontSize: 18 }}> 分</span></Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8', textAlign: 'center' }}>AI 应用深度</Text>
+                </Box>
+                <Box style={{ width: 1, height: '100%', background: '#D6DCE5' }} />
+                <Box style={{ flex: 1, justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>模型工程与检索工程 → 见 P09 / P10</Text>
+                    <Text style={{ fontSize: 17, color: '#4A5568', lineHeight: 1.55 }}>
+                        结构化输出交给服务端 Schema 约束（对比实验 6/6 vs 自由文本 3 次挂 1）；RAG 八个环节除重排外全部落地；意图路由规则与模型分流，命令式说法零模型调用。
+                    </Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8' }}>证明方式：实验数据 + 可复跑的五项自检端点</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', gap: 18, height: 172, padding: '16px 20px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderLeft: '5px solid #1E4FA8' }}>
+                <Box style={{ width: 112, flexDirection: 'column', justifyContent: 'center', alignItems: 'center', gap: 6 }}>
+                    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C', lineHeight: 1 }}>6<span style={{ fontSize: 18 }}> 分</span></Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8', textAlign: 'center' }}>技术难度</Text>
+                </Box>
+                <Box style={{ width: 1, height: '100%', background: '#D6DCE5' }} />
+                <Box style={{ flex: 1, justifyContent: 'space-between' }}>
+                    <Text style={{ fontSize: 21, fontWeight: 'bold', color: '#1A2230' }}>冲突算法与可靠性工程 → 见 P11 / P12</Text>
+                    <Text style={{ fontSize: 17, color: '#4A5568', lineHeight: 1.55 }}>
+                        向量距离带把平方级候选对压到每轮 ≤20 对；评估护栏 recall@5 ≥ 0.95；判定真实评测 F1 = 1.0 并给出回归承诺；自研任务框架含幂等、退避、死信与超时回收。
+                    </Text>
+                    <Text style={{ fontSize: 15, color: '#8B97A8' }}>证明方式：660 项测试 + 评估护栏断言 + 20 条复盘</Text>
+                </Box>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>17 / 27</Text>
+    </Box>
+</Slide>

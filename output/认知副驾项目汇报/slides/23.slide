@@ -1,0 +1,35 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '16px 40px 8px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>演示实录 ③ · 冲突检测（L2）</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>系统真实运行界面 · 未作修饰</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 12, padding: '2px 40px 0 40px' }}>
+        <Box style={{ justifyContent: 'center', alignItems: 'center' }}>
+            <Image src="assets/demo3_l2.png" style={{ width: 760, height: 330, objectFit: 'contain', borderRadius: 8, border: '1px solid #D6DCE5' }} />
+        </Box>
+        <Box style={{ padding: '14px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
+            <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>这一步在做什么：</span>这是最不可能被笔记软件替代的一层。它不做「帮你整理」，而是<span style={{ fontWeight: 'bold' }}>指出你自相矛盾</span>——把两条主题相近、立场相反的主张摆在一起，给出关系类型、判定依据与置信度。
+            </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 14 }}>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>给依据，不给结论</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>双方主张、关系类型、置信度全部列出，判定过程可以被人复核与推翻。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>阈值可追溯</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>候选对的 0.35~0.95 距离带来自实测分布，参数放配置、可随数据校准。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>结果进入推理链路</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>冲突双方主张会注入简报、诊断与计划讨论——不是躺着的台账。</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>23 / 27</Text>
+    </Box>
+</Slide>

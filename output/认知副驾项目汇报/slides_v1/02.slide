@@ -1,0 +1,48 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'row' }}>
+    <Box style={{ width: 384, height: 720, background: '#0E3F8C', padding: '96px 48px', justifyContent: 'space-between' }}>
+        <Box>
+            <Text style={{ fontSize: 44, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 6 }}>汇报框架</Text>
+            <Box style={{ width: 56, height: 4, background: '#FFC107', marginTop: 18 }} />
+            <Text style={{ fontSize: 20, color: '#BBD0F0', marginTop: 26, lineHeight: 1.7 }}>按评价标准的六个维度组织：每个维度先亮分值，再给对应证据。</Text>
+        </Box>
+        <Text style={{ fontSize: 16, color: '#9FBCE8', fontFamily: 'Georgia, serif', letterSpacing: 2 }}>CONTENTS</Text>
+    </Box>
+    <Box style={{ flex: 1, padding: '84px 56px 60px 56px', justifyContent: 'space-between' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 24, padding: '26px 30px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ width: 64, height: 64, background: '#1E4FA8', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#FFFFFF' }}>01</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>项目是什么</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 6 }}>要解决的问题、项目定位与五层能力全貌</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 24, padding: '26px 30px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ width: 64, height: 64, background: '#1E4FA8', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#FFFFFF' }}>02</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>从 0 到现在</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 6 }}>24 天、154 次提交的演进过程与数据</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 24, padding: '26px 30px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ width: 64, height: 64, background: '#1E4FA8', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#FFFFFF' }}>03</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>对照评价标准 · 逐维度汇报</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 6 }}>实用性 / 创新性 / 技术先进性 / 功能完善性 / 工作量，逐项给证据</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 24, padding: '26px 30px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+            <Box style={{ width: 64, height: 64, background: '#1E4FA8', borderRadius: 8, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#FFFFFF' }}>04</Text>
+            </Box>
+            <Box style={{ flex: 1 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1A2230' }}>演示与总结</Text>
+                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 6 }}>系统现场演示路线、备份预案与三句话方法</Text>
+            </Box>
+        </Box>
+    </Box>
+</Slide>

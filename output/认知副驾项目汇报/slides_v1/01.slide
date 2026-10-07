@@ -1,0 +1,31 @@
+<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='1220' cy='60' r='260' fill='#1E4FA8' opacity='0.35' />
+        <circle cx='120' cy='680' r='300' fill='none' stroke='#FFFFFF' strokeWidth='1' opacity='0.12' />
+        <circle cx='120' cy='680' r='220' fill='none' stroke='#FFFFFF' strokeWidth='1' opacity='0.08' />
+    </svg>
+    <Box style={{ position: 'absolute', top: 96, left: 0, width: '100%', flexDirection: 'row', justifyContent: 'center' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 34, height: 3, background: '#FFC107' }} />
+            <Text style={{ fontSize: 20, color: '#BBD0F0', letterSpacing: 4 }}>24 级 · AI 智能体软件开发项目 · 工作室汇报</Text>
+            <Box style={{ width: 34, height: 3, background: '#FFC107' }} />
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', top: 168, left: 0, width: '100%', alignItems: 'center' }}>
+        <Text style={{ fontSize: 92, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 10 }}>认知副驾</Text>
+        <Text style={{ fontSize: 30, color: '#9FBCE8', marginTop: 14, fontFamily: 'Georgia, serif', letterSpacing: 3 }}>Cognitive Copilot</Text>
+        <Text style={{ fontSize: 26, color: '#E8EFF8', marginTop: 30 }}>个人知识学习 AI 智能体 —— 把「收藏的碎片」转化为「可调用的认知」</Text>
+    </Box>
+    <Box style={{ position: 'absolute', top: 452, left: 240, width: 800, padding: '20px 32px', background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)', alignItems: 'center' }}>
+        <Text style={{ fontSize: 24, color: '#FFFFFF', textAlign: 'center', lineHeight: 1.6 }}>
+            信息系统帮你<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「管住」已知</span>；认知副驾帮你<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「照亮」未知</span>，并<span style={{ fontWeight: 'bold', color: '#FFC107' }}>「逼你」修正</span>
+        </Text>
+    </Box>
+    <Box style={{ position: 'absolute', bottom: 64, left: 0, width: '100%', flexDirection: 'row', justifyContent: 'center', gap: 28, alignItems: 'center' }}>
+        <Text style={{ fontSize: 18, color: '#BBD0F0' }}>江西师范大学</Text>
+        <Box style={{ width: 4, height: 4, borderRadius: 2, background: '#9FBCE8' }} />
+        <Text style={{ fontSize: 18, color: '#BBD0F0' }}>工作室软件项目 · 从 0 到现在</Text>
+        <Box style={{ width: 4, height: 4, borderRadius: 2, background: '#9FBCE8' }} />
+        <Text style={{ fontSize: 18, color: '#BBD0F0' }}>2026 年 9 月 30 日</Text>
+    </Box>
+</Slide>

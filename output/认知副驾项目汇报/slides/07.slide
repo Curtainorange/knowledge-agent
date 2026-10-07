@@ -1,39 +1,82 @@
-<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
-    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
-        <circle cx='1160' cy='600' r='320' fill='#1E4FA8' opacity='0.3' />
-    </svg>
-    <Box style={{ position: 'absolute', top: 96, left: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 32 }}>
-        <Text style={{ fontSize: 200, fontWeight: 'bold', color: '#FFFFFF', opacity: 0.28, lineHeight: 1 }}>02</Text>
-        <Box style={{ paddingBottom: 26 }}>
-            <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 4 }}>对照评价标准 · 逐维度汇报</Text>
-            <Box style={{ width: 64, height: 4, background: '#FFC107', marginTop: 16 }} />
-            <Text style={{ fontSize: 22, color: '#BBD0F0', marginTop: 18 }}>按评分表顺序给证据：每个维度先亮分值，再讲做到了什么</Text>
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '18px 40px 10px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>系统架构 · 技术栈与分层</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>五层结构 · 每层只通过接口说话</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 10, padding: '2px 40px 0 40px' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 168, height: 50, background: '#1E4FA8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#FFFFFF' }}>前端层</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 50, background: '#F7F9FC', borderRadius: 6, border: '1px solid #D6DCE5', padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230' }}>原生 HTML / CSS / JS · 13 个页面 · 零外部依赖、无构建步骤 · 样式收口在单文件</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 168, height: 50, background: '#1E4FA8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#FFFFFF' }}>接口层</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 50, background: '#F7F9FC', borderRadius: 6, border: '1px solid #D6DCE5', padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230' }}>FastAPI · 46 个 API 操作 · Pydantic 请求/响应校验 · JWT 鉴权 · 全站统一错误契约</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 168, height: 50, background: '#0E3F8C', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#FFC107' }}>能力层</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 50, background: '#E8EFF8', borderRadius: 6, border: '1px solid #3D7BD9', padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230' }}>L1 挖掘 · L2 冲突 · L3 简报 · L4 路径修正 · L5 诊断 ＋ 本地阅读器（txt/epub/pdf）＋ 微信读书同步</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 168, height: 50, background: '#1E4FA8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#FFFFFF' }}>支撑层</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 50, background: '#F7F9FC', borderRadius: 6, border: '1px solid #D6DCE5', padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230' }}>模型网关（约束分派 / 重试回退）· 异步任务框架（幂等 / 退避 / 死信）· 检索层（向量＋关键词＋RRF）· 行为埋点与调度</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 168, height: 50, background: '#1E4FA8', borderRadius: 6, justifyContent: 'center', alignItems: 'center' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#FFFFFF' }}>存储层</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 50, background: '#F7F9FC', borderRadius: 6, border: '1px solid #D6DCE5', padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, color: '#1A2230' }}>SQLAlchemy + SQLite（15+ 张表）· 向量存储抽象两实现：进程内索引（默认）｜ PostgreSQL + pgvector</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 16, marginTop: 8 }}>
+            <Box style={{ flex: 1, height: 214, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Box>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>为什么是 FastAPI</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.6 }}>
+                        类型即契约：请求与响应用 Pydantic 模型描述，校验、序列化、文档自动生成；46 个接口共用一套错误契约，不把框架默认的英文 JSON 直接抛到界面上。
+                    </Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>取舍：异步生态成熟，但单人项目用不到全部能力</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 214, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Box>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>为什么前端零框架</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.6 }}>
+                        13 个页面用原生 HTML/CSS/JS，没有构建步骤、没有外部依赖，样式收口在一个文件里，改一处全站生效——答辩现场不需要 npm install 就能跑起来。
+                    </Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>取舍：组件复用靠约定，规模再大需要引入构建</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 214, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '18px 20px', justifyContent: 'space-between' }}>
+                <Box>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>为什么先用 SQLite</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 8, lineHeight: 1.6 }}>
+                        单人规模零运维、单文件、可整库备份；方言差异由 ORM 挡住，切 PostgreSQL 只需改连接串。写并发弱，所以慢操作一律走异步任务，不占请求线程。
+                    </Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>取舍：不适合多 worker 与多租户</Text>
+            </Box>
         </Box>
     </Box>
-    <Box style={{ position: 'absolute', top: 470, left: 96, width: 1088, flexDirection: 'row', gap: 16 }}>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>实用性</Text>
-        </Box>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>15</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>创新性</Text>
-        </Box>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>技术先进性</Text>
-        </Box>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>20</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>功能完善性</Text>
-        </Box>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>10</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>开发工作量</Text>
-        </Box>
-        <Box style={{ flex: 1, padding: '22px 0', background: '#1E4FA8', borderRadius: 10, border: '1px solid #3D7BD9', alignItems: 'center' }}>
-            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#FFC107' }}>15</Text>
-            <Text style={{ fontSize: 19, color: '#FFFFFF', marginTop: 8 }}>现场表现</Text>
-        </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>07 / 27</Text>
     </Box>
 </Slide>

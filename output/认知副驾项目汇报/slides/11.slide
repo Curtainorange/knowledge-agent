@@ -1,74 +1,76 @@
 <Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
     <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
-    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '20px 40px 12px 40px' }}>
-        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>维度四 · 功能完善性（20 分）</Text>
-        <Text style={{ fontSize: 17, color: '#8B97A8' }}>按评分细则四个子项逐一对齐</Text>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '16px 40px 8px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>技术三 · 冲突检测：先向量后模型的漏斗</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>把平方级的两两比较压到每轮 ≤20 对</Text>
     </Box>
-    <Box style={{ flex: 1, flexDirection: 'row', gap: 20, padding: '6px 40px 0 40px' }}>
-        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
-            <Box>
-                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>功能完成度</Text>
-                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>8 分</Text>
-                    </Box>
-                </Box>
-                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
-                    策划承诺的核心功能全部实现、可现场演示。<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>10 项能力全部接入对话入口</span>，一句话即可调用。
-                </Text>
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 9, padding: '2px 40px 0 40px' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 206, height: 54, justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0E3F8C' }}>① 全部主张对</Text>
             </Box>
-            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>挖掘 / 冲突 / 简报 / 计划 / 诊断 / 录入 / 同步 / 书架</Text>
-        </Box>
-        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
-            <Box>
-                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>稳定与容错</Text>
-                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>5 分</Text>
-                    </Box>
-                </Box>
-                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
-                    检索失败自动降级关键词通道；向量模型不可用自动切换哈希兜底；会话过期<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>静默续期</span>；异常输入有兜底提示，不裸抛错误。
-                </Text>
+            <Box style={{ width: 800, height: 54, background: '#BBD0F0', borderRadius: 6, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 17, color: '#0E3F8C' }}>两两比较：1000 条主张约 50 万对——全送模型既不现实也不必要</Text>
             </Box>
-            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>降级有边界：模拟结果绝不冒充真实结果</Text>
         </Box>
-        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
-            <Box>
-                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>界面体验</Text>
-                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>4 分</Text>
-                    </Box>
-                </Box>
-                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
-                    登录即落地<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>对话工作台</span>，耗时能力先回「进行中」卡、完成后就地改写；9 个功能页全保留，信息直给、无冗余装饰。
-                </Text>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 206, height: 54, justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0E3F8C' }}>② 向量距离带</Text>
             </Box>
-            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>结果以卡片回写会话，打开即见最终状态</Text>
-        </Box>
-        <Box style={{ flex: 1, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '5px solid #1E4FA8', padding: '22px 22px', justifyContent: 'space-between' }}>
-            <Box>
-                <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>代码质量</Text>
-                    <Box style={{ padding: '4px 12px', background: '#E8EFF8', borderRadius: 14 }}>
-                        <Text style={{ fontSize: 16, fontWeight: 'bold', color: '#0E3F8C' }}>3 分</Text>
-                    </Box>
-                </Box>
-                <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 14, lineHeight: 1.6 }}>
-                    分层清晰（网关 / 领域 / 能力 / 前端），仓储层结构性强制账号隔离；<span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>647 项测试全绿</span>、提交粒度真实、20 条复盘沉淀。
-                </Text>
+            <Box style={{ width: 676, height: 54, background: '#8FB0E4', borderRadius: 6, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 17, color: '#0E3F8C' }}>只留 0.35 ≤ 余弦 ≤ 0.95：太近≈重复表述，太远≈无关，两端都排除</Text>
             </Box>
-            <Text style={{ fontSize: 15, color: '#8B97A8', lineHeight: 1.5 }}>测试全程模拟调用，不联网、秒级可回归</Text>
         </Box>
-    </Box>
-    <Box style={{ margin: '16px 40px 0 40px', padding: '14px 24px', background: '#0E3F8C', borderRadius: 8 }}>
-        <Text style={{ fontSize: 20, color: '#FFFFFF', textAlign: 'center' }}>
-            稳定性的底气来自工程习惯：每一次降级都设计过边界，每一个静默失败都被写进复盘并加了测试断言
-        </Text>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 206, height: 54, justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0E3F8C' }}>③ 硬闸门</Text>
+            </Box>
+            <Box style={{ width: 552, height: 54, background: '#5C8AD4', borderRadius: 6, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 17, color: '#FFFFFF' }}>单轮最多 20 对送模型判定——成本闸门，超出的转 pending 下轮补</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 206, height: 54, justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0E3F8C' }}>④ 置信度过滤</Text>
+            </Box>
+            <Box style={{ width: 428, height: 54, background: '#3D7BD9', borderRadius: 6, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 17, color: '#FFFFFF' }}>低于 0.5 直接丢弃——入库前最后一道，不硬猜</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 14 }}>
+            <Box style={{ width: 206, height: 54, justifyContent: 'center' }}>
+                <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#0E3F8C' }}>⑤ 低置信复核</Text>
+            </Box>
+            <Box style={{ width: 328, height: 54, background: '#1E4FA8', borderRadius: 6, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 17, color: '#FFFFFF' }}>0.35~0.75 换角度重判，每轮 ≤5 次</Text>
+            </Box>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 12, marginTop: 4 }}>
+            <Box style={{ flex: 1, height: 178, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '13px 16px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>阈值不是拍的</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>
+                    先人工看一批主张对的余弦分布：「相关但立场不同」集中在 0.4~0.85，&gt;0.95 基本是同义重复，&lt;0.35 属不同主题。参数按实测分布切。
+                </Text>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>全部阈值放配置，可随数据重新校准</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 178, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '13px 16px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>真实评测结果</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>
+                    关系判定准确率 0.83；矛盾判定的准确率、召回率、F1 均为 1.0；给出回归承诺「后续迭代不低于基线 0.83」并已兑现。
+                </Text>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>评测集自建、规模有限，不作通用 benchmark</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 178, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '13px 16px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>这一层的成本意义</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>
+                    让便宜的向量先判断「值不值得让贵的模型看」：模型调用量降若干个数量级，等待时间同步下降。
+                </Text>
+                <Text style={{ fontSize: 15, color: '#8B97A8' }}>复杂度瓶颈仍在组对阶段，已列为下一步</Text>
+            </Box>
+        </Box>
     </Box>
     <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
         <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
-        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>11 / 14</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>11 / 27</Text>
     </Box>
 </Slide>

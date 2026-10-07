@@ -1,0 +1,36 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '16px 40px 8px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>演示实录 ② · 模糊找回（L1）</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>系统真实运行界面 · 未作修饰</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 12, padding: '2px 40px 0 40px' }}>
+        <Box style={{ flexDirection: 'row', gap: 20, justifyContent: 'center' }}>
+            <Image src="assets/demo2_l1a.png" style={{ width: 545, height: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid #D6DCE5' }} />
+            <Image src="assets/demo2_l1b.png" style={{ width: 413, height: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid #D6DCE5' }} />
+        </Box>
+        <Box style={{ padding: '14px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
+            <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>这一步在做什么：</span>人往往记不住自己收藏了什么——只记得「讲拖延的、橙色封面」。L1 的解法不是猜，而是<span style={{ fontWeight: 'bold' }}>用追问把线索收敛</span>：线索不足时由系统主动发问，把候选范围层层缩小到具体条目，并给出定位依据。
+            </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 14 }}>
+            <Box style={{ flex: 1, height: 132, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>不猜，靠追问</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>给出的是可验证的候选与依据，而不是一个看起来像答案的猜测。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 132, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>检索侧在背后支撑</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>向量＋关键词双通道召回，RRF 融合；评估护栏 recall@5 ≥ 0.95。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 132, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>定位后可回原文</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>找回的不只是一个标题，而是可以跳到原文、看到当时的划词与想法。</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>22 / 27</Text>
+    </Box>
+</Slide>

@@ -1,0 +1,36 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', padding: '16px 40px 8px 40px' }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#0E3F8C' }}>演示实录 ⑤ · 计划修正（L4）</Text>
+        <Text style={{ fontSize: 17, color: '#8B97A8' }}>系统真实运行界面 · 未作修饰</Text>
+    </Box>
+    <Box style={{ flex: 1, flexDirection: 'column', gap: 12, padding: '2px 40px 0 40px' }}>
+        <Box style={{ flexDirection: 'row', gap: 20, justifyContent: 'center' }}>
+            <Image src="assets/demo5_l4a.png" style={{ width: 354, height: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid #D6DCE5' }} />
+            <Image src="assets/demo5_l4b.png" style={{ width: 710, height: 350, objectFit: 'contain', borderRadius: 8, border: '1px solid #D6DCE5' }} />
+        </Box>
+        <Box style={{ padding: '14px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
+            <Text style={{ fontSize: 18, color: '#1A2230', lineHeight: 1.6 }}>
+                <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>这一步在做什么：</span>把学习目标拆成周计划之后，真正的难点是<span style={{ fontWeight: 'bold' }}>计划赶不上变化</span>。偏离信号全部本地计算：连续无学习行为、窗口内新增内容突增、目标临期未推进——触发后由系统重排任务并给出下一步动作，而不是等人自己想「我是不是该调整了」。
+            </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 14 }}>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>偏离信号本地算</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>连续 3 天无学习行为、7 天窗口新增突增 3 倍等阈值，全部放在配置里。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>计划有硬上限</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>任务数上限 12，避免「计划写了不做、还继续往上堆」的自我安慰。</Text>
+            </Box>
+            <Box style={{ flex: 1, height: 124, background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5', borderTop: '4px solid #1E4FA8', padding: '14px 18px', justifyContent: 'space-between' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1A2230' }}>相关才注入</Text>
+                <Text style={{ fontSize: 16, color: '#4A5568', lineHeight: 1.55 }}>未解冲突与学习目标余弦相似度低于 0.45 就不注入，避免无关矛盾制造噪声。</Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '10px 40px 14px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>25 / 27</Text>
+    </Box>
+</Slide>

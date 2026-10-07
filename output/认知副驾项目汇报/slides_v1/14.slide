@@ -1,0 +1,37 @@
+<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='110' cy='90' r='240' fill='#1E4FA8' opacity='0.3' />
+        <circle cx='1190' cy='640' r='280' fill='none' stroke='#FFFFFF' strokeWidth='1' opacity='0.1' />
+    </svg>
+    <Box style={{ position: 'absolute', top: 88, left: 0, width: '100%', alignItems: 'center' }}>
+        <Text style={{ fontSize: 22, color: '#9FBCE8', letterSpacing: 6 }}>24 天做下来的三句话</Text>
+        <Box style={{ marginTop: 30, alignItems: 'center' }}>
+            <Text style={{ fontSize: 42, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.9, textAlign: 'center' }}>
+                不报错，不等于跑通了<br />
+                容错要有，但不能伪装成成功<br />
+                先定性，再定位
+            </Text>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', top: 436, left: 190, width: 900, flexDirection: 'row', gap: 16, justifyContent: 'space-between' }}>
+        <Box style={{ flex: 1, padding: '18px 20px', background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)' }}>
+            <Text style={{ fontSize: 18, color: '#FFC107', fontWeight: 'bold' }}>下一步 · 1</Text>
+            <Text style={{ fontSize: 18, color: '#E8EFF8', marginTop: 8, lineHeight: 1.55 }}>数据库向量后端真机验证（SQL 契约已用测试钉住）</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '18px 20px', background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)' }}>
+            <Text style={{ fontSize: 18, color: '#FFC107', fontWeight: 'bold' }}>下一步 · 2</Text>
+            <Text style={{ fontSize: 18, color: '#E8EFF8', marginTop: 8, lineHeight: 1.55 }}>冲突候选对比较的平方级复杂度优化</Text>
+        </Box>
+        <Box style={{ flex: 1, padding: '18px 20px', background: 'rgba(255,255,255,0.08)', borderRadius: 10, border: '1px solid rgba(255,255,255,0.25)' }}>
+            <Text style={{ fontSize: 18, color: '#FFC107', fontWeight: 'bold' }}>下一步 · 3</Text>
+            <Text style={{ fontSize: 18, color: '#E8EFF8', marginTop: 8, lineHeight: 1.55 }}>容错可观测性：让每次回退都看得见</Text>
+        </Box>
+    </Box>
+    <Box style={{ position: 'absolute', bottom: 76, left: 0, width: '100%', alignItems: 'center' }}>
+        <Box style={{ width: 56, height: 3, background: '#FFC107', marginBottom: 20 }} />
+        <Text style={{ fontSize: 26, color: '#FFFFFF', textAlign: 'center' }}>
+            认知副驾 —— 帮你照亮未知，并逼你修正
+        </Text>
+        <Text style={{ fontSize: 19, color: '#BBD0F0', marginTop: 14 }}>以上是从 0 到现在的全部工作，恳请老师批评指正</Text>
+    </Box>
+</Slide>

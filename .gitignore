@@ -41,3 +41,7 @@ data/
 
 # --- WorkBuddy 会话/记忆（本地辅助数据，不入库）---
 .workbuddy/
+
+# --- slidep（PPT 工具）的本地缓存 / 会话目录 ---
+.slidep/
+.cache/

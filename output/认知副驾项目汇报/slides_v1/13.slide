@@ -1,0 +1,74 @@
+<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
+    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
+    <Box style={{ flex: 1, flexDirection: 'row', gap: 28, padding: '22px 40px 0 40px' }}>
+        <Box style={{ width: 330, height: 592, background: '#0E3F8C', borderRadius: 10, padding: '36px 30px', justifyContent: 'space-between' }}>
+            <Box>
+                <Text style={{ fontSize: 18, color: '#9FBCE8', letterSpacing: 3 }}>现场表现</Text>
+                <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#FFFFFF', marginTop: 12 }}>系统演示</Text>
+                <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 18 }}>
+                    <Text style={{ fontSize: 64, fontWeight: 'bold', color: '#FFC107', lineHeight: 1 }}>15</Text>
+                    <Text style={{ fontSize: 22, color: '#BBD0F0', paddingBottom: 6 }}>分维度</Text>
+                </Box>
+            </Box>
+            <Text style={{ fontSize: 21, color: '#E8EFF8', lineHeight: 1.75 }}>
+                演示路线约 2 分钟，覆盖五层能力中最直观的四个场景。<span style={{ fontWeight: 'bold', color: '#FFC107' }}>先看系统自己说话，再做总结。</span>
+            </Text>
+        </Box>
+        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 18, padding: '18px 24px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+                <Box style={{ width: 46, height: 46, borderRadius: 23, background: '#1E4FA8', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>1</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>对话录入</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 4 }}>说一句「记一下……」，知识卡直接回写进会话</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 18, padding: '18px 24px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+                <Box style={{ width: 46, height: 46, borderRadius: 23, background: '#1E4FA8', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>2</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>模糊找回（L1）</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 4 }}>给一条模糊线索，看多轮追问如何定位到具体条目</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 18, padding: '18px 24px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+                <Box style={{ width: 46, height: 46, borderRadius: 23, background: '#1E4FA8', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>3</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>冲突检测（L2）</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 4 }}>发起扫描，展示对立主张识别与判定依据</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 18, padding: '18px 24px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+                <Box style={{ width: 46, height: 46, borderRadius: 23, background: '#1E4FA8', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>4</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>计划修正（L4）</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 4 }}>设定学习目标后看偏离检测与自主重排</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 18, padding: '18px 24px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
+                <Box style={{ width: 46, height: 46, borderRadius: 23, background: '#1E4FA8', justifyContent: 'center', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#FFFFFF' }}>5</Text>
+                </Box>
+                <Box style={{ flex: 1 }}>
+                    <Text style={{ fontSize: 22, fontWeight: 'bold', color: '#1A2230' }}>主动推送</Text>
+                    <Text style={{ fontSize: 18, color: '#4A5568', marginTop: 4 }}>展示周教练提示：每条建议都带「下一步」行动</Text>
+                </Box>
+            </Box>
+            <Box style={{ padding: '16px 22px', background: '#FFF8E1', borderRadius: 8, borderLeft: '5px solid #FFC107' }}>
+                <Text style={{ fontSize: 19, color: '#1A2230', lineHeight: 1.6 }}>
+                    <span style={{ fontWeight: 'bold', color: '#B8860B' }}>双保险预案：</span>现场优先运行真实系统；若环境异常，立即切换预录演示视频与关键界面截图——对应「无法运行且无屏幕备份记 0 分」条款，此风险已提前消除。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
+        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
+        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>13 / 14</Text>
+    </Box>
+</Slide>

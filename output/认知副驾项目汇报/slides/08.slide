@@ -1,68 +1,41 @@
-<Slide style={{ width: 1280, height: 720, background: '#FFFFFF', flexDirection: 'column' }}>
-    <Box style={{ width: '100%', height: 8, background: '#1E4FA8' }} />
-    <Box style={{ flex: 1, flexDirection: 'row', gap: 28, padding: '24px 40px 0 40px' }}>
-        <Box style={{ width: 330, height: 590, background: '#0E3F8C', borderRadius: 10, padding: '36px 30px', justifyContent: 'space-between' }}>
-            <Box>
-                <Text style={{ fontSize: 18, color: '#9FBCE8', letterSpacing: 3 }}>维度一</Text>
-                <Text style={{ fontSize: 40, fontWeight: 'bold', color: '#FFFFFF', marginTop: 12 }}>实用性</Text>
-                <Box style={{ flexDirection: 'row', alignItems: 'flex-end', gap: 8, marginTop: 18 }}>
-                    <Text style={{ fontSize: 64, fontWeight: 'bold', color: '#FFC107', lineHeight: 1 }}>20</Text>
-                    <Text style={{ fontSize: 22, color: '#BBD0F0', paddingBottom: 6 }}>分</Text>
-                </Box>
-            </Box>
-            <Text style={{ fontSize: 21, color: '#E8EFF8', lineHeight: 1.75 }}>
-                做得实的标准不是功能多，而是<span style={{ fontWeight: 'bold', color: '#FFC107' }}>每天真的在用</span>：
-                数据源是真的、阅读量是真的、行为记录是真的。
-            </Text>
-        </Box>
-        <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'space-between', padding: '4px 0' }}>
-            <Box style={{ padding: '10px 20px', background: '#FAFBFD', borderRadius: 10, border: '2px dashed #B0B9C8', alignItems: 'center', justifyContent: 'center', height: 112 }}>
-                <FAIcon name='image' style={{ fill: '#B0B9C8', width: 26, height: 26 }} />
-                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#8B97A8', marginTop: 5 }}>【预留】此处插入系统演示截图</Text>
-                <Text style={{ fontSize: 15, color: '#A8B2C0', marginTop: 3 }}>对话工作台 · 能力卡片 · 微信读书同步界面</Text>
-            </Box>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
-                <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
-                    <FAIcon name='sync' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
-                </Box>
-                <Box style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>真实数据源：微信读书官方接口同步</Text>
-                    <Text style={{ fontSize: 19, color: '#4A5568', marginTop: 6, lineHeight: 1.55 }}>
-                        划线、想法、书评按官方只读接口进知识库，幂等去重、可跳回原文——与手写笔记同等参与后续全部能力
-                    </Text>
-                </Box>
-            </Box>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
-                <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
-                    <FAIcon name='book' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
-                </Box>
-                <Box style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>真实阅读量：4 本完整通读的书籍</Text>
-                    <Text style={{ fontSize: 19, color: '#4A5568', marginTop: 6, lineHeight: 1.55 }}>
-                        单本最高 20.8 万字、零截断；txt / epub / pdf 解析成章节，阅读进度与划词想法全部落库
-                    </Text>
-                </Box>
-            </Box>
-            <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 20, padding: '14px 22px', background: '#F7F9FC', borderRadius: 10, border: '1px solid #D6DCE5' }}>
-                <Box style={{ width: 60, height: 60, background: '#E8EFF8', borderRadius: 12, justifyContent: 'center', alignItems: 'center' }}>
-                    <FAIcon name='database' style={{ fill: '#1E4FA8', width: 30, height: 30 }} />
-                </Box>
-                <Box style={{ flex: 1 }}>
-                    <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#1A2230' }}>真实行为数据：支撑五层能力运转</Text>
-                    <Text style={{ fontSize: 19, color: '#4A5568', marginTop: 6, lineHeight: 1.55 }}>
-                        知识条目、观点主张、589 条学习行为事件持续入库（09-23 快照），L1–L5 每一层都在真实数据上跑
-                    </Text>
-                </Box>
-            </Box>
-            <Box style={{ padding: '12px 20px', background: '#F0F5FC', borderRadius: 8, borderLeft: '5px solid #1E4FA8' }}>
-                <Text style={{ fontSize: 20, color: '#1A2230', lineHeight: 1.6 }}>
-                    <span style={{ fontWeight: 'bold', color: '#0E3F8C' }}>佐证：</span>项目连续 21 天开发日志、每日真实使用轨迹——这个系统先服务了开发者自己，才谈得上智能。
-                </Text>
-            </Box>
+<Slide style={{ width: 1280, height: 720, background: '#0E3F8C', position: 'relative', overflow: 'hidden' }}>
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='1128' cy='556' r='318' fill='#1E4FA8' opacity='0.3' />
+        <line x1='96' y1='628' x2='1184' y2='628' stroke='#FFFFFF' strokeWidth='1' opacity='0.16' />
+    </svg>
+    <Box style={{ position: 'absolute', top: 96, left: 96, flexDirection: 'row', alignItems: 'flex-end', gap: 32 }}>
+        <Text style={{ fontSize: 200, fontWeight: 'bold', color: '#FFFFFF', opacity: 0.26, lineHeight: 1 }}>02</Text>
+        <Box style={{ paddingBottom: 26 }}>
+            <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 4 }}>技术实现</Text>
+            <Box style={{ width: 64, height: 4, background: '#FFC107', marginTop: 16 }} />
         </Box>
     </Box>
-    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', padding: '12px 40px 16px 40px' }}>
-        <Text style={{ fontSize: 14, color: '#8B97A8' }}>认知副驾 · Cognitive Copilot</Text>
-        <Text style={{ fontSize: 14, color: '#1E4FA8' }}>08 / 14</Text>
+    <Box style={{ position: 'absolute', top: 424, left: 96, width: 1088 }}>
+        <Text style={{ fontSize: 24, color: '#E8EFF8', lineHeight: 1.8 }}>
+            这一章单独讲技术：系统的分层架构，以及四处真正花过功夫的工程点——<span style={{ fontWeight: 'bold', color: '#FFC107' }}>模型工程</span>、
+            <span style={{ fontWeight: 'bold', color: '#FFC107' }}>检索工程</span>、<span style={{ fontWeight: 'bold', color: '#FFC107' }}>冲突检测算法</span>、
+            <span style={{ fontWeight: 'bold', color: '#FFC107' }}>可靠性与数据安全</span>。每个名词都落到「我怎么做、为什么这样做、边界在哪里」。
+        </Text>
+    </Box>
+    <Box style={{ position: 'absolute', bottom: 92, left: 96, flexDirection: 'row', gap: 14, alignItems: 'center' }}>
+        <Box style={{ padding: '12px 24px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 19, color: '#FFFFFF' }}>架构与选型</Text>
+        </Box>
+        <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 20, height: 20 }} />
+        <Box style={{ padding: '12px 24px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 19, color: '#FFFFFF' }}>模型工程</Text>
+        </Box>
+        <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 20, height: 20 }} />
+        <Box style={{ padding: '12px 24px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 19, color: '#FFFFFF' }}>检索工程</Text>
+        </Box>
+        <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 20, height: 20 }} />
+        <Box style={{ padding: '12px 24px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 19, color: '#FFFFFF' }}>冲突算法</Text>
+        </Box>
+        <FAIcon name='arrow-right' style={{ fill: '#9FBCE8', width: 20, height: 20 }} />
+        <Box style={{ padding: '12px 24px', background: '#1E4FA8', borderRadius: 24, border: '1px solid #3D7BD9' }}>
+            <Text style={{ fontSize: 19, color: '#FFFFFF' }}>可靠性与安全</Text>
+        </Box>
     </Box>
 </Slide>
