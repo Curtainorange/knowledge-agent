@@ -318,8 +318,8 @@
 <p class="note-inline">&nbsp;&nbsp;用例编号在全报告内唯一且稳定：后续对象模型、追踪矩阵、验收例均引用这套 UC 编号（第 3 课 P51 要求编号稳定）。</p>
 <h3>2.4 用例图</h3>
 <p>用例与参与者较多，按"域"拆成两张图呈现；两图合起来构成完整的系统用例模型。</p>
-<figure><img src="images/uc1_knowledge.png" alt="图1 认知副驾用例图（一）：账号与知识资产"><figcaption>图1　认知副驾用例图（一）：账号与知识资产（UC-01 ~ UC-10）。系统边界内为用例，边界外为参与者；微信读书开放平台以方框加 «外部系统» 构造型表示。</figcaption></figure>
-<figure><img src="images/uc2_capability.png" alt="图2 认知副驾用例图（二）：五层认知能力与支撑"><figcaption>图2　认知副驾用例图（二）：五层认知能力与支撑（UC-11 ~ UC-21）。UC-20 与 UC-19 之间为唯一保留的 «extend» 关系。</figcaption></figure>
+<figure><img src="images/uc1_knowledge.png" alt="图1 认知副驾用例图（一）：账号与知识资产" width="567"><figcaption>图1　认知副驾用例图（一）：账号与知识资产（UC-01 ~ UC-10）。系统边界内为用例，边界外为参与者；微信读书开放平台以方框加 «外部系统» 构造型表示。</figcaption></figure>
+<figure><img src="images/uc2_capability.png" alt="图2 认知副驾用例图（二）：五层认知能力与支撑" width="567"><figcaption>图2　认知副驾用例图（二）：五层认知能力与支撑（UC-11 ~ UC-21）。UC-20 与 UC-19 之间为唯一保留的 «extend» 关系。</figcaption></figure>
 <p>读图要点：</p>
 <ol><li><strong>边界</strong>：图内的一切都是"系统要自己做完"的事；模型服务与微信读书平台在边界外，系统只是调用它们。</li><li><strong>参与者</strong>：人事角色只有一个（学习者）；两个外部系统参与者只与真正调用它们的用例相连——DeepSeek 只连 UC-11／12／15／17／19，不连纯本地读写的用例。</li><li><strong>渠道不是用例</strong>：所有学习者用例都可由对话工作台或对应功能页触发，渠道差异不改变用例（第 3 课 P27）。</li></ol>
 <h3>2.5 用例关系审查</h3>
@@ -353,7 +353,7 @@
 <p>CRC 写业务责任，不写"提供全部 getter／setter"（第 4 课 P31）。</p>
 <table><thead><tr><th>类</th><th>责任</th><th>协作者</th></tr></thead><tbody><tr><td>Learner</td><td>发起扫描；查看本人冲突；对冲突给出反馈；对判定发起复核</td><td>ConflictScan、Conflict、JudgmentLog</td></tr><tr><td>KnowledgeItem</td><td>保存条目内容与来源；提供可分析文本；支持软删除后不再参与扫描</td><td>Claim</td></tr><tr><td>Claim</td><td>保存一条可判真假的主张文本</td><td>KnowledgeItem</td></tr><tr><td>Conflict</td><td>保证置信度门槛与收敛规则；维护用户状态与忽略计数；判定归属</td><td>Claim、ConflictType、UserState、JudgmentLog</td></tr><tr><td>ConflictScan</td><td>编排一次扫描：取条目、提主张、配对、逐对判定、过滤、落库</td><td>Learner、KnowledgeItem、LLMJudge、Conflict</td></tr><tr><td>JudgmentLog</td><td>记录每次判定的配对、置信度与结论；支持事后复核与翻案</td><td>ClaimPair、Conflict</td></tr><tr><td>LLMJudge（接口）</td><td>对一对主张给出类型与置信度</td><td>—</td></tr></tbody></table>
 <h3>3.4 分析类图</h3>
-<figure><img src="images/obj_partial_model.png" alt="图3 部分对象模型（分析类图）"><figcaption>图3　部分对象模型（分析类图）—— 覆盖 UC-12 扫描隐性冲突、UC-13 处置冲突反馈、UC-14 翻案误判。</figcaption></figure>
+<figure><img src="images/obj_partial_model.png" alt="图3 部分对象模型（分析类图）" width="567"><figcaption>图3　部分对象模型（分析类图）—— 覆盖 UC-12 扫描隐性冲突、UC-13 处置冲突反馈、UC-14 翻案误判。</figcaption></figure>
 <p><strong>关系与多重性说明</strong>（每条都用一句业务语言解释，第 4 课 P34–P36）</p>
 <table><thead><tr><th>关系</th><th>多重性</th><th>业务含义</th><th>依据</th></tr></thead><tbody><tr><td>Learner — KnowledgeItem</td><td>1 ↔ 0..*</td><td>一个学习者拥有零到多条知识条目；一条条目恰好属于一个学习者</td><td>BR-03</td></tr><tr><td>Learner — Conflict</td><td>1 ↔ 0..*</td><td>一个学习者拥有零到多条冲突记录；一条冲突恰好归属一个学习者</td><td>BR-03、UC-12</td></tr><tr><td>KnowledgeItem — Claim</td><td>1（组合）↔ 1..*</td><td>一条条目正好由一条或多条主张构成；条目不存在时其主张无独立意义</td><td>UC-12 步骤③</td></tr><tr><td>Conflict — Claim</td><td>0..* ↔ 2</td><td>一条冲突恰由两条主张构成；一条主张可出现在多条冲突中</td><td>UC-12 步骤⑤</td></tr><tr><td>Conflict — ConflictType</td><td>0..* ↔ 1</td><td>一条冲突恰好属于一个类型（用于同类型收敛）</td><td>BR-02</td></tr><tr><td>Conflict — UserState</td><td>0..* ↔ 1</td><td>一条冲突恰有一个用户状态</td><td>UC-13</td></tr><tr><td>ConflictScan — Learner</td><td>1 ↔ 1</td><td>一次扫描恰好由一个学习者发起（请求者）</td><td>BR-03</td></tr><tr><td>ConflictScan — Conflict</td><td>1 ↔ 0..*</td><td>一次扫描产出零到多条冲突</td><td>UC-12 步骤⑦</td></tr><tr><td>ConflictScan ⇢ LLMJudge</td><td>依赖</td><td>一次扫描临时使用外部判定服务</td><td>UC-12 步骤⑤</td></tr><tr><td>Conflict — JudgmentLog</td><td>0..1 ↔ 1</td><td>一条冲突可溯源到一条判定日志</td><td>BR-07</td></tr><tr><td>JudgmentLog — ClaimPair</td><td>1 ↔ 1</td><td>一条判定日志恰好记录一对主张的判定</td><td>BR-07、UC-14</td></tr><tr><td>ClaimPair — Claim</td><td>1 ↔ 2</td><td>一个主张对恰由两条主张构成</td><td>BR-07</td></tr><tr><td>Learner — JudgmentLog</td><td>1 ↔ 0..*</td><td>一个学习者可对其名下的判定日志发起复核</td><td>UC-14、BR-03</td></tr></tbody></table>
 <p><strong>刻意不画的关系</strong>（同样要留证据）：</p>
@@ -366,7 +366,7 @@
 <p><strong>作用域</strong>：所有属性均为对象作用域（每条冲突的置信度、状态各不相同）；枚举常量为类层次共享；不设静态计数器（应查询统计，第 4 课 P25）。</p>
 <h3>3.6 对象图验证</h3>
 <p>类图必须能解释正例与反例，尤其是失败路径（第 4 课 P37、P52）。</p>
-<figure><img src="images/obj_verify.png" alt="图4 对象图验证（正例与越权反例）"><figcaption>图4　对象图验证：左侧为正例（AT-01 保留），右侧为越权反例（AT-04 拒绝且数据不变）。</figcaption></figure>
+<figure><img src="images/obj_verify.png" alt="图4 对象图验证（正例与越权反例）" width="567"><figcaption>图4　对象图验证：左侧为正例（AT-01 保留），右侧为越权反例（AT-04 拒绝且数据不变）。</figcaption></figure>
 <ul><li><strong>正例</strong>：<code>u1</code> 拥有条目 <code>i1</code>（含主张 <code>c1</code>、<code>c2</code>），由 <code>u1</code> 发起的扫描 <code>s1</code> 产出冲突 <code>x</code>（归属 <code>u1</code>，置信度 0.70 ≥ 0.5）。<code>x.evaluate(0.70)</code> 保留 → 可查询，符合 AT-01／BR-01。</li><li><strong>反例</strong>：<code>u2</code> 对 <code>x</code> 调用 <code>mark(ACCEPTED)</code>。<code>x.belongsTo(u2) = false</code> → 拒绝（404/403），<code>x.userState</code> 仍为 UNSEEN、<code>ignoreCount</code> 仍为 0、<code>u1</code> 的数据不变，符合 AT-04／BR-03。</li></ul>
 <p>反例能通过，说明"归属校验"不是写在文档里的口号，而是<strong>模型里可执行的约束</strong>。</p>
 <h3>3.7 对象层追踪矩阵</h3>

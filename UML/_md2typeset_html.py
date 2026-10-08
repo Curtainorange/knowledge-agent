@@ -20,6 +20,9 @@ TOKEN_PATH = (r"C:\Users\Curtain\.workbuddy\plugins\cache\workbuddy-builtin\tenc
 OUT_HTML = os.path.join(BASE, "stage2", "formatted-需求分析建模.html")
 OUT_TOKENS = os.path.join(BASE, "stage2", "design_tokens.json")
 
+# 图片嵌入宽度（px，html-to-docx 按 96dpi 换算）：567px ≈ 15.0cm，A4 正文可用宽 16.0cm，留余量
+IMG_WIDTH_PX = 567
+
 TITLE = "需求分析建模：用例模型与部分对象模型"
 SUBTITLE = "认知副驾（Cognitive Copilot）—— 个人知识学习 AI 智能体"
 CATEGORY = "面向对象分析与设计 · 项目需求分析建模"
@@ -189,7 +192,9 @@ def render(blocks, toc) -> str:
             out.append('<div class="section-divider"></div>')
         elif kind == "figure":
             src, alt, cap = payload
-            fig = ['<figure><img src="%s" alt="%s">' % (esc(src), esc(alt))]
+            # 必须显式给 width：html-to-docx 对无 width 的图按 PNG 的 DPI 元数据取自然尺寸，
+            # 会超出页边距被裁（A4 正文可用宽 16.0cm）。567px = 15.0cm（按 96dpi 换算）。
+            fig = ['<figure><img src="%s" alt="%s" width="%d">' % (esc(src), esc(alt), IMG_WIDTH_PX)]
             if cap:
                 fig.append("<figcaption>%s</figcaption>" % inline(cap))
             fig.append("</figure>")

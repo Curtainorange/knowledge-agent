@@ -316,50 +316,50 @@
 <h3>5.1 产品定义</h3>
 <p>认知副驾是基于大语言模型的个人知识学习智能体，以「主动认知伙伴」而非「被动存储工具」为定位，通过五级递进的智能体主动性（L1→L5）覆盖从「帮用户找回知识」到「帮用户认识自己」的完整价值链。</p>
 <p>系统与外部实体的交互关系如下图，它是本报告全部需求的边界依据：方框内为系统职责，方框外为外部交互方。</p>
-<figure><img src="images/fig01_context.png" alt="图 1 系统上下文图"><figcaption>图 1　系统上下文图（System Context）。系统对内提供 L1–L5 五级能力，对外只与四类实体交互：学习者（意图与反馈）、知识源平台（只读同步）、大模型服务（推理调用）、推送通道（任务投递）。</figcaption></figure>
+<figure><img src="images/fig01_context.png" alt="图 1 系统上下文图" width="567"><figcaption>图 1　系统上下文图（System Context）。系统对内提供 L1–L5 五级能力，对外只与四类实体交互：学习者（意图与反馈）、知识源平台（只读同步）、大模型服务（推理调用）、推送通道（任务投递）。</figcaption></figure>
 <h3>5.2 与传统知识管理工具的对比</h3>
 <table><thead><tr><th>维度</th><th>传统工具</th><th>认知副驾</th></tr></thead><tbody><tr><td>交互模式</td><td>关键词检索，被动响应</td><td>自然语言对话，支持模糊输入与多轮澄清</td></tr><tr><td>主动性</td><td>零主动，等用户发起</td><td>主动扫描冲突、主动推送简报、主动干预偏离</td></tr><tr><td>推理能力</td><td>无</td><td>语义比对、逻辑分析、因果推断、链式归因</td></tr><tr><td>知识关系</td><td>孤立条目</td><td>识别矛盾 / 互补 / 断层关系，含置信度评估</td></tr><tr><td>学习闭环</td><td>无计划、无监测</td><td>目标→计划→监测→干预→诊断全闭环</td></tr></tbody></table>
 <h3>5.3 技术与架构定位</h3>
 <ol><li><strong>单一模型依赖</strong>：全部智能能力收敛到 DeepSeek API 统一网关，业务层不感知实现细节；通过抽象接口封装保留未来替换 / 新增服务商的能力。</li><li><strong>运行环境</strong>：服务端部署，Python / FastAPI 异步服务；模型层需联网访问 DeepSeek API。</li><li><strong>用户端</strong>：Web 对话工作台为主，功能页为辅；移动端以响应式 Web + PWA 接入。</li><li><strong>分层结构</strong>：用户交互层 / 应用服务层 / 领域能力层 / 数据与模型层四层，模型调用是唯一收口点。</li></ol>
-<figure><img src="images/fig02_arch.png" alt="图 2 系统总体架构图"><figcaption>图 2　系统总体架构图。四层结构中，领域能力层承载 L1–L5 五级能力，数据与模型层中的 LLM 网关是全部模型调用的唯一收口点。</figcaption></figure>
+<figure><img src="images/fig02_arch.png" alt="图 2 系统总体架构图" width="567"><figcaption>图 2　系统总体架构图。四层结构中，领域能力层承载 L1–L5 五级能力，数据与模型层中的 LLM 网关是全部模型调用的唯一收口点。</figcaption></figure>
 <div class="section-divider"></div>
 <h2 id="section-7">六、业务流程分析</h2>
 <h3>6.1 总体业务主线</h3>
 <p>知识接入 → 认知加工（向量化 + 主张提取）→ 主动服务（挖掘 / 冲突 / 简报 / 干预 / 诊断）→ 用户反馈 → 闭环修正（计划重规划 / 推荐收敛）。</p>
-<figure><img src="images/fig07_mainflow.png" alt="图 3 总体业务主线图"><figcaption>图 3　总体业务主线图。从「知识存储」到「认知转化」的完整链路，末端反馈回流形成闭环。</figcaption></figure>
+<figure><img src="images/fig07_mainflow.png" alt="图 3 总体业务主线图" width="567"><figcaption>图 3　总体业务主线图。从「知识存储」到「认知转化」的完整链路，末端反馈回流形成闭环。</figcaption></figure>
 <h3>6.2 知识接入流程（UC-G-01）</h3>
 <p>学习者授权接入知识源（本地书籍文件、微信读书等）→ 系统建立连接并同步原文 → 系统对新条目做向量化与核心主张提取（超大条目分块处理）→ 回传同步结果。连接失败可重试，不阻塞已有数据。</p>
-<figure><img src="images/fig08_ingest.png" alt="图 4 知识接入流程图"><figcaption>图 4　知识接入流程图（对应 UC-G-01）。</figcaption></figure>
+<figure><img src="images/fig08_ingest.png" alt="图 4 知识接入流程图" width="567"><figcaption>图 4　知识接入流程图（对应 UC-G-01）。</figcaption></figure>
 <h3>6.3 模糊检索定位流程（UC-L1-01，L1）</h3>
 <p>学习者输入碎片化线索（如「橙色封面，好像是讲拖延症的」）→ 系统解析产生多个候选匹配假设 → 候选不唯一时发起多轮追问 → 学习者回答缩小范围 → 循环直至定位 → 返回精准内容并附阅读历史提醒。假设唯一时直接交付；学习者无法回答时按最近相似度兜底返回。</p>
-<figure><img src="images/fig09_l1.png" alt="图 5 模糊检索定位流程图"><figcaption>图 5　模糊检索定位流程图（对应 UC-L1-01）。</figcaption></figure>
+<figure><img src="images/fig09_l1.png" alt="图 5 模糊检索定位流程图" width="567"><figcaption>图 5　模糊检索定位流程图（对应 UC-L1-01）。</figcaption></figure>
 <h3>6.4 冲突检测流程（UC-L2-01/02/03，L2）</h3>
 <p>两条触发路径：①每周定时主动扫描新增条目；②新文章收藏时实时检测。处理流程：提取核心主张 → 语义比对与逻辑分析 → 识别矛盾 / 互补 / 断层关系并过滤误报（低置信度不入库不推送）→ 形成冲突候选并推送提醒 → 学习者反馈「忽略 / 采纳」→ 反馈用于收敛与信任度量（同类型忽略 ≥3 次自动收敛）。</p>
-<figure><img src="images/fig10_l2.png" alt="图 6 冲突检测流程图"><figcaption>图 6　冲突检测流程图（对应 UC-L2-01 / 02 / 03）。</figcaption></figure>
+<figure><img src="images/fig10_l2.png" alt="图 6 冲突检测流程图" width="567"><figcaption>图 6　冲突检测流程图（对应 UC-L2-01 / 02 / 03）。</figcaption></figure>
 <p>冲突记录的用户状态在三个取值间迁移，收敛与重新激活规则如下图：</p>
-<figure><img src="images/fig06_state.png" alt="图 7 冲突状态迁移图"><figcaption>图 7　冲突状态迁移图。同类型忽略累计 ≥3 次后进入收敛态，不再主动推荐；重新激活后回到可推荐状态。</figcaption></figure>
+<figure><img src="images/fig06_state.png" alt="图 7 冲突状态迁移图" width="567"><figcaption>图 7　冲突状态迁移图。同类型忽略累计 ≥3 次后进入收敛态，不再主动推荐；重新激活后回到可推荐状态。</figcaption></figure>
 <h3>6.5 认知助产流程（UC-L3-01/02，L3）</h3>
 <ol><li><strong>周认知简报</strong>：每周定时分析知识库主题分布与认知深度 → 识别「大量存在 / 完全缺失」模式 → 生成 2–3 个启发式深度追问 → 汇总本周冲突 → 推送简报。</li><li><strong>深度追问</strong>：学习者完成问答或收藏新内容后，基于缺失项生成 1 个衔接当前话题的深度问题，附数据依据推送，可承接新一轮对话。</li></ol>
-<figure><img src="images/fig11_l3.png" alt="图 8 认知助产流程图"><figcaption>图 8　认知助产流程图（对应 UC-L3-01 / 02）。</figcaption></figure>
+<figure><img src="images/fig11_l3.png" alt="图 8 认知助产流程图" width="567"><figcaption>图 8　认知助产流程图（对应 UC-L3-01 / 02）。</figcaption></figure>
 <h3>6.6 计划制定与纠偏流程（UC-L4-01/02，L4）</h3>
 <p>学习者设定学习目标（含期限与优先级）→ 系统拆解为周维度任务计划 → 回传确认 / 修改 → 计划生效进入行为监测。当连续 N 天（默认 3）未执行计划、行为模式显著变化或学习者主动请求时：系统聚合学习行为 → 分析偏离原因 → 生成路径调整建议 → 发起干预对话 → 学习者同意则重拆计划并确认新路径（含预期收益），拒绝则保持原计划并记录偏好。</p>
-<figure><img src="images/fig12_l4.png" alt="图 9 计划制定与纠偏流程图"><figcaption>图 9　计划制定与纠偏流程图（对应 UC-L4-01 / 02）。</figcaption></figure>
+<figure><img src="images/fig12_l4.png" alt="图 9 计划制定与纠偏流程图" width="567"><figcaption>图 9　计划制定与纠偏流程图（对应 UC-L4-01 / 02）。</figcaption></figure>
 <h3>6.7 偏误诊断流程（UC-L5-01/02，L5）</h3>
 <ol><li><strong>月学习健康报告</strong>：每月定时批量分析行为数据 → 多因素归因 → 形成诊断报告（含置信度与推理链）→ 推送并询问是否采纳 → 采纳后解决方案拆为任务写入计划，与 L4 形成闭环。</li><li><strong>主动归因诊断</strong>：学习者主动询问「我为什么学不好 / 总拖延」→ 系统基于行为数据链式归因 → 返回诊断 + 可执行方案 → 可选写入计划。</li></ol>
-<figure><img src="images/fig13_l5.png" alt="图 10 偏误诊断流程图"><figcaption>图 10　偏误诊断流程图（对应 UC-L5-01 / 02）。</figcaption></figure>
+<figure><img src="images/fig13_l5.png" alt="图 10 偏误诊断流程图" width="567"><figcaption>图 10　偏误诊断流程图（对应 UC-L5-01 / 02）。</figcaption></figure>
 <h3>6.8 核心闭环</h3>
 <p>诊断（L5）→ 方案写入计划（L4）→ 行为监测 → 偏离干预 → 新行为数据 → 再诊断，形成「越用越懂用户」的自进化学习闭环。</p>
-<figure><img src="images/fig14_loop.png" alt="图 11 核心闭环示意图"><figcaption>图 11　核心闭环示意图。</figcaption></figure>
+<figure><img src="images/fig14_loop.png" alt="图 11 核心闭环示意图" width="567"><figcaption>图 11　核心闭环示意图。</figcaption></figure>
 <div class="section-divider"></div>
 <h2 id="section-8">七、功能需求分析</h2>
 <h3>7.1 功能架构</h3>
 <p>功能按参与角色组织为用例（Use Case），包含两大支撑能力（知识接入、推送与计划管理）与五级核心脑力能力（按智能体主动性从低到高 L1→L5）：</p>
 <ul><li><strong>L1 认知挖掘</strong>——被动响应的模糊检索定位；</li><li><strong>L2 冲突检测</strong>——系统主动扫描与实时检测知识矛盾；</li><li><strong>L3 认知助产</strong>——系统主动生成追问与简报，引导思考；</li><li><strong>L4 路径自我修正</strong>——监测行为偏离并主动干预重规划；</li><li><strong>L5 偏误诊断</strong>——归因诊断学习病根并给出方案。</li></ul>
-<figure><img src="images/fig03_funcarch.png" alt="图 12 功能架构图"><figcaption>图 12　功能架构图。上层为统一交互入口，中层为五级核心能力，下层为两项支撑能力。</figcaption></figure>
+<figure><img src="images/fig03_funcarch.png" alt="图 12 功能架构图" width="567"><figcaption>图 12　功能架构图。上层为统一交互入口，中层为五级核心能力，下层为两项支撑能力。</figcaption></figure>
 <h3>7.2 用例总览</h3>
 <table><thead><tr><th>用例编号</th><th>用例名</th><th>主角色</th><th>能力</th><th>优先级</th></tr></thead><tbody><tr><td>UC-G-01</td><td>知识库接入</td><td>学习者 / 系统</td><td>支撑—知识接入</td><td>高</td></tr><tr><td>UC-G-02</td><td>主动推送偏好管理</td><td>学习者</td><td>支撑—推送管理</td><td>中</td></tr><tr><td>UC-L1-01</td><td>模糊意图挖掘定位</td><td>学习者</td><td>L1 认知挖掘</td><td>高</td></tr><tr><td>UC-L2-01</td><td>知识冲突主动扫描</td><td>系统</td><td>L2 冲突检测</td><td>高</td></tr><tr><td>UC-L2-02</td><td>新内容实时冲突检测</td><td>系统</td><td>L2 冲突检测</td><td>中</td></tr><tr><td>UC-L2-03</td><td>冲突反馈（忽略 / 采纳）</td><td>学习者</td><td>L2 冲突检测</td><td>中</td></tr><tr><td>UC-L3-01</td><td>周认知简报生成</td><td>系统</td><td>L3 认知助产</td><td>中</td></tr><tr><td>UC-L3-02</td><td>深度追问生成</td><td>系统</td><td>L3 认知助产</td><td>中</td></tr><tr><td>UC-L4-01</td><td>学习计划制定与重规划</td><td>学习者 / 系统</td><td>L4 路径自我修正</td><td>高</td></tr><tr><td>UC-L4-02</td><td>行为偏离监测与干预</td><td>系统</td><td>L4 路径自我修正</td><td>中</td></tr><tr><td>UC-L5-01</td><td>月学习健康报告</td><td>系统</td><td>L5 偏误诊断</td><td>中</td></tr><tr><td>UC-L5-02</td><td>学习归因诊断</td><td>学习者 / 系统</td><td>L5 偏误诊断</td><td>中</td></tr></tbody></table>
 <p>用例与参与者的整体关系如下图：</p>
-<figure><img src="images/fig04_usecase.png" alt="图 13 系统用例图"><figcaption>图 13　系统用例图。学习者（U1）为唯一人类参与者，知识源平台（S1）为外部系统参与者；12 个用例按五级能力与两项支撑能力分组。</figcaption></figure>
+<figure><img src="images/fig04_usecase.png" alt="图 13 系统用例图" width="567"><figcaption>图 13　系统用例图。学习者（U1）为唯一人类参与者，知识源平台（S1）为外部系统参与者；12 个用例按五级能力与两项支撑能力分组。</figcaption></figure>
 <h3>7.3 关键用例规约摘要</h3>
 <table><thead><tr><th>用例</th><th>触发条件</th><th>核心流程要点</th><th>关键扩展 / 异常</th></tr></thead><tbody><tr><td>知识库接入</td><td>用户授权</td><td>授权→同步原文→向量化与主张提取→回传结果</td><td>超大条目分块；连接失败可重试不阻塞</td></tr><tr><td>推送偏好管理</td><td>用户设置</td><td>选择频率→保存→按偏好调度推送</td><td>同类型忽略 ≥3 次→自动收敛</td></tr><tr><td>模糊意图定位</td><td>模糊 / 感官化输入</td><td>线索→候选假设→多轮追问→定位交付+阅读历史提醒</td><td>唯一命中直接交付；无法回答按相似度兜底</td></tr><tr><td>冲突主动扫描</td><td>每周定时</td><td>扫描→主张提取→语义比对→过滤误报→候选（含置信度）→推送</td><td>低置信度不入库不推送</td></tr><tr><td>实时冲突检测</td><td>收藏新文章</td><td>入库即检测→实时推送提醒</td><td>同扫描流程</td></tr><tr><td>冲突反馈</td><td>存在冲突提醒</td><td>查看→忽略 / 采纳→记录反馈</td><td>同类型忽略 ≥3 次收敛</td></tr><tr><td>周认知简报</td><td>每周定时</td><td>主题分布分析→缺失模式识别→生成 2–3 个追问→汇总冲突→推送</td><td>—</td></tr><tr><td>深度追问</td><td>问答完成 / 新收藏后</td><td>获取上下文→生成 1 个衔接性深度问题→附数据依据推送</td><td>可承接新对话</td></tr><tr><td>计划制定与重规划</td><td>用户设定目标</td><td>目标→周维度拆解→确认→写入→进入监测</td><td>调整时进入重规划流程</td></tr><tr><td>偏离监测与干预</td><td>连续 3 天未执行 / 模式突变 / 主动请求</td><td>聚合行为→归因→调整建议→干预对话→同意重拆 / 拒绝保留</td><td>拒绝时记录偏好</td></tr><tr><td>月健康报告</td><td>每月定时</td><td>批量分析→多因素归因→诊断报告（置信度+推理链）→推送→询问采纳</td><td>采纳后写入计划闭环</td></tr><tr><td>归因诊断</td><td>用户主动询问</td><td>提问→链式归因→诊断+可执行方案→可写入计划</td><td>—</td></tr></tbody></table>
 <h3>7.4 用户侧接口功能框架</h3>
@@ -372,7 +372,7 @@
 <h3>8.1 核心数据实体</h3>
 <table><thead><tr><th>实体</th><th>用途</th><th>关键属性</th></tr></thead><tbody><tr><td>User（用户）</td><td>账号、偏好</td><td>昵称、推送频率、加密 key</td></tr><tr><td>KnowledgeItem（知识条目）</td><td>知识库基本单位</td><td>标题、正文、来源、标签、阅读进度、核心主张</td></tr><tr><td>Claim（核心主张）</td><td>冲突比对的最小单位</td><td>主张文本、所属条目、向量</td></tr><tr><td>LearningGoal（学习目标）</td><td>目标管理</td><td>描述、期限、优先级、是否达成</td></tr><tr><td>LearningPlan（学习计划）</td><td>计划管理</td><td>目标关联、结构化计划内容</td></tr><tr><td>PlanTask（计划任务）</td><td>任务拆解</td><td>周次、主题、状态、关联条目</td></tr><tr><td>CognitiveDiagnosis（诊断报告）</td><td>偏误诊断输出</td><td>行为模式、归因、置信度、推理链、状态</td></tr><tr><td>Conflict（观点冲突）</td><td>冲突检测产物</td><td>条目 A/B、冲突类型、细节、建议、用户状态</td></tr><tr><td>Conversation（会话）</td><td>对话状态</td><td>状态机状态、上下文</td></tr><tr><td>PushLog（推送日志）</td><td>推送追溯与去重</td><td>类型、内容 hash、渠道、用户反馈</td></tr></tbody></table>
 <p>实体之间的关系如下图：用户拥有知识条目与学习目标；知识条目分解为核心主张；主张之间比对产生观点冲突；诊断结论可写入计划任务，构成闭环。</p>
-<figure><img src="images/fig05_er.png" alt="图 14 核心数据实体关系图"><figcaption>图 14　核心数据实体关系图（E-R）。</figcaption></figure>
+<figure><img src="images/fig05_er.png" alt="图 14 核心数据实体关系图" width="567"><figcaption>图 14　核心数据实体关系图（E-R）。</figcaption></figure>
 <h3>8.2 数据字典（关键字段）</h3>
 <table><thead><tr><th>实体</th><th>字段</th><th>类型</th><th>说明</th></tr></thead><tbody><tr><td>User</td><td>user_id / display_name</td><td>string</td><td>用户标识与昵称</td></tr><tr><td>User</td><td>push_frequency</td><td>enum</td><td>weekly / daily / quiet</td></tr><tr><td>KnowledgeItem</td><td>item_id / title / content</td><td>string / text</td><td>主键、标题与正文</td></tr><tr><td>KnowledgeItem</td><td>source</td><td>enum</td><td>来源：手动录入 / 书籍摘录 / 微信读书</td></tr><tr><td>KnowledgeItem</td><td>read_progress</td><td>float</td><td>阅读进度 0–1</td></tr><tr><td>KnowledgeItem</td><td>is_deleted / deleted_at</td><td>bool / datetime</td><td>软删除标记，不物理删除</td></tr><tr><td>Claim</td><td>claim_id / text</td><td>string</td><td>主张标识与文本</td></tr><tr><td>Claim</td><td>item_id</td><td>string</td><td>所属知识条目（外键）</td></tr><tr><td>Conflict</td><td>conflict_id</td><td>string</td><td>主键</td></tr><tr><td>Conflict</td><td>claim_a_id / claim_b_id</td><td>string</td><td>冲突双方主张（外键）</td></tr><tr><td>Conflict</td><td>conflict_type</td><td>enum</td><td>矛盾 / 互补 / 断层</td></tr><tr><td>Conflict</td><td>confidence</td><td>float</td><td>置信度 0–1；&lt; 0.5 丢弃</td></tr><tr><td>Conflict</td><td>user_state</td><td>enum</td><td>unseen / ignored / accepted</td></tr><tr><td>Conflict</td><td>ignore_count</td><td>int</td><td>同类型忽略计数，≥3 触发收敛</td></tr><tr><td>LearningGoal</td><td>goal_id / description</td><td>string</td><td>目标标识与描述</td></tr><tr><td>LearningGoal</td><td>target_date / priority</td><td>date / int</td><td>期限与优先级</td></tr><tr><td>LearningPlan</td><td>plan_id / goal_id</td><td>string</td><td>计划标识与所属目标</td></tr><tr><td>PlanTask</td><td>task_id / week / topic / status</td><td>string / int</td><td>任务拆解与状态</td></tr><tr><td>CognitiveDiagnosis</td><td>pattern / root_cause</td><td>string</td><td>行为模式与归因结论</td></tr><tr><td>CognitiveDiagnosis</td><td>confidence / reasoning_chain</td><td>float / list</td><td>置信度与推理链</td></tr><tr><td>PushLog</td><td>push_type / content_hash / channel</td><td>string</td><td>推送类型、去重哈希与渠道</td></tr><tr><td>Conversation</td><td>conversation_id / state</td><td>string</td><td>会话标识与状态机状态</td></tr></tbody></table>
 <h3>8.3 数据存储策略</h3>
