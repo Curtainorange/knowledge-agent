@@ -1,0 +1,400 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="docx-page-size" content="A4">
+  <title>需求分析建模：用例模型与部分对象模型</title>
+  <style>
+  /* --- 页面模型：封面无页脚，正文页脚居中页码 --- */
+  @page {
+    @bottom-center { content: counter(page); }
+  }
+  @page cover {
+    @bottom-center { content: none; }
+  }
+  section[role="cover"] { page: cover; }
+
+  :root {
+    /* ==== Design Tokens（business-modern · business-report）==== */
+    --typography-fontFamily-heading: 微软雅黑, Microsoft YaHei, PingFang SC;
+    --typography-fontFamily-body: 微软雅黑, Microsoft YaHei, PingFang SC;
+    --typography-fontFamily-bodyLatin: Calibri, Helvetica Neue, sans-serif;
+    --typography-fontFamily-data: DIN Next, Arial, sans-serif;
+    --typography-fontFamily-code: Consolas, Source Code Pro, monospace;
+    --typography-fontSize-title: 28pt;
+    --typography-fontSize-subtitle: 18pt;
+    --typography-fontSize-h1: 20pt;
+    --typography-fontSize-coverTitle: 22pt;
+    --typography-fontSize-coverCategory: 14pt;
+    --typography-fontSize-sectionHeader: 13pt;
+    --typography-fontSize-h2: 11pt;
+    --typography-fontSize-h3: 10pt;
+    --typography-fontSize-body: 9pt;
+    --typography-fontSize-small: 8pt;
+    --typography-fontSize-tiny: 7pt;
+    --typography-fontSize-caption: 9pt;
+    --typography-fontSize-dataLabel: 10pt;
+    --typography-lineHeight-title: 1.3;
+    --typography-lineHeight-body: 1.6;
+    --typography-lineHeight-compact: 1.2;
+    --typography-fontWeight-heading: 600;
+    --typography-fontWeight-body: 400;
+    --typography-fontWeight-emphasis: 500;
+    --color-primary: #1565C0;
+    --color-secondary: #0288D1;
+    --color-accent: #00897B;
+    --color-text: #212121;
+    --color-textSecondary: #616161;
+    --color-heading: #1A237E;
+    --color-divider: #E0E0E0;
+    --color-background: #FFFFFF;
+    --color-surface: #F5F7FA;
+    --color-dataViz-series1: #1565C0;
+    --color-dataViz-series2: #00897B;
+    --color-dataViz-series3: #F9A825;
+    --color-dataViz-series4: #E53935;
+    --color-dataViz-series5: #7B1FA2;
+    --color-dataViz-series6: #0288D1;
+    --spacing-paragraph: 0.75em;
+    --spacing-paragraphAfter: 0.75em;
+    --spacing-indent: 0em;
+    --spacing-sectionGap: 2.5em;
+    --spacing-cardPadding: 1.5em;
+    --layout-marginTop: 2.5cm;
+    --layout-marginBottom: 2.0cm;
+    --layout-marginLeft: 2.5cm;
+    --layout-marginRight: 2.5cm;
+    --layout-pageSize: A4;
+    --layout-maxContentWidth: 160mm;
+    /* ==== 本地别名映射 ==== */
+    --fs-title: var(--typography-fontSize-coverTitle, 22pt);
+    --fs-h1: var(--typography-fontSize-h1, 20pt);
+    --fs-h2: var(--typography-fontSize-h2, 11pt);
+    --fs-h3: var(--typography-fontSize-h3, 10pt);
+    --fs-h4: var(--typography-fontSize-h3, 10pt);
+    --fs-body: var(--typography-fontSize-body, 9pt);
+    --fs-small: var(--typography-fontSize-small, 8pt);
+    --fs-tiny: var(--typography-fontSize-tiny, 7pt);
+    --fs-caption: var(--typography-fontSize-caption, 9pt);
+    --ff-heading: var(--typography-fontFamily-heading);
+    --ff-body: var(--typography-fontFamily-body);
+    --ff-mono: var(--typography-fontFamily-code, monospace);
+    --lh-body: var(--typography-lineHeight-body, 1.6);
+    --lh-heading: var(--typography-lineHeight-title, 1.3);
+    --fw-bold: var(--typography-fontWeight-heading, 600);
+    --fw-body: var(--typography-fontWeight-body, 400);
+    --c-primary: var(--color-primary);
+    --c-secondary: var(--color-secondary);
+    --c-accent: var(--color-accent);
+    --c-text: var(--color-text);
+    --c-muted: var(--color-textSecondary);
+    --c-heading: var(--color-heading);
+    --c-divider: var(--color-divider);
+    --c-bg: var(--color-background);
+    --c-surface: var(--color-surface);
+    --sp-para: var(--spacing-paragraph, 0.75em);
+    --sp-section: var(--spacing-sectionGap, 2.5em);
+    --sp-block: var(--spacing-paragraphAfter, 0.75em);
+    --page-content-width: var(--layout-maxContentWidth, 15.6cm);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--c-text);
+    background: var(--c-bg);
+    max-width: var(--page-content-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* --- 封面：每个块级元素各自显式声明 text-align --- */
+  .cover-category {
+    font-family: var(--ff-heading);
+    font-size: var(--typography-fontSize-coverCategory, 14pt);
+    font-weight: 700;
+    color: var(--c-primary);
+    letter-spacing: var(--tracking-category, 0.08em);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+  .cover-title {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-title);
+    font-weight: 700;
+    color: var(--c-heading);
+    line-height: var(--lh-heading);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+  .cover-subtitle {
+    font-family: var(--ff-body);
+    font-size: var(--typography-fontSize-subtitle, 18pt);
+    color: var(--c-muted);
+    text-align: center;
+    margin-bottom: var(--sp-section);
+  }
+  .cover-meta {
+    font-family: var(--ff-body);
+    font-size: var(--fs-small);
+    color: var(--c-muted);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+
+  /* --- 标题层级：每个块自己声明字号/字族/颜色 --- */
+  h2 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h2);
+    font-weight: 700;
+    color: var(--c-heading);
+    line-height: var(--lh-heading);
+    text-align: left;
+    margin-top: var(--sp-section);
+    margin-bottom: var(--sp-para);
+    border-left: var(--bd-heading, 4px) solid var(--c-primary);
+    padding-left: var(--sp-block);
+  }
+  h3 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    color: var(--c-primary);
+    text-align: left;
+    margin-top: var(--sp-block);
+    margin-bottom: var(--sp-para);
+  }
+  h4 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h4);
+    font-weight: 700;
+    color: var(--c-text);
+    text-align: left;
+    margin-top: var(--sp-block);
+    margin-bottom: var(--sp-para);
+  }
+
+  p {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    color: var(--c-text);
+    text-align: left;
+    margin-bottom: var(--sp-para);
+  }
+  ol, ul {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    color: var(--c-text);
+    margin-bottom: var(--sp-para);
+    padding-left: var(--sp-section);
+  }
+  li { margin-bottom: var(--sp-block); }
+  strong { font-weight: 700; color: var(--c-text); }
+  code {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-small);
+    color: var(--c-text);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--sp-block);
+    font-family: var(--ff-body);
+    font-size: var(--fs-small);
+  }
+  th, td {
+    border: 1px solid var(--c-divider);
+    padding: var(--sp-cell-y, 0.35em) var(--sp-cell-x, 0.5em);
+    text-align: left;
+    vertical-align: top;
+    font-size: var(--fs-small);
+  }
+  th {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    color: var(--c-heading);
+    background: var(--c-surface);
+  }
+
+  figure { margin: var(--sp-block) var(--sp-zero, 0) var(--sp-section) var(--sp-zero, 0); text-align: center; }
+  figure img { max-width: 100%; }
+  figcaption {
+    font-family: var(--ff-body);
+    font-size: var(--fs-caption);
+    color: var(--c-muted);
+    text-align: center;
+    margin-top: var(--sp-block);
+  }
+
+  /* --- 目录 --- */
+  .doc-toc {
+    background: var(--c-surface);
+    padding: var(--sp-block) var(--sp-section);
+    margin-bottom: var(--sp-section);
+  }
+  .toc-title {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    color: var(--c-heading);
+    text-align: left;
+    margin-bottom: var(--sp-para);
+  }
+  .toc-list, .toc-list ol, .toc-list ul {
+    list-style: none;
+    list-style-type: none;
+    padding-left: var(--sp-block);
+  }
+  .toc-list li { font-family: var(--ff-body); font-size: var(--fs-body); margin-bottom: var(--sp-toc-item, 0.2em); }
+  .toc-list a { color: var(--c-primary); text-decoration: none; }
+
+  /* --- 单段落强调（引用块）：左边框前导空格见 base.md §e --- */
+  .note-inline {
+    border-left: var(--bd-note, 3px) solid var(--c-primary);
+    background: var(--c-surface);
+    padding: var(--sp-note-y, 0.5em) var(--sp-note-x, 0.75em);
+  }
+
+  .section-divider {
+    border-top: var(--bd-divider, 1px) solid var(--c-divider);
+    margin: var(--sp-section) 0;
+  }
+  </style>
+</head>
+<body>
+  <section role="cover">
+    <p class="cover-category">面向对象分析与设计 · 项目需求分析建模</p>
+    <h1 class="cover-title">需求分析建模：用例模型与部分对象模型</h1>
+    <p class="cover-subtitle">认知副驾（Cognitive Copilot）—— 个人知识学习 AI 智能体</p>
+    <p class="cover-meta">组别 / 成员：【待填】　|　2026-10-08（星期四）　|　v1.0</p>
+  </section>
+
+  <section role="body" data-page-restart="1">
+    <nav class="doc-toc" aria-label="文档目录">
+      <p class="toc-title">目录</p>
+      <ol class="toc-list"><li><a href="#section-1">一、建模范围与方法</a></li><li><a href="#section-2">二、用例模型</a></li><li><a href="#section-3">三、部分对象模型（概念类／分析类）</a></li><li><a href="#section-4">四、过程记录与人机责任</a></li><li><a href="#section-5">五、交付物与课件页码对照</a></li></ol>
+    </nav>
+
+    <main>
+<p>本报告对「认知副驾」项目做一次需求分析建模：先用<strong>用例模型</strong>回答"谁为了什么目标与系统交互"，再用<strong>部分对象模型</strong>（概念类／分析类）回答"哪些对象共同完成该目标"。全部结论标注证据编号；无依据的类、属性、操作、关系一律删除或列为待确认，不以 AI 推断补成事实。</p>
+<div class="section-divider"></div>
+<h2 id="section-1">一、建模范围与方法</h2>
+<h3>1.1 项目与选题</h3>
+<p><strong>项目</strong>：认知副驾（Cognitive Copilot）——个人知识学习 AI 智能体。一句话定位：信息系统帮你"管住"已知；认知副驾帮你"照亮"未知，并"逼你"修正。</p>
+<p><strong>本次建模的两层范围</strong>（两层不同，避免混淆）：</p>
+<table><thead><tr><th>层</th><th>覆盖范围</th><th>理由</th></tr></thead><tbody><tr><td>用例模型</td><td><strong>项目级</strong>：账号偏好、知识资产、阅读接入、L1–L5 认知能力、推送巡检</td><td>用例模型回答"系统外部可观察行为"，须覆盖完整系统边界，否则边界与参与者无从判断（课件 P09–P12）</td></tr><tr><td>对象模型</td><td><strong>部分</strong>：只展开 L2 关联层的三个关键用例（UC-12／UC-13／UC-14）</td><td>课件要求"选一个关键用例"深入（第 4 课 P54）；对象模型按用例展开才不至于沦为"名词罗列"</td></tr></tbody></table>
+<p><strong>为什么选 L2 作为对象模型的展开用例</strong>：L2 隐性冲突检测是项目"主动性"的起点（从"存"到"照"的第一跳），且它同时具备<strong>状态机、可判真假的数值规则、跨对象一致性、越权边界</strong>四类建模难点——最能检验模型是否真正表达了约束，而不是只画了几个框。本报告沿用第 3 课作业已冻结的 Spec 编号（IN-01／OUT-01／BR-L2-01／BR-L2-02／TABLE 8），使三份作业共用一套证据链。</p>
+<h3>1.2 方法主线</h3>
+<table><thead><tr><th>阶段</th><th>依据</th><th>本报告落点</th></tr></thead><tbody><tr><td>系统边界 → 参与者 → 用户目标 → 用例关系与描述</td><td>第 3 课 P03、P09–P46</td><td>第二章 2.1–2.6</td></tr><tr><td>先冻结人工 Spec，再生成／审查／修订 AI 模型</td><td>第 3 课 P48–P53</td><td>第二章 2.7、第四章 4.1–4.2</td></tr><tr><td>从用例 Spec 进入对象模型；候选类 → CRC → 分析类图</td><td>第 4 课 P05、P27–P39</td><td>第三章 3.1–3.4</td></tr><tr><td>规则由实体保护、关系表达业务含义、追踪与验收</td><td>第 4 课 P17/P22、P46–P52</td><td>第三章 3.5–3.7</td></tr></tbody></table>
+<p>两条主线在本报告里首尾相接：<strong>Spec（证据）→ 用例模型（谁做什么）→ 对象模型（谁承担职责）→ 追踪矩阵（证据回到每一行）</strong>。</p>
+<h3>1.3 证据规则（动笔红线）</h3>
+<ol><li><strong>范围只能来自项目决策</strong>，不能来自"别的产品都有"（第 3 课 P12）。</li><li><strong>无需求依据的类、属性、操作、关系只能删除或列为待确认</strong>（第 4 课 P07）。</li><li><strong>规则必须可判真假</strong>，含边界值；模糊表述（"内容不能太多"）不算规则（第 3 课 P44）。</li><li><strong>业务变更与模型修订走不同审批路径</strong>：模型写错了按已有 BR 改模型；想改规则值则须需求负责人批准并升级 Spec 版本（第 3 课 P53）。</li></ol>
+<div class="section-divider"></div>
+<h2 id="section-2">二、用例模型</h2>
+<h3>2.1 系统边界与范围</h3>
+<p>系统的范围与非范围由人（项目决策）设定，不由 AI 推断。下表每行给出<strong>真实来源</strong>，可逐条核查。</p>
+<p><strong>范围（IN）</strong></p>
+<table><thead><tr><th>编号</th><th>内容</th><th>真实来源</th></tr></thead><tbody><tr><td>IN-01</td><td><strong>对话工作台</strong>：用户以自然语言下达意图，系统判定意图并分发到对应能力，结果以卡片写回会话</td><td><code>web/app.html</code>＋<code>app/agent/router.py</code>／<code>copilot.py</code>／<code>turns.py</code>；端点 <code>POST /api/v1/agent/chat</code></td></tr><tr><td>IN-02</td><td><strong>知识资产</strong>：知识条目录入、检索、更新、软删除、导出；条目向量化以支持语义检索</td><td><code>app/api/endpoints/knowledge.py</code>（POST/GET/PATCH/DELETE <code>/items</code>、<code>GET /stats</code>、<code>GET /export</code>）</td></tr><tr><td>IN-03</td><td><strong>阅读接入</strong>：本地书籍上传（.txt/.epub/.pdf）与滚动阅读、划词记入知识；微信读书<strong>只读</strong>同步划线／想法／书评</td><td><code>books.py</code>（上传／章节／进度／笔记）、<code>weread.py</code>（<code>GET /status</code>、<code>POST /sync</code>）</td></tr><tr><td>IN-04</td><td><strong>五层认知能力</strong>：L1 模糊意图挖掘、L2 隐性冲突检测、L3 认知简报与追问、L4 计划与偏离修正、L5 归因诊断</td><td><code>l1.py</code>–<code>l5.py</code> 端点；《认知副驾.md》五层能力梯度表</td></tr><tr><td>IN-05</td><td><strong>主动推送与偏好</strong>：站内推送任务的生成与投递确认；推送频率偏好；同类忽略收敛</td><td><code>push.py</code>（<code>GET /jobs</code>、<code>POST /jobs/{id}/delivered</code>）、<code>preferences.py</code>（GET/PUT）</td></tr></tbody></table>
+<p><strong>非范围（OUT）</strong></p>
+<table><thead><tr><th>编号</th><th>内容</th><th>真实来源</th></tr></thead><tbody><tr><td>OUT-01</td><td>L2 <strong>不自动修改／删除</strong>用户的知识条目或笔记原文——冲突只提醒、给建议，内容变更由用户人工完成</td><td>第 3 课作业 H0 决策；代码证据：<code>l2.py</code> 仅有扫描／列表／状态／判定日志四类端点，无写知识条目接口</td></tr><tr><td>OUT-02</td><td><strong>不做内容创作与协作</strong>：不提供富文本编辑器、多人协作、内容公开发布与社交</td><td><code>docs/需求分析文档.md</code> 1.3「明确不做」；前端仅 13 个业务页，无编辑器／协作模块</td></tr><tr><td>OUT-03</td><td><strong>不接无官方开放接口的第三方平台</strong>（如番茄小说）：无官方接口的"API"多为逆向，违反服务条款且有版权风险</td><td><code>README.md</code>「微信读书同步」节明确不接番茄小说</td></tr><tr><td>OUT-04</td><td><strong>不做外部推送渠道</strong>：当前推送是站内任务（PushJob），不含邮件／短信／App 推送</td><td><code>push.py</code> 只有任务列表与投递确认；<code>push_log.py</code> 记录渠道字段但无邮件／短信适配器</td></tr></tbody></table>
+<p class="note-inline">&nbsp;&nbsp;说明：OUT-04 与《需求分析文档》2.2「推送通道（App 通知／SMTP 邮件）」不一致——文档是规划口径，代码是当前事实。按"证据优先于愿望"，本报告以<strong>代码事实</strong>为准，并把渠道扩展列入第四章待确认清单。</p>
+<h3>2.2 参与者识别</h3>
+<p>参与者是<strong>系统以外</strong>、需要与系统交互的外部实体。系统内部的定时 worker、向量索引、模型网关、数据库都是实现，不自动成为运行时角色（第 3 课 P20）。</p>
+<p><strong>参与者审查表</strong></p>
+<table><thead><tr><th>候选</th><th>判定</th><th>依据</th></tr></thead><tbody><tr><td>学习者（登录用户）</td><td><strong>保留</strong>：人事角色，知识所有者</td><td>所有业务端点均要求 JWT 登录（<code>app/api/deps.py</code>）；仓储层按 <code>user_id</code> 强制过滤</td></tr><tr><td>微信读书开放平台</td><td><strong>保留</strong>：真实外部交互服务</td><td><code>weread.py</code> 调用官方 Skills 接口读取用户划线／想法（只读）</td></tr><tr><td>DeepSeek 模型服务</td><td><strong>保留</strong>：真实外部交互服务</td><td><code>app/llm/gateway.py</code> 按 KEY 构建供应商链；L1/L2/L3/L4/L5 均产生真实外部调用</td></tr><tr><td>定时调度器 / worker</td><td>不据此添加</td><td>系统内部实现（<code>app/workers/</code>），非外部实体</td></tr><tr><td>模型网关、向量索引、数据库</td><td>不据此添加</td><td>内部实现</td></tr><tr><td>AI 建模助手</td><td>不据此添加</td><td>开发期工具，不是运行时角色</td></tr><tr><td>管理员 / 访客</td><td>不添加</td><td>无范围或权限需求：系统无角色分级，也无未登录可访问的业务页</td></tr></tbody></table>
+<p><strong>角色目标表</strong></p>
+<table><thead><tr><th>角色</th><th>目标</th><th>资源与权限（对谁的资源可操作）</th><th>依据</th></tr></thead><tbody><tr><td>学习者</td><td>把收藏的碎片转成可调用的认知：找回遗忘的内容、发现认知矛盾、被追问、计划被纠偏、病根被诊断</td><td><strong>仅可操作本人 <code>user_id</code></strong> 名下的一切资源（知识条目、书籍、冲突、目标、计划、诊断、推送）；不可访问或修改他人任何数据</td><td>JWT 解出 <code>user_id</code> 并按其过滤；仓储层结构性过滤构成第二道防线</td></tr><tr><td>微信读书开放平台</td><td>提供用户本人的划线、想法、书评与阅读进度（只读）</td><td>不判断本系统数据归属；不提供书籍正文</td><td><code>weread.py</code> 仅 <code>GET /status</code>、<code>POST /sync</code> 两个端点，且只写本系统知识库</td></tr><tr><td>DeepSeek 模型服务</td><td>提供推理、判定、生成能力</td><td>不持有用户身份，不直接读写用户资源；输入输出均由本系统控制</td><td><code>gateway.py</code> 为唯一收口点，业务层不感知供应商细节</td></tr></tbody></table>
+<h3>2.3 用例识别与粒度</h3>
+<p>用例的判据是<strong>有价值且完整的用户目标</strong>，不是界面动作，也不是内部步骤（第 3 课 P27）。据此先剔除三类伪用例：</p>
+<ul><li><strong>界面动作</strong>："点击导出按钮""展开全文""拖滑块记录进度"——都是某用例基本流里的步骤。</li><li><strong>内部步骤</strong>："提取主张""LLM 判定""向量化"——写入相应用例的基本流，不单独成用例。</li><li><strong>交互渠道</strong>："打开对话工作台"——对话是渠道，不是目标；同一个目标既可由对话触发、也可由功能页触发。</li></ul>
+<p><strong>用例清单（21 项）</strong></p>
+<table><thead><tr><th>编号</th><th>用例名称</th><th>主参与者</th><th>触发渠道</th><th>依据</th></tr></thead><tbody><tr><td>UC-01</td><td>注册账号</td><td>学习者</td><td>登录页</td><td><code>POST /api/v1/auth/register</code></td></tr><tr><td>UC-02</td><td>登录与续期会话</td><td>学习者</td><td>登录页</td><td><code>POST /auth/login</code>、<code>POST /auth/refresh</code></td></tr><tr><td>UC-03</td><td>维护个人偏好</td><td>学习者</td><td>设置页 / 对话</td><td><code>GET/PUT /api/v1/preferences</code></td></tr><tr><td>UC-04</td><td>录入知识条目</td><td>学习者</td><td>知识库页 / 对话</td><td><code>POST /knowledge/items</code></td></tr><tr><td>UC-05</td><td>管理与检索知识条目</td><td>学习者</td><td>知识库页 / 对话</td><td><code>GET/PATCH/DELETE /knowledge/items</code></td></tr><tr><td>UC-06</td><td>导出知识</td><td>学习者</td><td>知识库页</td><td><code>GET /knowledge/export</code></td></tr><tr><td>UC-07</td><td>上传书籍</td><td>学习者</td><td>书架页 / 对话</td><td><code>POST /api/v1/books</code></td></tr><tr><td>UC-08</td><td>阅读书籍</td><td>学习者</td><td>阅读器页</td><td><code>GET /books/{id}/chapter/{i}</code>、<code>PATCH /books/{id}/progress</code></td></tr><tr><td>UC-09</td><td>划词记入知识</td><td>学习者</td><td>阅读器页</td><td><code>POST /books/{id}/notes</code></td></tr><tr><td>UC-10</td><td>同步微信读书笔记</td><td>学习者、微信读书开放平台</td><td>书架页 / 对话</td><td><code>POST /api/v1/weread/sync</code></td></tr><tr><td>UC-11</td><td>模糊意图挖掘定位</td><td>学习者、DeepSeek 模型服务</td><td>对话 / 挖掘页</td><td><code>POST /api/v1/l1/mine</code></td></tr><tr><td>UC-12</td><td>扫描隐性冲突</td><td>学习者、DeepSeek 模型服务</td><td>对话 / 冲突页</td><td><code>POST /api/v1/l2/scan</code></td></tr><tr><td>UC-13</td><td>查看与处置冲突</td><td>学习者</td><td>冲突页 / 对话</td><td><code>GET /l2/conflicts</code>、<code>PATCH /l2/conflicts/{id}/state</code></td></tr><tr><td>UC-14</td><td>翻案误判</td><td>学习者</td><td>冲突页 / 对话</td><td><code>GET /l2/judgments</code>、<code>POST /l2/judgments/{pair_key}/rejudge</code></td></tr><tr><td>UC-15</td><td>生成认知简报与深度追问</td><td>学习者、DeepSeek 模型服务</td><td>对话 / 简报页</td><td><code>POST /api/v1/l3/brief</code>、<code>POST /l3/question</code></td></tr><tr><td>UC-16</td><td>设定学习目标</td><td>学习者</td><td>目标页 / 对话</td><td><code>POST /api/v1/l4/goals</code></td></tr><tr><td>UC-17</td><td>生成与重排学习计划</td><td>学习者、DeepSeek 模型服务</td><td>目标页 / 对话</td><td><code>POST /l4/goals/{id}/plan</code>、<code>GET /l4/plan</code></td></tr><tr><td>UC-18</td><td>检测行为偏离并决策</td><td>学习者</td><td>对话 / 目标页</td><td><code>POST /l4/deviation/check</code>、<code>POST /l4/deviation/{plan_id}/decision</code></td></tr><tr><td>UC-19</td><td>生成归因诊断</td><td>学习者、DeepSeek 模型服务</td><td>对话 / 诊断页</td><td><code>POST /api/v1/l5/diagnosis</code></td></tr><tr><td>UC-20</td><td>采纳诊断结论</td><td>学习者</td><td>诊断页 / 对话</td><td><code>POST /l5/diagnosis/{id}/decision</code></td></tr><tr><td>UC-21</td><td>接收主动推送</td><td>学习者</td><td>通知页</td><td><code>GET /api/v1/push/jobs</code>、<code>POST /push/jobs/{id}/delivered</code></td></tr></tbody></table>
+<p class="note-inline">&nbsp;&nbsp;用例编号在全报告内唯一且稳定：后续对象模型、追踪矩阵、验收例均引用这套 UC 编号（第 3 课 P51 要求编号稳定）。</p>
+<h3>2.4 用例图</h3>
+<p>用例与参与者较多，按"域"拆成两张图呈现；两图合起来构成完整的系统用例模型。</p>
+<figure><img src="images/uc1_knowledge.png" alt="图1 认知副驾用例图（一）：账号与知识资产"><figcaption>图1　认知副驾用例图（一）：账号与知识资产（UC-01 ~ UC-10）。系统边界内为用例，边界外为参与者；微信读书开放平台以方框加 «外部系统» 构造型表示。</figcaption></figure>
+<figure><img src="images/uc2_capability.png" alt="图2 认知副驾用例图（二）：五层认知能力与支撑"><figcaption>图2　认知副驾用例图（二）：五层认知能力与支撑（UC-11 ~ UC-21）。UC-20 与 UC-19 之间为唯一保留的 «extend» 关系。</figcaption></figure>
+<p>读图要点：</p>
+<ol><li><strong>边界</strong>：图内的一切都是"系统要自己做完"的事；模型服务与微信读书平台在边界外，系统只是调用它们。</li><li><strong>参与者</strong>：人事角色只有一个（学习者）；两个外部系统参与者只与真正调用它们的用例相连——DeepSeek 只连 UC-11／12／15／17／19，不连纯本地读写的用例。</li><li><strong>渠道不是用例</strong>：所有学习者用例都可由对话工作台或对应功能页触发，渠道差异不改变用例（第 3 课 P27）。</li></ol>
+<h3>2.5 用例关系审查</h3>
+<p>课件要求"先读规则，再看箭头"，关系必须同时满足<strong>方向正确</strong>与<strong>业务条件成立</strong>（第 3 课 P35、P37）。下表逐条审查本项目的候选关系，包括<strong>被否决</strong>的候选——否决同样要给出证据。</p>
+<table><thead><tr><th>候选关系</th><th>判定</th><th>证据</th></tr></thead><tbody><tr><td>UC-10「同步微信读书笔记» <strong>include</strong> »UC-04「录入知识条目」</td><td><strong>不画</strong></td><td>录入知识条目是同步基本流里的<strong>必需步骤</strong>（同步产物即知识条目），写入 UC-10 的步骤与后置条件即可，不必逐项抽为 include（第 3 课 P37：必需检查不必抽 include）</td></tr><tr><td>UC-09「划词记入知识」<strong>include</strong> UC-04</td><td><strong>不画</strong></td><td>同上：落库是 UC-09 基本流的组成部分，不是可复用的独立目标</td></tr><tr><td>全部业务用例 <strong>include</strong> UC-02「登录」</td><td><strong>不画</strong></td><td>已登录是<strong>前置条件</strong>，不是每次都要重新执行的用例——"不等于每次上传都 include 登录"（第 3 课 P32）</td></tr><tr><td>UC-12「扫描隐性冲突」<strong>include</strong> 「提取主张」／「LLM 判定」</td><td><strong>不画</strong></td><td>二者是扫描的内部步骤；界面动作与内部步骤都不是独立用例（第 3 课 P27）</td></tr><tr><td>UC-04「录入知识条目」<strong>include</strong> 「创建分享」类关系</td><td><strong>不存在</strong></td><td>本项目无分享能力（OUT-02 明示非范围）；对照第 3 课 P32 的网盘反例</td></tr><tr><td>UC-20「采纳诊断结论」<strong>extend</strong> UC-19「生成归因诊断」</td><td><strong>保留</strong></td><td>条件：学习者请求采纳；扩展点：诊断已交付。UC-19 不采纳也完整（诊断已交付），采纳是<strong>条件触发</strong>的可选行为，方向为扩展用例→基本用例（第 3 课 P33–P34）</td></tr><tr><td>UC-18「检测行为偏离并决策」<strong>extend</strong> UC-17「生成与重排计划」</td><td><strong>不画</strong></td><td>决策同意后重排计划是 UC-18 的<strong>备选流</strong>，属简单备选，直接写入用例描述即可（第 3 课 P34：可选操作不必一律画 extend）</td></tr><tr><td>参与者泛化（如"学习者"泛化出"重度用户"）</td><td><strong>不画</strong></td><td>无已确认的差异权限或目标；同一人可兼任角色不能推出角色继承（第 3 课 P26）</td></tr><tr><td>用例泛化（如"生成计划"泛化出"生成周计划／月计划"）</td><td><strong>不画</strong></td><td>无差异规则或差异状态；泛化只在出现已确认的差异行为时才建（第 4 课 P39）</td></tr></tbody></table>
+<p><strong>审查结论</strong>：本模型只保留 <strong>1 条关系</strong>（UC-20 extends UC-19），其余 8 条候选全部否决并留有证据。关系少不是缺陷——课件反复强调"不是强行拆用例的理由"；强行加 include／extend 只会制造假依赖。</p>
+<h3>2.6 关键用例描述</h3>
+<p>选取三个关键用例给出完整描述。规则：按行编号、写参与者意图与系统责任、异常流回到出错步骤并说明状态结果（第 3 课 P40–P46）。</p>
+<h4>UC-11 模糊意图挖掘定位</h4>
+<table><thead><tr><th>描述项</th><th>内容</th></tr></thead><tbody><tr><td>用例名称</td><td>模糊意图挖掘定位</td></tr><tr><td>用例描述</td><td>学习者只有模糊线索（颜色、印象、大意）时，系统通过多轮追问逐步澄清，最终定位到具体知识条目</td></tr><tr><td>参与者</td><td>学习者（主动发起）、DeepSeek 模型服务（语义匹配）</td></tr><tr><td>触发</td><td>学习者输入含模糊指代、缺关键词或感官描述的片段</td></tr><tr><td>前置条件</td><td>学习者已登录且知识库非空</td></tr><tr><td>后置条件</td><td>学习者获得一个或多个定位结果；若追问过，追问过程记入会话</td></tr><tr><td>基本操作流程</td><td>① 学习者输入碎片线索（如"橙色封面，好像讲拖延症的"）；② 系统对本人知识库做语义检索，产生候选匹配集合；③ 候选唯一且相关度足够 → 直接返回该条目与阅读历史提醒；④ 候选不唯一 → 系统发起一轮追问，请学习者补充一个可区分的维度；⑤ 学习者回答；⑥ 系统据此收窄候选集；⑦ 重复 ④–⑥ 直至候选收敛或达到追问上限；⑧ 系统返回结果列表，标注每条命中依据</td></tr><tr><td>可选操作流程</td><td>②a 线索不足以产生任何候选 → 不硬答，直接进入追问（④）。④a 连续两轮追问后学习者仍无法区分 → 降级返回"最接近的前 N 条"，并说明这是相似度兜底而非确定命中。②b 知识库为空 → 提示先录入内容，不再追问</td></tr><tr><td>对应规则</td><td>BR-01、BR-03</td></tr></tbody></table>
+<h4>UC-12 扫描隐性冲突</h4>
+<table><thead><tr><th>描述项</th><th>内容</th></tr></thead><tbody><tr><td>用例名称</td><td>扫描隐性冲突</td></tr><tr><td>用例描述</td><td>系统对学习者本人的知识库做一次冲突扫描：提取主张、配对、逐对判定，产出带置信度与类型的冲突记录，并按规则过滤低置信结果</td></tr><tr><td>参与者</td><td>学习者（触发）、DeepSeek 模型服务（判定）</td></tr><tr><td>触发</td><td>学习者在对话或冲突页主动发起扫描</td></tr><tr><td>前置条件</td><td>已登录；本人知识库中至少有两条可提取主张的条目</td></tr><tr><td>后置条件</td><td>新增冲突记录（可能为 0 条）均归属本次请求者；本次扫描的每一对判定<strong>都</strong>写入判定日志，不论最终是否入库</td></tr><tr><td>基本操作流程</td><td>① 学习者发起扫描；② 系统取本人知识库条目，按规则截取待分析范围；③ 系统为每条目提取核心主张，超出上限的部分本<strong>轮不参与</strong>并记录；④ 系统按语义相似度生成候选主张对，取前 N 对；⑤ 系统调用模型服务逐对判定，得到类型与置信度；⑥ 系统对每对结果执行置信度门槛判定，低于门槛的丢弃（不入库、不推送），达标的保留；⑦ 达标结果写入冲突记录，状态置为"未查看"；⑧ 系统向学习者返回本次扫描摘要（扫描条目数、候选对数、入库冲突数）</td></tr><tr><td>可选操作流程</td><td>②a 可分析条目不足两条 → 直接返回"暂无可比对内容"，不产生任务。③a 提取主张失败（模型不可用）→ 本次扫描标记失败，已产生的部分结果<strong>不写入</strong>，提示可稍后重试。⑤a 判定调用超时／返回不可解析 → 该对判定记为"未得出"，不写入冲突记录，但<strong>写入判定日志</strong>以便复核。⑥a 全部候选对均低于门槛 → 本次入库 0 条，正常返回（不是错误）</td></tr><tr><td>对应规则</td><td>BR-01、BR-02、BR-03、BR-06、BR-08</td></tr></tbody></table>
+<h4>UC-17 生成与重排学习计划</h4>
+<table><thead><tr><th>描述项</th><th>内容</th></tr></thead><tbody><tr><td>用例名称</td><td>生成与重排学习计划</td></tr><tr><td>用例描述</td><td>依据学习者已设定的目标，生成周维度的任务计划；当学习者接受偏离调整建议时，按新路径重排计划</td></tr><tr><td>参与者</td><td>学习者（目标输入与确认）、DeepSeek 模型服务（拆解）</td></tr><tr><td>触发</td><td>学习者对某个目标请求生成计划；或学习者接受 UC-18 的调整建议</td></tr><tr><td>前置条件</td><td>已登录且存在一个有效目标（含期限）</td></tr><tr><td>后置条件</td><td>存在一份生效计划，其任务项与目标关联；若为重排，旧计划被新计划取代且保留历史</td></tr><tr><td>基本操作流程</td><td>① 学习者请求为目标生成计划；② 系统取目标描述、期限与本人近期学习行为作为上下文；③ 系统调用模型服务把目标拆解为周维度任务项；④ 系统回传计划草案（任务、周次、预期进度）供学习者查看；⑤ 学习者确认（或直接接受）；⑥ 系统写入计划与任务项，成为当前生效计划；⑦ 系统返回计划摘要</td></tr><tr><td>可选操作流程</td><td>③a 模型不可用 → 不生成空计划，提示稍后重试，目标本身不受影响。⑤a 学习者不确认并要求修改 → 回到③，把修改意见作为新输入重新拆解（最多两轮，避免无限循环）。重排分支（由 UC-18 触发）：学习者接受偏离调整 → 系统按新路径重排剩余任务，已完成任务保留其历史状态，旧计划归档</td></tr><tr><td>对应规则</td><td>BR-04、BR-05、BR-07</td></tr></tbody></table>
+<h3>2.7 业务规则与验收例</h3>
+<p>规则必须可判真假，含边界值与失败路径（第 3 课 P44、P47）。数值取自项目实现初值（<code>app/core/config.py</code>），标注 ⚠ 者为<strong>待冻结</strong>：冻结为正式需求值还是保持可配置，需需求负责人人工确认。</p>
+<table><thead><tr><th>编号</th><th>规则（可判真假）</th><th>判真示例</th><th>判假示例</th><th>真实来源</th></tr></thead><tbody><tr><td>BR-01</td><td>冲突置信度 <strong>&lt; 0.5</strong> 的记录直接丢弃（不入库、不推送）；<strong>≥ 0.5</strong> 保留</td><td>置信度 0.50 的冲突可被查询到</td><td>置信度 0.49 的冲突出现在冲突列表</td><td><code>l2_min_confidence = 0.5</code>（⚠ 待冻结）</td></tr><tr><td>BR-02</td><td>同一学习者对<strong>同类型</strong>冲突累计"忽略" <strong>≥ 3 次</strong>后，该类型不再主动推荐</td><td>第 3 次忽略后该类型不再出现在主动推荐中</td><td>第 2 次忽略后即不再推荐</td><td><code>l2_ignore_suppress_threshold = 3</code>（⚠ 待冻结）</td></tr><tr><td>BR-03</td><td>每次读写冲突、判定日志、计划等资源，服务端都核验归属；非本人资源一律拒绝</td><td>本人请求返回 200 并生效</td><td>他人请求返回 404/403 且数据不变</td><td><code>app/api/deps.py</code> 解出 <code>user_id</code>；仓储层按 <code>user_id</code> 过滤</td></tr><tr><td>BR-04</td><td>单次扫描的候选判定对不超过 <strong>20 对</strong>；单条目提取主张不超过 <strong>5 条</strong></td><td>候选 25 对时，只判定前 20 对，其余本轮不参与</td><td>候选 25 对时全部判定</td><td><code>config.py</code> 初值（⚠ 待冻结）</td></tr><tr><td>BR-05</td><td>计划重排时<strong>已完成任务的历史状态不被改写</strong>，旧计划归档而非删除</td><td>重排后仍可查到上一版计划与其完成记录</td><td>重排后旧计划消失</td><td><code>learning_plan.py</code>／<code>plan_task.py</code> 结构；<code>l4.py</code> 决策端点</td></tr><tr><td>BR-06</td><td>L2 <strong>只读</strong>：全流程不产生任何对知识条目的写操作</td><td>扫描后被扫描条目的 <code>updated_at</code> 不变</td><td>扫描后条目内容被"自动修正"</td><td>OUT-01；<code>l2.py</code> 无知识条目写端点</td></tr><tr><td>BR-07</td><td>每次 LLM 判定均写入判定日志（含配对键、置信度、结论），供事后复核与翻案</td><td>一次判定对应一条日志记录</td><td>判定结果只出现在冲突表里，无法追溯</td><td><code>l2_judgment_log.py</code>；<code>GET /l2/judgments</code></td></tr><tr><td>BR-08</td><td>模型不可用时不产生"半成品"：已部分完成的结果不写入；同时给出明确失败提示而非静默成功</td><td>模型超时后冲突表无新增记录</td><td>模型超时后写入残缺的冲突记录</td><td><code>gateway.py</code> 重试与错误上抛；<code>turns.py</code> 前提检查</td></tr></tbody></table>
+<p><strong>验收例</strong></p>
+<table><thead><tr><th>编号</th><th>测试条件</th><th>预期结果</th><th>依据</th></tr></thead><tbody><tr><td>AT-01</td><td>冲突置信度 = 0.50</td><td>入库且可查询</td><td>BR-01（边界含）</td></tr><tr><td>AT-02</td><td>冲突置信度 = 0.49</td><td>不入库、不出现在列表</td><td>BR-01（边界不含）</td></tr><tr><td>AT-03</td><td>同类型冲突第 3 次"忽略"</td><td>该类型不再主动推荐</td><td>BR-02</td></tr><tr><td>AT-04</td><td>学习者乙持本人 JWT 请求修改甲（他人）的冲突状态</td><td>请求被拒绝（404/403）；甲该冲突状态与忽略计数均不变；系统不产生任何修改痕迹</td><td>BR-03（越权失败例，TABLE 8）</td></tr><tr><td>AT-05</td><td>单次扫描产生 25 组候选对</td><td>只判定 20 对，其余不参与；返回摘要中说明</td><td>BR-04</td></tr><tr><td>AT-06</td><td>计划重排后查询上一版计划</td><td>可查到，且其任务完成状态未被改写</td><td>BR-05</td></tr><tr><td>AT-07</td><td>模型服务不可用（断开 KEY）时发起扫描</td><td>冲突表无新增；学习者看到明确失败提示；判定日志亦无伪造记录</td><td>BR-08</td></tr></tbody></table>
+<h3>2.8 用例层追踪矩阵</h3>
+<p>每一行把"用例—规则—验收—代码"四者对齐，任一项缺失即说明该用例的建模不完整（第 3 课 P47）。</p>
+<table><thead><tr><th>用例</th><th>关键规则</th><th>验收例</th><th>代码证据</th></tr></thead><tbody><tr><td>UC-01／UC-02</td><td>—</td><td>—</td><td><code>auth.py</code>（register／login／refresh）</td></tr><tr><td>UC-03</td><td>—</td><td>—</td><td><code>preferences.py</code></td></tr><tr><td>UC-04／UC-05／UC-06</td><td>BR-03</td><td>AT-04（越权）</td><td><code>knowledge.py</code></td></tr><tr><td>UC-07／UC-08／UC-09</td><td>BR-03</td><td>AT-04</td><td><code>books.py</code>（上传／章节／进度／笔记）</td></tr><tr><td>UC-10</td><td>BR-03、BR-06</td><td>AT-04</td><td><code>weread.py</code>（只读同步，不写外部平台）</td></tr><tr><td>UC-11</td><td>BR-01、BR-03</td><td>AT-04</td><td><code>l1.py</code>、<code>l1_orchestrator.py</code></td></tr><tr><td>UC-12</td><td>BR-01、BR-02、BR-04、BR-06、BR-08</td><td>AT-01、AT-02、AT-05、AT-07</td><td><code>l2.py</code>、<code>l2_orchestrator.py</code>、<code>config.py</code></td></tr><tr><td>UC-13</td><td>BR-01、BR-02、BR-03</td><td>AT-03、AT-04</td><td><code>l2.py</code>（<code>PATCH /conflicts/{id}/state</code>）</td></tr><tr><td>UC-14</td><td>BR-03、BR-07</td><td>AT-04</td><td><code>l2.py</code>（<code>POST /judgments/{pair_key}/rejudge</code>）、<code>l2_judgment_log.py</code></td></tr><tr><td>UC-15</td><td>BR-03</td><td>—</td><td><code>l3.py</code>、<code>l3_orchestrator.py</code></td></tr><tr><td>UC-16／UC-17</td><td>BR-05、BR-08</td><td>AT-06、AT-07</td><td><code>l4.py</code>、<code>l4_orchestrator.py</code></td></tr><tr><td>UC-18</td><td>BR-03、BR-05</td><td>AT-04、AT-06</td><td><code>l4.py</code>（deviation/check、decision）</td></tr><tr><td>UC-19／UC-20</td><td>BR-03</td><td>AT-04</td><td><code>l5.py</code>、<code>l5_orchestrator.py</code></td></tr><tr><td>UC-21</td><td>BR-03、BR-02（收敛）</td><td>AT-03</td><td><code>push.py</code>、<code>push_service.py</code></td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-3">三、部分对象模型（概念类／分析类）</h2>
+<h3>3.1 建模范围</h3>
+<p>本层只对 L2 关联层的三个关键用例展开：<strong>UC-12 扫描隐性冲突</strong>（产出）、<strong>UC-13 查看与处置冲突</strong>（反馈）、<strong>UC-14 翻案误判</strong>（复核）。理由：三者共用同一组领域对象（条目、主张、冲突、扫描、判定日志），且正好覆盖"产出—使用—纠正"的完整生命周期。</p>
+<h3>3.2 候选对象登记表</h3>
+<p>从 Spec 证据出发筛选候选对象。<strong>名词只是候选，CRC 与规则负责筛选</strong>（第 4 课 P28）。</p>
+<table><thead><tr><th>候选（名词／术语）</th><th>决定</th><th>依据</th></tr></thead><tbody><tr><td>学习者 / 用户</td><td><strong>Learner 实体（角色对象）</strong></td><td>角色目标表；归属过滤（BR-03）</td></tr><tr><td>知识条目 / 笔记</td><td><strong>KnowledgeItem 实体</strong></td><td>IN-02；条目是主张的来源（UC-12 步骤②③）</td></tr><tr><td>主张</td><td><strong>Claim 实体</strong></td><td>UC-12 步骤③"提取核心主张"</td></tr><tr><td>冲突记录</td><td><strong>Conflict 核心实体（规则保护）</strong></td><td>UC-12 步骤⑥⑦；BR-01／BR-02</td></tr><tr><td>冲突类型</td><td><strong>ConflictType 枚举（值对象）</strong></td><td>BR-02 按类型收敛，需类型判别</td></tr><tr><td>用户状态（未查看／忽略／采纳）</td><td><strong>UserState 枚举（值对象）</strong></td><td>UC-13 状态迁移；BR-02</td></tr><tr><td>一次扫描</td><td><strong>ConflictScan 实体（编排）</strong></td><td>UC-12 步骤①；扫描有身份、时间与状态</td></tr><tr><td>判定日志</td><td><strong>JudgmentLog 实体</strong></td><td>BR-07；UC-14 翻案依据</td></tr><tr><td>主张对</td><td><strong>ClaimPair 值对象</strong></td><td>BR-07 的配对键；值相等即同一对</td></tr><tr><td>LLM 判定</td><td><strong>LLMJudge 接口（外部依赖）</strong></td><td>UC-12 步骤⑤；属外部服务依赖，不是领域实体</td></tr><tr><td>系统 / 页面 / 数据库</td><td><strong>移出领域对象模型</strong></td><td>第 4 课 P28：非领域概念</td></tr><tr><td>通知 / 推送</td><td><strong>删除（本轮）</strong></td><td>OUT-04：不在 L2 范围内的行为；推送由 UC-21 单独承担</td></tr><tr><td>扫描服务 / L2Service</td><td><strong>不作为类</strong></td><td>第 4 课 P48 E05：无需求依据的技术设计，且导致贫血对象</td></tr></tbody></table>
+<h3>3.3 CRC 表</h3>
+<p>CRC 写业务责任，不写"提供全部 getter／setter"（第 4 课 P31）。</p>
+<table><thead><tr><th>类</th><th>责任</th><th>协作者</th></tr></thead><tbody><tr><td>Learner</td><td>发起扫描；查看本人冲突；对冲突给出反馈；对判定发起复核</td><td>ConflictScan、Conflict、JudgmentLog</td></tr><tr><td>KnowledgeItem</td><td>保存条目内容与来源；提供可分析文本；支持软删除后不再参与扫描</td><td>Claim</td></tr><tr><td>Claim</td><td>保存一条可判真假的主张文本</td><td>KnowledgeItem</td></tr><tr><td>Conflict</td><td>保证置信度门槛与收敛规则；维护用户状态与忽略计数；判定归属</td><td>Claim、ConflictType、UserState、JudgmentLog</td></tr><tr><td>ConflictScan</td><td>编排一次扫描：取条目、提主张、配对、逐对判定、过滤、落库</td><td>Learner、KnowledgeItem、LLMJudge、Conflict</td></tr><tr><td>JudgmentLog</td><td>记录每次判定的配对、置信度与结论；支持事后复核与翻案</td><td>ClaimPair、Conflict</td></tr><tr><td>LLMJudge（接口）</td><td>对一对主张给出类型与置信度</td><td>—</td></tr></tbody></table>
+<h3>3.4 分析类图</h3>
+<figure><img src="images/obj_partial_model.png" alt="图3 部分对象模型（分析类图）"><figcaption>图3　部分对象模型（分析类图）—— 覆盖 UC-12 扫描隐性冲突、UC-13 处置冲突反馈、UC-14 翻案误判。</figcaption></figure>
+<p><strong>关系与多重性说明</strong>（每条都用一句业务语言解释，第 4 课 P34–P36）</p>
+<table><thead><tr><th>关系</th><th>多重性</th><th>业务含义</th><th>依据</th></tr></thead><tbody><tr><td>Learner — KnowledgeItem</td><td>1 ↔ 0..*</td><td>一个学习者拥有零到多条知识条目；一条条目恰好属于一个学习者</td><td>BR-03</td></tr><tr><td>Learner — Conflict</td><td>1 ↔ 0..*</td><td>一个学习者拥有零到多条冲突记录；一条冲突恰好归属一个学习者</td><td>BR-03、UC-12</td></tr><tr><td>KnowledgeItem — Claim</td><td>1（组合）↔ 1..*</td><td>一条条目正好由一条或多条主张构成；条目不存在时其主张无独立意义</td><td>UC-12 步骤③</td></tr><tr><td>Conflict — Claim</td><td>0..* ↔ 2</td><td>一条冲突恰由两条主张构成；一条主张可出现在多条冲突中</td><td>UC-12 步骤⑤</td></tr><tr><td>Conflict — ConflictType</td><td>0..* ↔ 1</td><td>一条冲突恰好属于一个类型（用于同类型收敛）</td><td>BR-02</td></tr><tr><td>Conflict — UserState</td><td>0..* ↔ 1</td><td>一条冲突恰有一个用户状态</td><td>UC-13</td></tr><tr><td>ConflictScan — Learner</td><td>1 ↔ 1</td><td>一次扫描恰好由一个学习者发起（请求者）</td><td>BR-03</td></tr><tr><td>ConflictScan — Conflict</td><td>1 ↔ 0..*</td><td>一次扫描产出零到多条冲突</td><td>UC-12 步骤⑦</td></tr><tr><td>ConflictScan ⇢ LLMJudge</td><td>依赖</td><td>一次扫描临时使用外部判定服务</td><td>UC-12 步骤⑤</td></tr><tr><td>Conflict — JudgmentLog</td><td>0..1 ↔ 1</td><td>一条冲突可溯源到一条判定日志</td><td>BR-07</td></tr><tr><td>JudgmentLog — ClaimPair</td><td>1 ↔ 1</td><td>一条判定日志恰好记录一对主张的判定</td><td>BR-07、UC-14</td></tr><tr><td>ClaimPair — Claim</td><td>1 ↔ 2</td><td>一个主张对恰由两条主张构成</td><td>BR-07</td></tr><tr><td>Learner — JudgmentLog</td><td>1 ↔ 0..*</td><td>一个学习者可对其名下的判定日志发起复核</td><td>UC-14、BR-03</td></tr></tbody></table>
+<p><strong>刻意不画的关系</strong>（同样要留证据）：</p>
+<table><thead><tr><th>候选关系</th><th>决定</th><th>理由</th></tr></thead><tbody><tr><td>KnowledgeItem ◆— Claim 之外的"级联删除"</td><td>不画</td><td>软删除只改条目状态，不物理删除主张（BR-06 只读原则、软删策略）</td></tr><tr><td>ConflictScan ●— Conflict（组合）</td><td>不画</td><td>扫描结束后冲突<strong>长期独立存在</strong>，不随扫描生命周期销毁；组合会误导级联删除（第 4 课 P37）</td></tr><tr><td>Learner ◆— ConflictScan（组合）</td><td>不画</td><td>同上：扫描记录不因学习者登出而消失</td></tr><tr><td>Conflict — Notification</td><td>不画</td><td>OUT-04：本轮不建模推送行为</td></tr></tbody></table>
+<h3>3.5 属性与操作的设计说明</h3>
+<p>三个高频错误在本模型里被显式避免（第 4 课 P12、P17、P22）：</p>
+<ol><li><strong>不用外键式 ID 替代关系</strong>。分析类图里没有 <code>ownerId</code>／<code>claimAId</code>／<code>claimBId</code> 这类字符串字段——对象之间的联系由关联与多重性表达；ID 只在实体内部用于标识自身。</li><li><strong>状态与类型用枚举／值对象，不用裸 String</strong>。<code>UserState</code>、<code>ConflictType</code>、<code>Verdict</code> 是枚举；<code>ClaimPair</code> 是值对象（按值相等），因为"同一对主张"必须能被稳定识别（BR-07 的配对键）。</li><li><strong>规则由实体操作保护，不暴露通用 setter</strong>。<code>Conflict</code> 上<strong>没有</strong> <code>setConfidence</code> / <code>setUserState</code>；取而代之的是：</li></ol>
+<ul><li><code>evaluate(confidence)</code>：执行门槛判定（BR-01）；</li><li><code>mark(state, by)</code>：状态迁移并核验操作者归属（BR-03）；</li><li><code>isConverged()</code>：判断是否已达忽略收敛（BR-02）；</li><li><code>belongsTo(l)</code>：归属校验，支撑越权防护。</li></ul>
+<p>这四条操作合起来保证：<strong>绕过规则的路径在模型上不存在</strong>，而不是靠调用方自觉。</p>
+<p><strong>作用域</strong>：所有属性均为对象作用域（每条冲突的置信度、状态各不相同）；枚举常量为类层次共享；不设静态计数器（应查询统计，第 4 课 P25）。</p>
+<h3>3.6 对象图验证</h3>
+<p>类图必须能解释正例与反例，尤其是失败路径（第 4 课 P37、P52）。</p>
+<figure><img src="images/obj_verify.png" alt="图4 对象图验证（正例与越权反例）"><figcaption>图4　对象图验证：左侧为正例（AT-01 保留），右侧为越权反例（AT-04 拒绝且数据不变）。</figcaption></figure>
+<ul><li><strong>正例</strong>：<code>u1</code> 拥有条目 <code>i1</code>（含主张 <code>c1</code>、<code>c2</code>），由 <code>u1</code> 发起的扫描 <code>s1</code> 产出冲突 <code>x</code>（归属 <code>u1</code>，置信度 0.70 ≥ 0.5）。<code>x.evaluate(0.70)</code> 保留 → 可查询，符合 AT-01／BR-01。</li><li><strong>反例</strong>：<code>u2</code> 对 <code>x</code> 调用 <code>mark(ACCEPTED)</code>。<code>x.belongsTo(u2) = false</code> → 拒绝（404/403），<code>x.userState</code> 仍为 UNSEEN、<code>ignoreCount</code> 仍为 0、<code>u1</code> 的数据不变，符合 AT-04／BR-03。</li></ul>
+<p>反例能通过，说明"归属校验"不是写在文档里的口号，而是<strong>模型里可执行的约束</strong>。</p>
+<h3>3.7 对象层追踪矩阵</h3>
+<p>反向检查：图中每个类、属性、操作、关系都必须有依据，无依据则删除或待确认（第 4 课 P51）。</p>
+<table><thead><tr><th>模型元素</th><th>对应职责／规则</th><th>依据</th></tr></thead><tbody><tr><td><code>Learner.triggerScan</code></td><td>发起扫描（仅本人条目）</td><td>UC-12 步骤①</td></tr><tr><td><code>Learner.viewConflicts</code></td><td>查看本人冲突</td><td>UC-13、BR-03</td></tr><tr><td><code>Learner.giveFeedback</code></td><td>对冲突给出状态反馈</td><td>UC-13</td></tr><tr><td><code>Learner.requestRejudge</code></td><td>对判定发起复核</td><td>UC-14</td></tr><tr><td><code>KnowledgeItem.extractClaims</code></td><td>提供可分析文本并抽取主张</td><td>UC-12 步骤③</td></tr><tr><td><code>KnowledgeItem.isDeleted</code></td><td>软删除后不再参与扫描</td><td>软删策略</td></tr><tr><td><code>Conflict.evaluate</code></td><td>置信度门槛（&lt; 0.5 丢弃 / ≥ 0.5 保留）</td><td>BR-01</td></tr><tr><td><code>Conflict.isConverged</code></td><td>同类型忽略 ≥ 3 次收敛</td><td>BR-02</td></tr><tr><td><code>Conflict.belongsTo</code></td><td>归属校验</td><td>BR-03、AT-04</td></tr><tr><td><code>Conflict.mark</code></td><td>状态迁移并核验操作者</td><td>UC-13、BR-03</td></tr><tr><td><code>Conflict.confidence／userState／ignoreCount</code></td><td>冲突判别所需的三个状态</td><td>BR-01／BR-02</td></tr><tr><td><code>ConflictScan.run</code></td><td>编排取条目→提主张→配对→判定→过滤→落库</td><td>UC-12 步骤②–⑦</td></tr><tr><td><code>ConflictScan.status</code></td><td>扫描状态（失败不写入半成品）</td><td>BR-08</td></tr><tr><td><code>JudgmentLog.missed</code></td><td>翻案依据：人复核后要求重判</td><td>UC-14、BR-07</td></tr><tr><td><code>ClaimPair.key</code></td><td>判定配对的稳定标识</td><td>BR-07</td></tr><tr><td><code>LLMJudge.judge</code></td><td>外部判定能力</td><td>UC-12 步骤⑤</td></tr><tr><td><code>ConflictType／UserState／Verdict</code></td><td>类型与状态判别</td><td>BR-01／BR-02／BR-07</td></tr><tr><td>Notification／通知</td><td>已删除（本轮不建模）</td><td>OUT-04</td></tr><tr><td><code>L2Service</code> 等无依据类</td><td>已删除</td><td>第 4 课 P48 E05</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-4">四、过程记录与人机责任</h2>
+<h3>4.1 两轮 AI 操作与三次人工检查</h3>
+<p>按第 3 课 P48 的 Spec Coding 流程留痕：<strong>两次生成、三次人工检查</strong>。本次实践的实际执行情况如下表。</p>
+<table><thead><tr><th>阶段</th><th>谁负责</th><th>本次实际动作</th><th>留下的证据</th></tr></thead><tbody><tr><td>H0 冻结需求</td><td>人确认（组内）</td><td>项目决策：范围 IN-01~IN-05、非范围 OUT-01~OUT-04、角色权限"仅本人资源"、规则 BR-01~BR-08</td><td>范围表、角色目标表、规则表（2.1／2.2／2.7）</td></tr><tr><td>A1 第一轮 AI</td><td>AI 生成</td><td>按已冻结 Spec 生成候选对象表、CRC 与分析类图初稿（第 4 课作业的 R1 初稿）</td><td><code>UML/diagrams/m1_first_object_model.puml</code></td></tr><tr><td>H1 人工审查</td><td>人定位并论证错误</td><td>逐条对照 Spec 审查初稿，产出 E01–E07 审查单（含证据编号、影响与修正方向）</td><td>第 4 课作业第四章 H1 审查单</td></tr><tr><td>A2 第二轮 AI</td><td>AI 依据审查单修订</td><td>只按 E01–E06 修订，保持编号不变；缺口列为待确认</td><td><code>UML/diagrams/m2_second_object_model.puml</code></td></tr><tr><td>H2 追踪与验收</td><td>人逐项比对</td><td>用追踪矩阵与正反例验收；发现残留 E07（归属不变量缺失）→ 回到 A2 修订为 R2.1</td><td><code>UML/diagrams/m3_final_object_model.puml</code>、<code>obj_verify.puml</code></td></tr></tbody></table>
+<p>本报告在上述基础上<strong>补齐了第 3 课要求的用例侧证据</strong>：真实交互识别边界与参与者（2.1–2.2）、用户目标级用例清单（2.3）、用例关系审查（2.5）、编号用例描述（2.6）、可判真假的规则与验收例（2.7）。</p>
+<h3>4.2 人工决策记录</h3>
+<p>课件要求区分"模型修订"与"业务变更"，二者审批路径不同（第 3 课 P53、P68）。</p>
+<table><thead><tr><th>情形</th><th>定性</th><th>处理</th><th>需更新</th></tr></thead><tbody><tr><td>AI 把置信度门槛写成"越高越好"之类无边界表述</td><td><strong>模型修订</strong></td><td>按已有 BR-01 修正模型与描述，Spec 版本不变</td><td>模型、用例描述、修改记录</td></tr><tr><td>想把门槛从 0.5 调到 0.6，或把忽略收敛从 3 次改为 5 次</td><td><strong>业务变更</strong></td><td>AI 提出变更影响分析，由需求负责人<strong>人工批准</strong>后方可实施</td><td>Spec 新版本、模型引用值、验收例边界值、追踪矩阵</td></tr><tr><td>想新增"自动修改用户笔记以消除冲突"</td><td><strong>业务变更（且与 OUT-01 冲突）</strong></td><td>OUT-01 已排除；只能列为建议，未经批准不实施</td><td>待确认／建议列表</td></tr><tr><td>想接入无官方接口的第三方阅读平台</td><td><strong>业务变更（且与 OUT-03 冲突）</strong></td><td>同上，列为建议</td><td>待确认／建议列表</td></tr></tbody></table>
+<p><strong>原则</strong>：AI 能提出方案，不能代替需求负责人批准业务变化；无依据的类、属性、操作、关系只能删除或列为待确认（第 4 课 P07）。</p>
+<h3>4.3 待确认清单</h3>
+<p>下列 ⚠ 项<strong>不得由 AI 自行补成事实</strong>，需组内确认后方可写入正式 Spec（第 3 课 P57 任务④）。</p>
+<ol><li><strong>规则数值是否冻结</strong>：BR-01 的 0.5、BR-02 的 3、BR-04 的 20／5 目前是代码初值（<code>config.py</code> 注明"实测后校准"）。冻结为需求值还是保持可配置？谁批准？</li><li><strong>"收敛"的确切语义</strong>：BR-02 的"不再主动推荐"是指该类型<strong>永久</strong>不再推荐，还是降频／降权？代码注释与需求表述需统一。</li><li><strong>扫描触发方式</strong>：当前仅提供手动触发入口；是否存在定时自动扫描需求？若有，周期值待定，且需补充"学习者可关闭自动扫描"的权限规则。</li><li><strong>OUT-04 是否放开</strong>：是否需要邮件／外部推送渠道？《需求分析文档》2.2 曾规划邮件，但代码未实现——以哪一份为准需明确。</li><li><strong>参与者的角色分级</strong>：当前无管理员、无访客，全部功能要求登录。是否存在"未登录可看简报"之类场景？</li><li><strong>UC-20 的扩展点边界</strong>：采纳诊断结论后自动生成计划任务——这属 UC-20 的后置动作还是应触发一个新的"计划生成"用例？本报告按 extend 处理并写入备选流，待评审确认。</li><li><strong>软删除与冲突的关系</strong>：条目被软删除后，其历史冲突应保留、隐藏还是一并隐藏？当前模型按"保留历史"处理（BR-06），需确认。</li></ol>
+<div class="section-divider"></div>
+<h2 id="section-5">五、交付物与课件页码对照</h2>
+<h3>5.1 交付物清单</h3>
+<p>全部产物位于项目工作区，未触碰其他目录。</p>
+<table><thead><tr><th>文件</th><th>类型</th><th>说明</th></tr></thead><tbody><tr><td><code>需求分析建模_用例模型与对象模型_周宇航.docx</code></td><td>文档（本文件）</td><td>用例模型 + 部分对象模型 + 过程记录</td></tr><tr><td><code>UML/diagrams/uc1_knowledge.png</code></td><td>图（位图）</td><td>用例图（一）：账号与知识资产</td></tr><tr><td><code>UML/diagrams/uc2_capability.png</code></td><td>图（位图）</td><td>用例图（二）：五层认知能力与支撑</td></tr><tr><td><code>UML/diagrams/obj_partial_model.puml</code> / <code>.png</code> / <code>.svg</code></td><td>图（源＋渲染）</td><td>分析类图（PlantUML 源可二次编辑）</td></tr><tr><td><code>UML/diagrams/obj_verify.puml</code> / <code>.png</code> / <code>.svg</code></td><td>图（源＋渲染）</td><td>对象图验证（正例 + 越权反例）</td></tr><tr><td><code>UML/_draw_usecase.py</code></td><td>脚本</td><td>用例图绘制脚本（可复现）</td></tr><tr><td><code>UML/_extract_pdfs3.py</code>、<code>UML/_第3课_原文.txt</code></td><td>脚本／文本</td><td>课件原文提取与留档（可核查引用页码）</td></tr></tbody></table>
+<h3>5.2 课件页码对照</h3>
+<table><thead><tr><th>课件</th><th>页脚</th><th>本报告采用的内容</th><th>对应章节</th></tr></thead><tbody><tr><td>第 3 课</td><td>P03</td><td>分析主线：边界→参与者→目标→关系与描述</td><td>1.2</td></tr><tr><td>第 3 课</td><td>P04/P06</td><td>人机责任：人定需求、AI 生成、人审查</td><td>4.1</td></tr><tr><td>第 3 课</td><td>P08</td><td>用例模型是 Spec 的一部分（图不能承载全部规则）</td><td>1.2</td></tr><tr><td>第 3 课</td><td>P09–P12</td><td>系统边界的定义与表示；范围来源是项目决策</td><td>2.1</td></tr><tr><td>第 3 课</td><td>P13–P18</td><td>参与者定义与表示；外部系统用 «actor» 方框</td><td>2.2</td></tr><tr><td>第 3 课</td><td>P20</td><td>角色目标表；内部实现不自动成为角色</td><td>2.2</td></tr><tr><td>第 3 课</td><td>P22–P24</td><td>用例定义与特征；用例分析是功能分解技术</td><td>1.2</td></tr><tr><td>第 3 课</td><td>P27–P28</td><td>用例粒度；从用例发现对象职责</td><td>2.3、3.1</td></tr><tr><td>第 3 课</td><td>P32–P36</td><td>include／extend／泛化的判据与方向</td><td>2.5</td></tr><tr><td>第 3 课</td><td>P37</td><td>关系审查表：逐条给证据</td><td>2.5、3.4</td></tr><tr><td>第 3 课</td><td>P40–P46</td><td>用例描述字段；基本流编号；异常流回到出错步骤</td><td>2.6</td></tr><tr><td>第 3 课</td><td>P44</td><td>规则要可判真假；边界值示例</td><td>2.7</td></tr><tr><td>第 3 课</td><td>P47</td><td>验收例与追踪（边界／越权／失效）</td><td>2.7、2.8</td></tr><tr><td>第 3 课</td><td>P48–P51</td><td>H0/A1/H1/A2/H2 流程与提示纪律</td><td>4.1</td></tr><tr><td>第 3 课</td><td>P53</td><td>人工决策：模型修订 vs 业务变更</td><td>4.2</td></tr><tr><td>第 3 课</td><td>P57</td><td>课堂实践任务①–④</td><td>2.1–2.7、4.3</td></tr><tr><td>第 4 课</td><td>P06</td><td>用例模型 vs 对象模型</td><td>1.1</td></tr><tr><td>第 4 课</td><td>P07</td><td>人机责任；无依据的类／属性／操作／关系只能删除或待确认</td><td>1.3、3.7</td></tr><tr><td>第 4 课</td><td>P12–P13</td><td>类图三区域；不放外键式 ID</td><td>3.5</td></tr><tr><td>第 4 课</td><td>P17/P22</td><td>属性筛选；操作要保护业务规则</td><td>3.5</td></tr><tr><td>第 4 课</td><td>P27–P32</td><td>从 Spec 识别类；候选筛选；CRC；候选登记与决定</td><td>3.2、3.3</td></tr><tr><td>第 4 课</td><td>P34–P38</td><td>关联／多重性／组合／泛化／依赖的业务含义</td><td>3.4</td></tr><tr><td>第 4 课</td><td>P46–P52</td><td>R1→H1（E 编号）→R2→追踪与验收</td><td>4.1</td></tr><tr><td>第 4 课</td><td>P53</td><td>OOA→OOD：分析类图不被技术层反向污染</td><td>3.5</td></tr><tr><td>第 4 课</td><td>P54</td><td>项目任务：提交可复查的对象模型</td><td>第三章整体</td></tr></tbody></table>
+<h3>5.3 一句话结论</h3>
+<p>用例模型回答"谁为了什么目标与系统交互"——本项目只有一个人类角色（学习者）与两个外部系统参与者，21 个用户目标级用例，通过关系审查只保留 1 条 «extend»；对象模型回答"哪些对象共同完成目标"——L2 的职责由 Conflict／KnowledgeItem／Claim／ConflictScan／JudgmentLog 五个领域对象分担，规则写在实体操作里而不是服务里，越权与门槛在模型上不可绕过，并由对象图的正例与反例共同验证。</p>
+    </main>
+  </section>
+</body>
+</html>

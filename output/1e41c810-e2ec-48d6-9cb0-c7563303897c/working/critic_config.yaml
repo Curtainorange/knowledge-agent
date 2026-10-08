@@ -1,0 +1,33 @@
+critic_mode_hint: "once"
+force_mode: null
+
+rubrics_files:
+  - "experts/general-writer/references/quality-framework.md"
+  - "experts/general-writer/references/doc-type-matrix.md"
+pass_score: 75
+max_loops: 2
+
+section_params:
+  scope: "section"
+  min_issues: 1
+  min_instructions: 2
+
+full_params:
+  scope: "full"
+  min_issues: 2
+  min_instructions: 3
+
+revision_params:
+  scope: "revision"
+  min_issues: 1
+  min_instructions: 1
+
+# ---- doc-writer 的模式决策留痕（§3.bis.2 六级优先序） ----
+decision_trace:
+  step_1_force_mode: "null → 不命中"
+  step_2_user_skip: "用户未要求跳过 → 不命中"
+  step_3_user_strict: "用户未要求严格审查 → 不命中"
+  step_4_genre_risk_table: "genre=general → 低风险档 → skip（命中，最终采用）"
+  step_5_hint: "未进入（第 4 级已命中）"
+  final_mode: "skip"
+  reason: "通用写作属低风险文体；事实来自本地代码与课件的可核查证据，同模型自审对本类问题存在同源盲区，价值有限（§3.bis.2 设计原则）"

@@ -1,0 +1,140 @@
+@startuml
+title 图3　部分对象模型（分析类图）—— UC-12 扫描隐性冲突 / UC-13 处置冲突反馈 / UC-14 翻案误判
+skinparam dpi 200
+skinparam defaultFontName "Microsoft YaHei"
+skinparam shadowing false
+skinparam nodesep 22
+skinparam ranksep 30
+skinparam class {
+  BackgroundColor #F5F9FF
+  BorderColor #2E5AAC
+  FontSize 12
+}
+skinparam enum {
+  BackgroundColor #FFF9EC
+  BorderColor #C87F0A
+  FontSize 12
+}
+skinparam note {
+  BackgroundColor #F6FBF7
+  BorderColor #1E8449
+  FontSize 11
+}
+
+class Learner {
+  - userId: String
+  - displayName: String
+  + triggerScan(): ConflictScan
+  + viewConflicts(): List<Conflict>
+  + giveFeedback(c: Conflict, s: UserState)
+  + requestRejudge(p: ClaimPair)
+}
+
+class KnowledgeItem {
+  - itemId: String
+  - title: String
+  - content: Text
+  - source: ItemSource
+  - isDeleted: Boolean
+  + extractClaims(): List<Claim>
+}
+
+class Claim {
+  - claimId: String
+  - text: String
+}
+
+class ClaimPair <<值对象>> {
+  - claimA: Claim
+  - claimB: Claim
+  + key(): String
+}
+
+class Conflict {
+  - conflictId: String
+  - confidence: Double
+  - userState: UserState
+  - ignoreCount: Integer
+  - createdAt: DateTime
+  + evaluate(confidence: Double): Boolean
+  + mark(state: UserState, by: Learner)
+  + isConverged(): Boolean
+  + belongsTo(l: Learner): Boolean
+}
+
+class JudgmentLog {
+  - pairKey: String
+  - confidence: Double
+  - verdict: Verdict
+  - createdAt: DateTime
+  + missed(): Boolean
+}
+
+class ConflictScan {
+  - scanId: String
+  - startedAt: DateTime
+  - status: ScanStatus
+  + run()
+}
+
+enum ConflictType {
+  FACT_VS_FACT
+  GOAL_VS_ACTION
+  CONCEPT_OVERLAP
+}
+
+enum UserState {
+  UNSEEN
+  IGNORED
+  ACCEPTED
+}
+
+enum Verdict {
+  CONFLICT
+  COMPLEMENT
+  GAP
+}
+
+interface LLMJudge {
+  + judge(a: Claim, b: Claim): Double
+}
+
+Learner "1" --> "0..*" KnowledgeItem : owns
+Learner "1" --> "0..*" Conflict : owns
+KnowledgeItem "1" *-- "1..*" Claim : 抽取
+Conflict "0..*" --> "2" Claim : 涉及
+Conflict "0..*" --> "1" ConflictType : 分类
+Conflict "0..*" --> "1" UserState : 状态
+Conflict "0..1" --> "1" JudgmentLog : 溯源
+ConflictScan "1" --> "1" Learner : requester
+ConflictScan "1" --> "0..*" Conflict : 产出
+ConflictScan ..> LLMJudge : 依赖
+ClaimPair "1" --> "2" Claim : 配对
+JudgmentLog "1" --> "1" ClaimPair : 判定对象
+Learner "1" --> "0..*" JudgmentLog : 复核
+
+note right of ConflictScan
+  不变量（E07 补回）：
+  run() 只扫描 requester 本人的
+  KnowledgeItem，且产出的每条
+  Conflict.owner == this.requester。
+end note
+
+note bottom of Conflict
+  evaluate()：BR-L2-01（<0.5 丢弃 / >=0.5 保留）
+  isConverged()：BR-L2-02（同类型忽略 >=3 收敛）
+  belongsTo()：支撑越权防护（TABLE 8）
+  无通用 setConfidence/setUserState，规则不可绕过。
+end note
+
+note bottom of JudgmentLog
+  missed() 是翻案依据（UC-14）：人复核判定
+  日志后可要求重判，对应 POST
+  /l2/judgments/{pair_key}/rejudge。
+end note
+
+note bottom of LLMJudge
+  LLM 判定是外部依赖接口（IN-01），不作为领域实体；
+  无需求依据的类、属性、操作、关系一律删除或待确认。
+end note
+@enduml
