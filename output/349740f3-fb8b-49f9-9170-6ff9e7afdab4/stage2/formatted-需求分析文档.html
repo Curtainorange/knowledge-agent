@@ -1,0 +1,433 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <meta name="docx-page-size" content="A4">
+  <title>认知副驾 · 产品需求分析报告</title>
+  <style>
+  /* --- 页面模型：封面无页脚，正文页脚居中页码 --- */
+  @page {
+    @bottom-center { content: counter(page); }
+  }
+  @page cover {
+    @bottom-center { content: none; }
+  }
+  section[role="cover"] { page: cover; }
+
+  :root {
+    /* ==== Design Tokens（business-modern · business-report）==== */
+    --typography-fontFamily-heading: 微软雅黑, Microsoft YaHei, PingFang SC;
+    --typography-fontFamily-body: 微软雅黑, Microsoft YaHei, PingFang SC;
+    --typography-fontFamily-bodyLatin: Calibri, Helvetica Neue, sans-serif;
+    --typography-fontFamily-data: DIN Next, Arial, sans-serif;
+    --typography-fontFamily-code: Consolas, Source Code Pro, monospace;
+    --typography-fontSize-title: 28pt;
+    --typography-fontSize-subtitle: 18pt;
+    --typography-fontSize-h1: 20pt;
+    --typography-fontSize-coverTitle: 22pt;
+    --typography-fontSize-coverCategory: 14pt;
+    --typography-fontSize-sectionHeader: 13pt;
+    --typography-fontSize-h2: 11pt;
+    --typography-fontSize-h3: 10pt;
+    --typography-fontSize-body: 9pt;
+    --typography-fontSize-small: 8pt;
+    --typography-fontSize-tiny: 7pt;
+    --typography-fontSize-caption: 9pt;
+    --typography-fontSize-dataLabel: 10pt;
+    --typography-lineHeight-title: 1.3;
+    --typography-lineHeight-body: 1.6;
+    --typography-lineHeight-compact: 1.2;
+    --typography-fontWeight-heading: 600;
+    --typography-fontWeight-body: 400;
+    --typography-fontWeight-emphasis: 500;
+    --color-primary: #1565C0;
+    --color-secondary: #0288D1;
+    --color-accent: #00897B;
+    --color-text: #212121;
+    --color-textSecondary: #616161;
+    --color-heading: #1A237E;
+    --color-divider: #E0E0E0;
+    --color-background: #FFFFFF;
+    --color-surface: #F5F7FA;
+    --color-dataViz-series1: #1565C0;
+    --color-dataViz-series2: #00897B;
+    --color-dataViz-series3: #F9A825;
+    --color-dataViz-series4: #E53935;
+    --color-dataViz-series5: #7B1FA2;
+    --color-dataViz-series6: #0288D1;
+    --spacing-paragraph: 0.75em;
+    --spacing-paragraphAfter: 0.75em;
+    --spacing-indent: 0em;
+    --spacing-sectionGap: 2.5em;
+    --spacing-cardPadding: 1.5em;
+    --layout-marginTop: 2.5cm;
+    --layout-marginBottom: 2.0cm;
+    --layout-marginLeft: 2.5cm;
+    --layout-marginRight: 2.5cm;
+    --layout-pageSize: A4;
+    --layout-maxContentWidth: 160mm;
+    /* ==== 本地别名映射 ==== */
+    --fs-title: var(--typography-fontSize-coverTitle, 22pt);
+    --fs-h1: var(--typography-fontSize-h1, 20pt);
+    --fs-h2: var(--typography-fontSize-h2, 11pt);
+    --fs-h3: var(--typography-fontSize-h3, 10pt);
+    --fs-h4: var(--typography-fontSize-h3, 10pt);
+    --fs-body: var(--typography-fontSize-body, 9pt);
+    --fs-small: var(--typography-fontSize-small, 8pt);
+    --fs-tiny: var(--typography-fontSize-tiny, 7pt);
+    --fs-caption: var(--typography-fontSize-caption, 9pt);
+    --ff-heading: var(--typography-fontFamily-heading);
+    --ff-body: var(--typography-fontFamily-body);
+    --ff-mono: var(--typography-fontFamily-code, monospace);
+    --lh-body: var(--typography-lineHeight-body, 1.6);
+    --lh-heading: var(--typography-lineHeight-title, 1.3);
+    --fw-bold: var(--typography-fontWeight-heading, 600);
+    --fw-body: var(--typography-fontWeight-body, 400);
+    --c-primary: var(--color-primary);
+    --c-secondary: var(--color-secondary);
+    --c-accent: var(--color-accent);
+    --c-text: var(--color-text);
+    --c-muted: var(--color-textSecondary);
+    --c-heading: var(--color-heading);
+    --c-divider: var(--color-divider);
+    --c-bg: var(--color-background);
+    --c-surface: var(--color-surface);
+    --sp-para: var(--spacing-paragraph, 0.75em);
+    --sp-section: var(--spacing-sectionGap, 2.5em);
+    --sp-block: var(--spacing-paragraphAfter, 0.75em);
+    --page-content-width: var(--layout-maxContentWidth, 15.6cm);
+  }
+
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+
+  body {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    line-height: var(--lh-body);
+    color: var(--c-text);
+    background: var(--c-bg);
+    max-width: var(--page-content-width);
+    margin-left: auto;
+    margin-right: auto;
+  }
+
+  /* --- 封面：每个块级元素各自显式声明 text-align --- */
+  .cover-category {
+    font-family: var(--ff-heading);
+    font-size: var(--typography-fontSize-coverCategory, 14pt);
+    font-weight: 700;
+    color: var(--c-primary);
+    letter-spacing: var(--tracking-category, 0.08em);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+  .cover-title {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-title);
+    font-weight: 700;
+    color: var(--c-heading);
+    line-height: var(--lh-heading);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+  .cover-subtitle {
+    font-family: var(--ff-body);
+    font-size: var(--typography-fontSize-subtitle, 18pt);
+    color: var(--c-muted);
+    text-align: center;
+    margin-bottom: var(--sp-section);
+  }
+  .cover-meta {
+    font-family: var(--ff-body);
+    font-size: var(--fs-small);
+    color: var(--c-muted);
+    text-align: center;
+    margin-bottom: var(--sp-block);
+  }
+
+  /* --- 标题层级：每个块自己声明字号/字族/颜色 --- */
+  h2 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h2);
+    font-weight: 700;
+    color: var(--c-heading);
+    line-height: var(--lh-heading);
+    text-align: left;
+    margin-top: var(--sp-section);
+    margin-bottom: var(--sp-para);
+    border-left: var(--bd-heading, 4px) solid var(--c-primary);
+    padding-left: var(--sp-block);
+  }
+  h3 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    color: var(--c-primary);
+    text-align: left;
+    margin-top: var(--sp-block);
+    margin-bottom: var(--sp-para);
+  }
+  h4 {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h4);
+    font-weight: 700;
+    color: var(--c-text);
+    text-align: left;
+    margin-top: var(--sp-block);
+    margin-bottom: var(--sp-para);
+  }
+
+  p {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    color: var(--c-text);
+    text-align: left;
+    margin-bottom: var(--sp-para);
+  }
+  ol, ul {
+    font-family: var(--ff-body);
+    font-size: var(--fs-body);
+    color: var(--c-text);
+    margin-bottom: var(--sp-para);
+    padding-left: var(--sp-section);
+  }
+  li { margin-bottom: var(--sp-block); }
+  strong { font-weight: 700; color: var(--c-text); }
+  code {
+    font-family: var(--ff-mono);
+    font-size: var(--fs-small);
+    color: var(--c-text);
+  }
+
+  table {
+    width: 100%;
+    border-collapse: collapse;
+    margin-bottom: var(--sp-block);
+    font-family: var(--ff-body);
+    font-size: var(--fs-small);
+  }
+  th, td {
+    border: 1px solid var(--c-divider);
+    padding: var(--sp-cell-y, 0.35em) var(--sp-cell-x, 0.5em);
+    text-align: left;
+    vertical-align: top;
+    font-size: var(--fs-small);
+  }
+  th {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-small);
+    font-weight: 700;
+    color: var(--c-heading);
+    background: var(--c-surface);
+  }
+
+  figure { margin: var(--sp-block) var(--sp-zero, 0) var(--sp-section) var(--sp-zero, 0); text-align: center; }
+  figure img { max-width: 100%; }
+  figcaption {
+    font-family: var(--ff-body);
+    font-size: var(--fs-caption);
+    color: var(--c-muted);
+    text-align: center;
+    margin-top: var(--sp-block);
+  }
+
+  /* --- 目录 --- */
+  .doc-toc {
+    background: var(--c-surface);
+    padding: var(--sp-block) var(--sp-section);
+    margin-bottom: var(--sp-section);
+  }
+  .toc-title {
+    font-family: var(--ff-heading);
+    font-size: var(--fs-h3);
+    font-weight: 700;
+    color: var(--c-heading);
+    text-align: left;
+    margin-bottom: var(--sp-para);
+  }
+  .toc-list, .toc-list ol, .toc-list ul {
+    list-style: none;
+    list-style-type: none;
+    padding-left: var(--sp-block);
+  }
+  .toc-list li { font-family: var(--ff-body); font-size: var(--fs-body); margin-bottom: var(--sp-toc-item, 0.2em); }
+  .toc-list a { color: var(--c-primary); text-decoration: none; }
+
+  /* --- 单段落强调（引用块）：左边框前导空格见 base.md §e --- */
+  .note-inline {
+    border-left: var(--bd-note, 3px) solid var(--c-primary);
+    background: var(--c-surface);
+    padding: var(--sp-note-y, 0.5em) var(--sp-note-x, 0.75em);
+  }
+
+  .section-divider {
+    border-top: var(--bd-divider, 1px) solid var(--c-divider);
+    margin: var(--sp-section) 0;
+  }
+  </style>
+</head>
+<body>
+  <section role="cover">
+    <p class="cover-category">产品需求分析 · 需求规格说明</p>
+    <h1 class="cover-title">认知副驾 · 产品需求分析报告</h1>
+    <p class="cover-subtitle">个人知识学习 AI 智能体 —— 产品范围与需求基线</p>
+    <p class="cover-meta">周宇航　|　2026-10-08　|　V3.1</p>
+  </section>
+
+  <section role="body" data-page-restart="1">
+    <nav class="doc-toc" aria-label="文档目录">
+      <p class="toc-title">目录</p>
+      <ol class="toc-list"><li><a href="#section-1">文档修订记录</a></li><li><a href="#section-2">一、项目背景</a></li><li><a href="#section-3">二、项目目标</a></li><li><a href="#section-4">三、目标用户</a></li><li><a href="#section-5">四、用户痛点分析</a></li><li><a href="#section-6">五、系统定位</a></li><li><a href="#section-7">六、业务流程分析</a></li><li><a href="#section-8">七、功能需求分析</a></li><li><a href="#section-9">八、数据需求分析</a></li><li><a href="#section-10">九、非功能需求分析</a></li><li><a href="#section-11">十、可行性分析</a></li><li><a href="#section-12">十一、MVP 功能范围</a></li><li><a href="#section-13">十二、预期效果</a></li><li><a href="#section-14">附录 A　验收标准</a></li><li><a href="#section-15">附录 B　参考资料</a></li></ol>
+    </nav>
+
+    <main>
+<p>本报告定义「认知副驾」的产品范围与需求基线：明确<strong>做什么</strong>（功能需求）、<strong>做到什么程度</strong>（非功能需求）、<strong>如何与外部交互</strong>（接口需求）、<strong>需要管理哪些数据</strong>（数据需求），并给出可验证的验收标准与需求追踪关系，作为后续设计、开发、测试与验收的共同依据。</p>
+<div class="section-divider"></div>
+<h2 id="section-1">文档修订记录</h2>
+<table><thead><tr><th>版本</th><th>日期</th><th>修订人</th><th>修订说明</th></tr></thead><tbody><tr><td>V1.0</td><td>2026-09</td><td>周宇航</td><td>首版需求分析，确立五层能力梯度（L1–L5）与目标用户画像</td></tr><tr><td>V2.0</td><td>2026-09</td><td>周宇航</td><td>三引擎混合架构简化为单一 LLM；功能需求改写为分角色的用例（Use Case）形式</td></tr><tr><td>V3.0</td><td>2026-09</td><td>周宇航</td><td>模型供应商由 Anthropic Claude 切换为国产 DeepSeek（<code>deepseek-flash</code>），改为每请求 <code>reasoning</code> 开关切换思考模式</td></tr><tr><td>V3.1</td><td>2026-10-08</td><td>周宇航</td><td>补齐系统上下文、总体架构、业务流程、用例、数据实体关系等 <strong>14 张图</strong>；新增术语与缩略语表、数据字典、需求追踪矩阵、验收标准表；统一小节编号；修正模型层与接入方式的表述</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-2">一、项目背景</h2>
+<h3>1.1 时代背景与问题提出</h3>
+<p>在信息过载的时代，知识工作者普遍面临一个困境：收藏了大量文章、保存了海量笔记、划了无数重点，但真正需要调用时却找不到，更谈不上消化吸收。「收藏」这一行为带来的心理安全感，掩盖了知识并未真正转化为个人认知的事实。</p>
+<h3>1.2 现有方案的局限</h3>
+<p>以 Notion、Obsidian、Evernote 为代表的传统知识管理工具，本质上是「存储与检索」系统，存在三大固有缺陷：</p>
+<ol><li>无法处理模糊输入——用户必须输入精准关键词才能命中结果，而人对内容的记忆往往是碎片化、感官化的；</li><li>无法主动发起行动——系统只能被动响应查询，不能主动提醒、追问、纠偏；</li><li>无法进行逻辑推理和因果推断——无法发现收藏内容之间的矛盾，更无法基于行为数据诊断学习问题。</li></ol>
+<h3>1.3 产品提出</h3>
+<p>「认知副驾」正是为解决上述问题而设计的 AI 智能体产品：通过持续对话与自主推理，帮助用户把「收藏的碎片」转化为「可调用的认知」，并持续修正学习方向。区别于传统工具的「被动存储」定位，认知副驾是一个主动型学习伙伴——它不仅回答问题，还主动发现矛盾、生成追问、监测行为偏离、诊断学习病根。</p>
+<p><strong>技术背景</strong>：产品全部智能能力基于单一外部大语言模型服务（<strong>DeepSeek</strong>，模型名 <code>deepseek-flash</code>）提供，通过统一网关接入，不与多厂商混合编排，以降低架构复杂度与不确定性；模型层通过抽象接口封装，保留未来替换或新增服务商的能力。</p>
+<h3>1.4 术语与缩略语</h3>
+<table><thead><tr><th>术语 / 缩略语</th><th>说明</th></tr></thead><tbody><tr><td>LLM</td><td>大语言模型（Large Language Model）；本产品单一依赖 DeepSeek</td></tr><tr><td>智能体（Agent）</td><td>具备感知、推理、规划与行动能力，可自主发起行为的系统；区别于纯问答式对话</td></tr><tr><td>L1–L5</td><td>五级能力梯度：L1 认知挖掘、L2 冲突检测、L3 认知助产、L4 路径自我修正、L5 偏误诊断</td></tr><tr><td>Embedding</td><td>文本向量表示，用于语义检索与相似度计算</td></tr><tr><td>Function Calling</td><td>模型函数调用机制，用于驱动外部动作</td></tr><tr><td>RAG</td><td>检索增强生成（Retrieval-Augmented Generation）</td></tr><tr><td>Prompt 缓存</td><td>服务端提示缓存，命中可显著降低输入成本</td></tr><tr><td>误报抑制</td><td>低置信度过滤 + 用户忽略收敛的组合机制，用于降低打扰</td></tr><tr><td>UC</td><td>Use Case，用例</td></tr><tr><td>AT</td><td>Acceptance Test，验收测试项</td></tr><tr><td>MVP</td><td>最小可行产品（Minimum Viable Product）</td></tr><tr><td>认知闭环</td><td>诊断 → 计划 → 监测 → 干预 → 再诊断的自进化链路</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-3">二、项目目标</h2>
+<p>项目总体目标为：构建一个基于大语言模型的个人知识学习智能体，实现从「知识存储」到「认知转化」的跃迁。具体分解为五项可衡量的子目标：</p>
+<table><thead><tr><th>编号</th><th>目标</th><th>衡量指标</th></tr></thead><tbody><tr><td>G1</td><td>将「收藏的碎片」转化为「可调用的认知」</td><td>模糊检索一次命中率、多轮追问收敛轮数</td></tr><tr><td>G2</td><td>主动发现知识矛盾并提醒</td><td>冲突检测覆盖新增内容比例、误报率</td></tr><tr><td>G3</td><td>引导用户问「该问没问」的问题</td><td>认知简报每周推送的追问数</td></tr><tr><td>G4</td><td>计划偏离时自主纠偏</td><td>行为偏离→干预→路径调整的平均时延</td></tr><tr><td>G5</td><td>定位学习病根并给出方案</td><td>月度健康报告覆盖用户比例、诊断采纳率</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-4">三、目标用户</h2>
+<h3>3.1 角色定义</h3>
+<table><thead><tr><th>角色</th><th>角色编号</th><th>说明</th></tr></thead><tbody><tr><td>学习者</td><td>U1</td><td>主要交互对象，有收藏 / 笔记习惯的知识工作者或学生</td></tr><tr><td>知识源</td><td>S1</td><td>外部系统：本地书籍文件、微信读书等阅读平台</td></tr><tr><td>认知副驾系统</td><td>SYS</td><td>自身作为执行者，自主感知、推理、推送</td></tr></tbody></table>
+<h3>3.2 用户画像摘要</h3>
+<table><thead><tr><th>特征维度</th><th>描述</th></tr></thead><tbody><tr><td>痛点</td><td>收藏即遗忘、检索靠精确关键词、学习无体系</td></tr><tr><td>诉求</td><td>主动挖掘、发现矛盾、被提醒、被纠偏、被诊断</td></tr><tr><td>使用频率</td><td>每日碎片化使用 + 每周 / 每月被动接收简报</td></tr><tr><td>技术能力</td><td>无需技术背景，纯自然语言交互</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-5">四、用户痛点分析</h2>
+<table><thead><tr><th>痛点</th><th>具体表现</th><th>根因分析</th><th>产品对应能力</th></tr></thead><tbody><tr><td>收藏即遗忘</td><td>收藏夹与笔记库持续膨胀，调用率极低，「存了=学了」的错觉</td><td>存储行为与认知加工脱节，缺乏后续激活机制</td><td>L1 认知挖掘：模糊意图定位，多轮追问找回内容</td></tr><tr><td>检索依赖精确关键词</td><td>只记得「橙色封面、讲拖延症」之类的碎片线索，无法检索</td><td>传统工具基于关键词匹配，不支持语义与模糊输入</td><td>L1：语义向量检索 + LLM 多轮澄清</td></tr><tr><td>知识矛盾无察觉</td><td>先后收藏的观点相互冲突而不自知，认知持续被污染</td><td>工具不做内容间关系分析</td><td>L2 冲突检测：主动扫描 + 实时检测 + 误报抑制</td></tr><tr><td>学习无体系、不知问什么</td><td>大量收藏某类主题却完全忽略关键盲区</td><td>缺乏对知识结构的全局审视</td><td>L3 认知助产：周认知简报 + 深度追问</td></tr><tr><td>计划执行偏离无纠偏</td><td>立了学习目标，连续多日未执行也无人提醒</td><td>计划工具不做行为监测与干预</td><td>L4 路径自我修正：偏离监测 + 干预对话 + 重规划</td></tr><tr><td>学习问题难归因</td><td>「总学不好、总拖延」，找不到病根</td><td>缺乏基于行为数据的链式归因分析</td><td>L5 偏误诊断：月度健康报告 + 主动归因诊断</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-6">五、系统定位</h2>
+<h3>5.1 产品定义</h3>
+<p>认知副驾是基于大语言模型的个人知识学习智能体，以「主动认知伙伴」而非「被动存储工具」为定位，通过五级递进的智能体主动性（L1→L5）覆盖从「帮用户找回知识」到「帮用户认识自己」的完整价值链。</p>
+<p>系统与外部实体的交互关系如下图，它是本报告全部需求的边界依据：方框内为系统职责，方框外为外部交互方。</p>
+<figure><img src="images/fig01_context.png" alt="图 1 系统上下文图"><figcaption>图 1　系统上下文图（System Context）。系统对内提供 L1–L5 五级能力，对外只与四类实体交互：学习者（意图与反馈）、知识源平台（只读同步）、大模型服务（推理调用）、推送通道（任务投递）。</figcaption></figure>
+<h3>5.2 与传统知识管理工具的对比</h3>
+<table><thead><tr><th>维度</th><th>传统工具</th><th>认知副驾</th></tr></thead><tbody><tr><td>交互模式</td><td>关键词检索，被动响应</td><td>自然语言对话，支持模糊输入与多轮澄清</td></tr><tr><td>主动性</td><td>零主动，等用户发起</td><td>主动扫描冲突、主动推送简报、主动干预偏离</td></tr><tr><td>推理能力</td><td>无</td><td>语义比对、逻辑分析、因果推断、链式归因</td></tr><tr><td>知识关系</td><td>孤立条目</td><td>识别矛盾 / 互补 / 断层关系，含置信度评估</td></tr><tr><td>学习闭环</td><td>无计划、无监测</td><td>目标→计划→监测→干预→诊断全闭环</td></tr></tbody></table>
+<h3>5.3 技术与架构定位</h3>
+<ol><li><strong>单一模型依赖</strong>：全部智能能力收敛到 DeepSeek API 统一网关，业务层不感知实现细节；通过抽象接口封装保留未来替换 / 新增服务商的能力。</li><li><strong>运行环境</strong>：服务端部署，Python / FastAPI 异步服务；模型层需联网访问 DeepSeek API。</li><li><strong>用户端</strong>：Web 对话工作台为主，功能页为辅；移动端以响应式 Web + PWA 接入。</li><li><strong>分层结构</strong>：用户交互层 / 应用服务层 / 领域能力层 / 数据与模型层四层，模型调用是唯一收口点。</li></ol>
+<figure><img src="images/fig02_arch.png" alt="图 2 系统总体架构图"><figcaption>图 2　系统总体架构图。四层结构中，领域能力层承载 L1–L5 五级能力，数据与模型层中的 LLM 网关是全部模型调用的唯一收口点。</figcaption></figure>
+<div class="section-divider"></div>
+<h2 id="section-7">六、业务流程分析</h2>
+<h3>6.1 总体业务主线</h3>
+<p>知识接入 → 认知加工（向量化 + 主张提取）→ 主动服务（挖掘 / 冲突 / 简报 / 干预 / 诊断）→ 用户反馈 → 闭环修正（计划重规划 / 推荐收敛）。</p>
+<figure><img src="images/fig07_mainflow.png" alt="图 3 总体业务主线图"><figcaption>图 3　总体业务主线图。从「知识存储」到「认知转化」的完整链路，末端反馈回流形成闭环。</figcaption></figure>
+<h3>6.2 知识接入流程（UC-G-01）</h3>
+<p>学习者授权接入知识源（本地书籍文件、微信读书等）→ 系统建立连接并同步原文 → 系统对新条目做向量化与核心主张提取（超大条目分块处理）→ 回传同步结果。连接失败可重试，不阻塞已有数据。</p>
+<figure><img src="images/fig08_ingest.png" alt="图 4 知识接入流程图"><figcaption>图 4　知识接入流程图（对应 UC-G-01）。</figcaption></figure>
+<h3>6.3 模糊检索定位流程（UC-L1-01，L1）</h3>
+<p>学习者输入碎片化线索（如「橙色封面，好像是讲拖延症的」）→ 系统解析产生多个候选匹配假设 → 候选不唯一时发起多轮追问 → 学习者回答缩小范围 → 循环直至定位 → 返回精准内容并附阅读历史提醒。假设唯一时直接交付；学习者无法回答时按最近相似度兜底返回。</p>
+<figure><img src="images/fig09_l1.png" alt="图 5 模糊检索定位流程图"><figcaption>图 5　模糊检索定位流程图（对应 UC-L1-01）。</figcaption></figure>
+<h3>6.4 冲突检测流程（UC-L2-01/02/03，L2）</h3>
+<p>两条触发路径：①每周定时主动扫描新增条目；②新文章收藏时实时检测。处理流程：提取核心主张 → 语义比对与逻辑分析 → 识别矛盾 / 互补 / 断层关系并过滤误报（低置信度不入库不推送）→ 形成冲突候选并推送提醒 → 学习者反馈「忽略 / 采纳」→ 反馈用于收敛与信任度量（同类型忽略 ≥3 次自动收敛）。</p>
+<figure><img src="images/fig10_l2.png" alt="图 6 冲突检测流程图"><figcaption>图 6　冲突检测流程图（对应 UC-L2-01 / 02 / 03）。</figcaption></figure>
+<p>冲突记录的用户状态在三个取值间迁移，收敛与重新激活规则如下图：</p>
+<figure><img src="images/fig06_state.png" alt="图 7 冲突状态迁移图"><figcaption>图 7　冲突状态迁移图。同类型忽略累计 ≥3 次后进入收敛态，不再主动推荐；重新激活后回到可推荐状态。</figcaption></figure>
+<h3>6.5 认知助产流程（UC-L3-01/02，L3）</h3>
+<ol><li><strong>周认知简报</strong>：每周定时分析知识库主题分布与认知深度 → 识别「大量存在 / 完全缺失」模式 → 生成 2–3 个启发式深度追问 → 汇总本周冲突 → 推送简报。</li><li><strong>深度追问</strong>：学习者完成问答或收藏新内容后，基于缺失项生成 1 个衔接当前话题的深度问题，附数据依据推送，可承接新一轮对话。</li></ol>
+<figure><img src="images/fig11_l3.png" alt="图 8 认知助产流程图"><figcaption>图 8　认知助产流程图（对应 UC-L3-01 / 02）。</figcaption></figure>
+<h3>6.6 计划制定与纠偏流程（UC-L4-01/02，L4）</h3>
+<p>学习者设定学习目标（含期限与优先级）→ 系统拆解为周维度任务计划 → 回传确认 / 修改 → 计划生效进入行为监测。当连续 N 天（默认 3）未执行计划、行为模式显著变化或学习者主动请求时：系统聚合学习行为 → 分析偏离原因 → 生成路径调整建议 → 发起干预对话 → 学习者同意则重拆计划并确认新路径（含预期收益），拒绝则保持原计划并记录偏好。</p>
+<figure><img src="images/fig12_l4.png" alt="图 9 计划制定与纠偏流程图"><figcaption>图 9　计划制定与纠偏流程图（对应 UC-L4-01 / 02）。</figcaption></figure>
+<h3>6.7 偏误诊断流程（UC-L5-01/02，L5）</h3>
+<ol><li><strong>月学习健康报告</strong>：每月定时批量分析行为数据 → 多因素归因 → 形成诊断报告（含置信度与推理链）→ 推送并询问是否采纳 → 采纳后解决方案拆为任务写入计划，与 L4 形成闭环。</li><li><strong>主动归因诊断</strong>：学习者主动询问「我为什么学不好 / 总拖延」→ 系统基于行为数据链式归因 → 返回诊断 + 可执行方案 → 可选写入计划。</li></ol>
+<figure><img src="images/fig13_l5.png" alt="图 10 偏误诊断流程图"><figcaption>图 10　偏误诊断流程图（对应 UC-L5-01 / 02）。</figcaption></figure>
+<h3>6.8 核心闭环</h3>
+<p>诊断（L5）→ 方案写入计划（L4）→ 行为监测 → 偏离干预 → 新行为数据 → 再诊断，形成「越用越懂用户」的自进化学习闭环。</p>
+<figure><img src="images/fig14_loop.png" alt="图 11 核心闭环示意图"><figcaption>图 11　核心闭环示意图。</figcaption></figure>
+<div class="section-divider"></div>
+<h2 id="section-8">七、功能需求分析</h2>
+<h3>7.1 功能架构</h3>
+<p>功能按参与角色组织为用例（Use Case），包含两大支撑能力（知识接入、推送与计划管理）与五级核心脑力能力（按智能体主动性从低到高 L1→L5）：</p>
+<ul><li><strong>L1 认知挖掘</strong>——被动响应的模糊检索定位；</li><li><strong>L2 冲突检测</strong>——系统主动扫描与实时检测知识矛盾；</li><li><strong>L3 认知助产</strong>——系统主动生成追问与简报，引导思考；</li><li><strong>L4 路径自我修正</strong>——监测行为偏离并主动干预重规划；</li><li><strong>L5 偏误诊断</strong>——归因诊断学习病根并给出方案。</li></ul>
+<figure><img src="images/fig03_funcarch.png" alt="图 12 功能架构图"><figcaption>图 12　功能架构图。上层为统一交互入口，中层为五级核心能力，下层为两项支撑能力。</figcaption></figure>
+<h3>7.2 用例总览</h3>
+<table><thead><tr><th>用例编号</th><th>用例名</th><th>主角色</th><th>能力</th><th>优先级</th></tr></thead><tbody><tr><td>UC-G-01</td><td>知识库接入</td><td>学习者 / 系统</td><td>支撑—知识接入</td><td>高</td></tr><tr><td>UC-G-02</td><td>主动推送偏好管理</td><td>学习者</td><td>支撑—推送管理</td><td>中</td></tr><tr><td>UC-L1-01</td><td>模糊意图挖掘定位</td><td>学习者</td><td>L1 认知挖掘</td><td>高</td></tr><tr><td>UC-L2-01</td><td>知识冲突主动扫描</td><td>系统</td><td>L2 冲突检测</td><td>高</td></tr><tr><td>UC-L2-02</td><td>新内容实时冲突检测</td><td>系统</td><td>L2 冲突检测</td><td>中</td></tr><tr><td>UC-L2-03</td><td>冲突反馈（忽略 / 采纳）</td><td>学习者</td><td>L2 冲突检测</td><td>中</td></tr><tr><td>UC-L3-01</td><td>周认知简报生成</td><td>系统</td><td>L3 认知助产</td><td>中</td></tr><tr><td>UC-L3-02</td><td>深度追问生成</td><td>系统</td><td>L3 认知助产</td><td>中</td></tr><tr><td>UC-L4-01</td><td>学习计划制定与重规划</td><td>学习者 / 系统</td><td>L4 路径自我修正</td><td>高</td></tr><tr><td>UC-L4-02</td><td>行为偏离监测与干预</td><td>系统</td><td>L4 路径自我修正</td><td>中</td></tr><tr><td>UC-L5-01</td><td>月学习健康报告</td><td>系统</td><td>L5 偏误诊断</td><td>中</td></tr><tr><td>UC-L5-02</td><td>学习归因诊断</td><td>学习者 / 系统</td><td>L5 偏误诊断</td><td>中</td></tr></tbody></table>
+<p>用例与参与者的整体关系如下图：</p>
+<figure><img src="images/fig04_usecase.png" alt="图 13 系统用例图"><figcaption>图 13　系统用例图。学习者（U1）为唯一人类参与者，知识源平台（S1）为外部系统参与者；12 个用例按五级能力与两项支撑能力分组。</figcaption></figure>
+<h3>7.3 关键用例规约摘要</h3>
+<table><thead><tr><th>用例</th><th>触发条件</th><th>核心流程要点</th><th>关键扩展 / 异常</th></tr></thead><tbody><tr><td>知识库接入</td><td>用户授权</td><td>授权→同步原文→向量化与主张提取→回传结果</td><td>超大条目分块；连接失败可重试不阻塞</td></tr><tr><td>推送偏好管理</td><td>用户设置</td><td>选择频率→保存→按偏好调度推送</td><td>同类型忽略 ≥3 次→自动收敛</td></tr><tr><td>模糊意图定位</td><td>模糊 / 感官化输入</td><td>线索→候选假设→多轮追问→定位交付+阅读历史提醒</td><td>唯一命中直接交付；无法回答按相似度兜底</td></tr><tr><td>冲突主动扫描</td><td>每周定时</td><td>扫描→主张提取→语义比对→过滤误报→候选（含置信度）→推送</td><td>低置信度不入库不推送</td></tr><tr><td>实时冲突检测</td><td>收藏新文章</td><td>入库即检测→实时推送提醒</td><td>同扫描流程</td></tr><tr><td>冲突反馈</td><td>存在冲突提醒</td><td>查看→忽略 / 采纳→记录反馈</td><td>同类型忽略 ≥3 次收敛</td></tr><tr><td>周认知简报</td><td>每周定时</td><td>主题分布分析→缺失模式识别→生成 2–3 个追问→汇总冲突→推送</td><td>—</td></tr><tr><td>深度追问</td><td>问答完成 / 新收藏后</td><td>获取上下文→生成 1 个衔接性深度问题→附数据依据推送</td><td>可承接新对话</td></tr><tr><td>计划制定与重规划</td><td>用户设定目标</td><td>目标→周维度拆解→确认→写入→进入监测</td><td>调整时进入重规划流程</td></tr><tr><td>偏离监测与干预</td><td>连续 3 天未执行 / 模式突变 / 主动请求</td><td>聚合行为→归因→调整建议→干预对话→同意重拆 / 拒绝保留</td><td>拒绝时记录偏好</td></tr><tr><td>月健康报告</td><td>每月定时</td><td>批量分析→多因素归因→诊断报告（置信度+推理链）→推送→询问采纳</td><td>采纳后写入计划闭环</td></tr><tr><td>归因诊断</td><td>用户主动询问</td><td>提问→链式归因→诊断+可执行方案→可写入计划</td><td>—</td></tr></tbody></table>
+<h3>7.4 用户侧接口功能框架</h3>
+<table><thead><tr><th>能力</th><th>接口需求</th></tr></thead><tbody><tr><td>对话</td><td>支持多轮自然语言交互，可跟随 Tool 调用完成动作</td></tr><tr><td>知识管理</td><td>新增 / 查询 / 导入知识条目</td></tr><tr><td>目标与计划</td><td>设定目标、查看 / 调整计划</td></tr><tr><td>冲突管理</td><td>查看冲突列表、反馈忽略 / 采纳</td></tr><tr><td>诊断与报告</td><td>查询最新诊断、健康报告</td></tr><tr><td>偏好设置</td><td>更新推送频率与其他偏好</td></tr><tr><td>成本查询</td><td>查询模型费用明细</td></tr></tbody></table>
+<h3>7.5 需求追踪矩阵</h3>
+<p>每一条需求都必须能回溯到用例与验收项，无依据的功能不得进入范围（反向检查）：</p>
+<table><thead><tr><th>需求 / 目标</th><th>承载用例</th><th>关键规则</th><th>验收项</th></tr></thead><tbody><tr><td>G1 碎片变认知</td><td>UC-L1-01</td><td>多轮追问收敛轮数 ≤ 3</td><td>AT-01</td></tr><tr><td>G2 矛盾主动提醒</td><td>UC-L2-01 / 02 / 03</td><td>置信度 &lt; 0.5 丢弃；同类型忽略 ≥3 次收敛</td><td>AT-02、AT-03</td></tr><tr><td>G3 引导提问</td><td>UC-L3-01 / 02</td><td>每周推送 2–3 个追问，附数据依据</td><td>AT-04</td></tr><tr><td>G4 自主纠偏</td><td>UC-L4-01 / 02</td><td>连续 3 天未执行触发干预；拒绝则记录偏好</td><td>AT-05</td></tr><tr><td>G5 病根诊断</td><td>UC-L5-01 / 02</td><td>诊断须含归因链与置信度</td><td>AT-06</td></tr><tr><td>权限与数据隔离</td><td>全部业务用例</td><td>仅可操作本人资源，越权拒绝且数据不变</td><td>AT-07</td></tr><tr><td>降级可用性</td><td>全部能力</td><td>向量库不可用时回退关键词检索</td><td>AT-08</td></tr><tr><td>打扰控制</td><td>UC-G-02、UC-L2-03</td><td>频率偏好 + 免打扰 + 自动收敛</td><td>AT-03</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-9">八、数据需求分析</h2>
+<h3>8.1 核心数据实体</h3>
+<table><thead><tr><th>实体</th><th>用途</th><th>关键属性</th></tr></thead><tbody><tr><td>User（用户）</td><td>账号、偏好</td><td>昵称、推送频率、加密 key</td></tr><tr><td>KnowledgeItem（知识条目）</td><td>知识库基本单位</td><td>标题、正文、来源、标签、阅读进度、核心主张</td></tr><tr><td>Claim（核心主张）</td><td>冲突比对的最小单位</td><td>主张文本、所属条目、向量</td></tr><tr><td>LearningGoal（学习目标）</td><td>目标管理</td><td>描述、期限、优先级、是否达成</td></tr><tr><td>LearningPlan（学习计划）</td><td>计划管理</td><td>目标关联、结构化计划内容</td></tr><tr><td>PlanTask（计划任务）</td><td>任务拆解</td><td>周次、主题、状态、关联条目</td></tr><tr><td>CognitiveDiagnosis（诊断报告）</td><td>偏误诊断输出</td><td>行为模式、归因、置信度、推理链、状态</td></tr><tr><td>Conflict（观点冲突）</td><td>冲突检测产物</td><td>条目 A/B、冲突类型、细节、建议、用户状态</td></tr><tr><td>Conversation（会话）</td><td>对话状态</td><td>状态机状态、上下文</td></tr><tr><td>PushLog（推送日志）</td><td>推送追溯与去重</td><td>类型、内容 hash、渠道、用户反馈</td></tr></tbody></table>
+<p>实体之间的关系如下图：用户拥有知识条目与学习目标；知识条目分解为核心主张；主张之间比对产生观点冲突；诊断结论可写入计划任务，构成闭环。</p>
+<figure><img src="images/fig05_er.png" alt="图 14 核心数据实体关系图"><figcaption>图 14　核心数据实体关系图（E-R）。</figcaption></figure>
+<h3>8.2 数据字典（关键字段）</h3>
+<table><thead><tr><th>实体</th><th>字段</th><th>类型</th><th>说明</th></tr></thead><tbody><tr><td>User</td><td>user_id / display_name</td><td>string</td><td>用户标识与昵称</td></tr><tr><td>User</td><td>push_frequency</td><td>enum</td><td>weekly / daily / quiet</td></tr><tr><td>KnowledgeItem</td><td>item_id / title / content</td><td>string / text</td><td>主键、标题与正文</td></tr><tr><td>KnowledgeItem</td><td>source</td><td>enum</td><td>来源：手动录入 / 书籍摘录 / 微信读书</td></tr><tr><td>KnowledgeItem</td><td>read_progress</td><td>float</td><td>阅读进度 0–1</td></tr><tr><td>KnowledgeItem</td><td>is_deleted / deleted_at</td><td>bool / datetime</td><td>软删除标记，不物理删除</td></tr><tr><td>Claim</td><td>claim_id / text</td><td>string</td><td>主张标识与文本</td></tr><tr><td>Claim</td><td>item_id</td><td>string</td><td>所属知识条目（外键）</td></tr><tr><td>Conflict</td><td>conflict_id</td><td>string</td><td>主键</td></tr><tr><td>Conflict</td><td>claim_a_id / claim_b_id</td><td>string</td><td>冲突双方主张（外键）</td></tr><tr><td>Conflict</td><td>conflict_type</td><td>enum</td><td>矛盾 / 互补 / 断层</td></tr><tr><td>Conflict</td><td>confidence</td><td>float</td><td>置信度 0–1；&lt; 0.5 丢弃</td></tr><tr><td>Conflict</td><td>user_state</td><td>enum</td><td>unseen / ignored / accepted</td></tr><tr><td>Conflict</td><td>ignore_count</td><td>int</td><td>同类型忽略计数，≥3 触发收敛</td></tr><tr><td>LearningGoal</td><td>goal_id / description</td><td>string</td><td>目标标识与描述</td></tr><tr><td>LearningGoal</td><td>target_date / priority</td><td>date / int</td><td>期限与优先级</td></tr><tr><td>LearningPlan</td><td>plan_id / goal_id</td><td>string</td><td>计划标识与所属目标</td></tr><tr><td>PlanTask</td><td>task_id / week / topic / status</td><td>string / int</td><td>任务拆解与状态</td></tr><tr><td>CognitiveDiagnosis</td><td>pattern / root_cause</td><td>string</td><td>行为模式与归因结论</td></tr><tr><td>CognitiveDiagnosis</td><td>confidence / reasoning_chain</td><td>float / list</td><td>置信度与推理链</td></tr><tr><td>PushLog</td><td>push_type / content_hash / channel</td><td>string</td><td>推送类型、去重哈希与渠道</td></tr><tr><td>Conversation</td><td>conversation_id / state</td><td>string</td><td>会话标识与状态机状态</td></tr></tbody></table>
+<h3>8.3 数据存储策略</h3>
+<table><thead><tr><th>存储</th><th>承载数据</th><th>说明</th></tr></thead><tbody><tr><td>关系库</td><td>用户 / 目标 / 计划 / 诊断 / 冲突 / 推送日志</td><td>事务强一致</td></tr><tr><td>向量索引</td><td>知识条目与主张的 Embedding</td><td>语义检索</td></tr><tr><td>缓存</td><td>会话状态 / 限流 / 短期记忆</td><td>低延迟</td></tr><tr><td>对象存储</td><td>原文附件 / 长文快照</td><td>大文件</td></tr></tbody></table>
+<h3>8.4 数据安全与生命周期</h3>
+<ol><li><strong>敏感分级</strong>：用户知识内容属敏感个人数据，加密存储、最小化收集；</li><li><strong>软删除</strong>：全表软删（<code>is_deleted</code> + <code>deleted_at</code>），避免误删不可恢复；</li><li><strong>生命周期</strong>：归档（不参与检索、可恢复）→ 保留期到期后物理清除（合规可擦除）；</li><li><strong>追溯</strong>：推送与模型调用留痕，支持审计与成本归因。</li></ol>
+<div class="section-divider"></div>
+<h2 id="section-10">九、非功能需求分析</h2>
+<h3>9.1 性能需求</h3>
+<table><thead><tr><th>编号</th><th>指标</th><th>目标</th></tr></thead><tbody><tr><td>性能-1</td><td>对话首字响应</td><td>≤ 3s（普通任务）；深度推理显示「思考中」占位</td></tr><tr><td>性能-2</td><td>语义检索 P95</td><td>≤ 500ms</td></tr><tr><td>性能-3</td><td>批量扫描吞吐</td><td>异步执行，不阻塞在线请求</td></tr><tr><td>性能-4</td><td>周 / 月简报生成</td><td>后台任务完成，用户无感知等待</td></tr></tbody></table>
+<h3>9.2 易用性需求</h3>
+<table><thead><tr><th>编号</th><th>指标</th><th>目标</th></tr></thead><tbody><tr><td>易用-1</td><td>交互方式</td><td>纯自然语言对话，零学习成本</td></tr><tr><td>易用-2</td><td>知识接入</td><td>用户一次授权即可，无需额外操作</td></tr><tr><td>易用-3</td><td>打扰控制</td><td>推送可设频率与免打扰，避免过度打扰</td></tr></tbody></table>
+<h3>9.3 可靠性需求</h3>
+<table><thead><tr><th>编号</th><th>指标</th><th>目标</th></tr></thead><tbody><tr><td>可靠-1</td><td>模型服务容错</td><td>DeepSeek API 异常自动重试（重试 2 次），不因单次失败中断</td></tr><tr><td>可靠-2</td><td>状态一致性</td><td>关键写操作走事务，计划 / 诊断采用乐观锁防覆盖</td></tr><tr><td>可靠-3</td><td>任务可靠性</td><td>定时任务具备失败重试与死信告警；支持断点续跑</td></tr><tr><td>可靠-4</td><td>依赖降级</td><td>向量库不可用时回退关键词检索，功能降级不中断</td></tr></tbody></table>
+<h3>9.4 安全与合规需求</h3>
+<table><thead><tr><th>编号</th><th>指标</th><th>目标</th></tr></thead><tbody><tr><td>安全-1</td><td>传输</td><td>全链路 TLS 加密</td></tr><tr><td>安全-2</td><td>存储</td><td>用户知识内容加密落库，最小化日志</td></tr><tr><td>安全-3</td><td>隔离</td><td>账号 key / 额度隔离，防越权</td></tr><tr><td>安全-4</td><td>数据使用</td><td>不做超越授权范围的数据使用；删除支持软删 + 合规可擦除</td></tr><tr><td>安全-5</td><td>输出校验</td><td>模型输出经敏感词 / 内容校验过滤</td></tr></tbody></table>
+<h3>9.5 可扩展性与可维护性需求</h3>
+<table><thead><tr><th>编号</th><th>指标</th><th>目标</th></tr></thead><tbody><tr><td>扩展-1</td><td>知识库源扩展</td><td>连接器插件化，新增来源不影响核心流程</td></tr><tr><td>扩展-2</td><td>能力扩展</td><td>五大能力独立模块，可单独增删 / 灰度</td></tr><tr><td>维护-1</td><td>可观测性</td><td>统一 request_id 全链路日志，成本与调用埋点齐全</td></tr><tr><td>维护-2</td><td>可配置性</td><td>规则 / 提示词 / 推送策略配置化热更新</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-11">十、可行性分析</h2>
+<h3>10.1 技术可行性</h3>
+<ol><li><strong>模型能力成熟</strong>：单一依赖的 DeepSeek API 需支持工具调用、思考模式、长上下文与 Prompt 缓存，均为当前主流大模型已具备的成熟能力；统一网关封装了重试、限流、熔断与成本埋点，单点依赖风险已有工程手段缓冲，且抽象接口保留了未来替换 / 新增服务商的能力。</li><li><strong>技术栈成熟</strong>：Python / FastAPI 异步服务、关系型数据库、向量检索、缓存与对象存储均为业界广泛验证的组件，语义检索、RAG 式召回为成熟工程范式。</li><li><strong>架构降级保障</strong>：向量检索不可用可回退关键词检索，功能降级不中断，保证核心可用性。</li></ol>
+<h3>10.2 经济可行性</h3>
+<ol><li><strong>成本可控机制内置</strong>：Prompt 缓存降低输入成本；成本与调用埋点齐全；用户侧提供成本查询接口，模型费用透明可核算；</li><li><strong>异步化摊薄峰值</strong>：批量扫描与周 / 月简报均为后台异步任务，避开在线高峰，降低算力峰值成本；</li><li><strong>单模型架构降低运维成本</strong>：相比多厂商混合编排，单一 LLM 依赖显著降低网关复杂度、联调与维护成本。</li></ol>
+<h3>10.3 操作（用户）可行性</h3>
+<ol><li>纯自然语言交互、零学习成本，目标用户无需技术背景；</li><li>知识接入一次授权即可，无额外操作负担；</li><li>推送频率可设并有免打扰与自动收敛机制，打扰风险可控。</li></ol>
+<h3>10.4 法律与合规可行性</h3>
+<ol><li>全链路 TLS 传输加密 + 落库加密，满足数据安全基线；</li><li>数据使用不超越授权范围，软删 + 合规可擦除满足用户数据删除权；</li><li>账号隔离与最小化日志降低数据泄露与滥用风险；模型输出经敏感词 / 内容校验过滤，降低生成内容风险。</li></ol>
+<h3>10.5 主要风险与应对</h3>
+<table><thead><tr><th>风险</th><th>应对措施</th></tr></thead><tbody><tr><td>模型 API 单点故障 / 限流</td><td>自动重试 2 次、限流熔断、统一网关隔离；抽象接口保留替换服务商能力</td></tr><tr><td>冲突检测误报导致用户流失</td><td>置信度阈值过滤 + 用户忽略 ≥3 次自动收敛的误报抑制机制</td></tr><tr><td>主动推送过度打扰</td><td>频率偏好 + 免打扰 + 推送日志去重 + 自动收敛</td></tr><tr><td>知识内容敏感泄露</td><td>加密存储、最小化收集、账号隔离、输出校验、审计留痕</td></tr></tbody></table>
+<div class="section-divider"></div>
+<h2 id="section-12">十一、MVP 功能范围</h2>
+<h3>11.1 范围界定原则</h3>
+<p>以「验证核心价值闭环」为原则，优先交付高优先级用例与核心闭环链路，砍掉编辑器、协作与社交化等非核心能力。</p>
+<h3>11.2 MVP 包含的功能</h3>
+<table><thead><tr><th>层级</th><th>功能</th><th>优先级</th><th>说明</th></tr></thead><tbody><tr><td>支撑能力</td><td>知识库接入（UC-G-01）</td><td>高</td><td>一切功能的前提，首期支持本地书籍与微信读书同步</td></tr><tr><td>支撑能力</td><td>推送偏好管理（UC-G-02）</td><td>中</td><td>频率设置与打扰控制</td></tr><tr><td>L1</td><td>模糊意图挖掘定位（UC-L1-01）</td><td>高</td><td>核心差异化能力，直接命中「收藏即遗忘」痛点</td></tr><tr><td>L2</td><td>知识冲突主动扫描（UC-L2-01）</td><td>高</td><td>每周定时全量扫描</td></tr><tr><td>L2</td><td>实时冲突检测（UC-L2-02）</td><td>中</td><td>新收藏即检测</td></tr><tr><td>L2</td><td>冲突反馈（UC-L2-03）</td><td>中</td><td>忽略 / 采纳与自动收敛</td></tr><tr><td>L3</td><td>周认知简报（UC-L3-01）</td><td>中</td><td>每周推送追问与冲突汇总</td></tr><tr><td>L3</td><td>深度追问（UC-L3-02）</td><td>中</td><td>问答 / 收藏后衔接式追问</td></tr><tr><td>L4</td><td>计划制定与重规划（UC-L4-01）</td><td>高</td><td>目标拆解为周维度任务</td></tr><tr><td>L4</td><td>偏离监测与干预（UC-L4-02）</td><td>中</td><td>连续 3 天未执行触发干预</td></tr><tr><td>L5</td><td>月学习健康报告（UC-L5-01）</td><td>中</td><td>月度诊断与方案落地</td></tr><tr><td>L5</td><td>归因诊断（UC-L5-02）</td><td>中</td><td>用户主动询问式诊断</td></tr></tbody></table>
+<h3>11.3 MVP 明确不做（首期排除）</h3>
+<ol><li>Web 编辑器；</li><li>多人协作；</li><li>内容创作社交化。</li></ol>
+<h3>11.4 MVP 交付形态</h3>
+<ol><li><strong>用户端</strong>：Web 对话工作台 + 功能页（桌面端、原生 App 为后续扩展）；</li><li><strong>模型层</strong>：单一 DeepSeek API 统一网关接入；</li><li><strong>接口范围</strong>：对话、知识管理、目标与计划、冲突管理、诊断与报告、偏好设置、成本查询七类用户侧接口框架。</li></ol>
+<div class="section-divider"></div>
+<h2 id="section-13">十二、预期效果</h2>
+<h3>12.1 用户价值</h3>
+<ol><li>从「存了」到「会用」：模糊线索即可找回内容，收藏真正转化为可调用的认知资产；</li><li>从「不知道」到「被提醒」：知识矛盾主动暴露，认知污染得以及时纠正；</li><li>从「被动接收」到「主动思考」：系统持续追问「该问没问」的问题，弥补认知盲区；</li><li>从「立目标」到「能达成」：计划偏离被主动干预，学习路径持续自我修正；</li><li>从「迷茫」到「有数」：学习问题获得基于行为数据的归因诊断与可执行方案。</li></ol>
+<h3>12.2 量化衡量指标</h3>
+<table><thead><tr><th>对应目标</th><th>核心指标</th></tr></thead><tbody><tr><td>G1 碎片变认知</td><td>模糊检索一次命中率 ↑、多轮追问收敛轮数 ↓</td></tr><tr><td>G2 矛盾主动提醒</td><td>冲突检测覆盖新增内容比例 ↑、误报率 ↓</td></tr><tr><td>G3 引导提问</td><td>认知简报每周推送的追问数（含用户参与率）</td></tr><tr><td>G4 自主纠偏</td><td>行为偏离→干预→路径调整的平均时延 ↓</td></tr><tr><td>G5 病根诊断</td><td>月度健康报告覆盖用户比例 ↑、诊断采纳率 ↑</td></tr></tbody></table>
+<h3>12.3 业务与产品层面预期</h3>
+<ol><li>形成「接入→挖掘→冲突→追问→纠偏→诊断」的差异化智能体能力壁垒，与传统知识管理工具形成清晰定位区隔；</li><li>通过五级能力独立模块化与灰度机制，支持按数据反馈逐级放量，快速迭代；</li><li>闭环数据（反馈、信任度量、行为数据）持续积累，形成「越用越懂用户」的产品护城河，为后续模型服务商扩展与能力升级奠定基础。</li></ol>
+<div class="section-divider"></div>
+<h2 id="section-14">附录 A　验收标准</h2>
+<p>验收项与需求追踪矩阵一一对应，用于测试用例设计与验收判定：</p>
+<table><thead><tr><th>编号</th><th>测试条件</th><th>预期结果</th><th>依据</th></tr></thead><tbody><tr><td>AT-01</td><td>输入模糊线索「橙色封面、好像是讲拖延症的」</td><td>系统发起追问或直接定位，收敛轮数 ≤ 3，返回内容附阅读历史</td><td>G1 / UC-L1-01</td></tr><tr><td>AT-02</td><td>冲突置信度分别为 0.49 与 0.50</td><td>0.49 不入库不推送；0.50 入库且可查询</td><td>G2 / 冲突过滤规则</td></tr><tr><td>AT-03</td><td>同一类型冲突累计第 3 次「忽略」</td><td>该类型不再出现在主动推荐中</td><td>G2 / 收敛规则</td></tr><tr><td>AT-04</td><td>知识库连续两周无新增内容</td><td>周简报仍按时生成，明确提示「本周无新增」而非静默失败</td><td>G3 / UC-L3-01</td></tr><tr><td>AT-05</td><td>学习计划连续 3 天未执行</td><td>触发干预对话，给出含预期收益的调整建议</td><td>G4 / UC-L4-02</td></tr><tr><td>AT-06</td><td>收藏 20 篇、完整读完 2 篇</td><td>诊断报告给出归因链（非仅完成率）与可执行方案</td><td>G5 / UC-L5-01</td></tr><tr><td>AT-07</td><td>用户乙请求修改用户甲的资源</td><td>拒绝（404 / 403）；甲的数据与状态保持不变</td><td>权限与数据隔离规则</td></tr><tr><td>AT-08</td><td>向量检索服务不可用</td><td>自动回退关键词检索，主链路不中断，并标注降级状态</td><td>可靠性要求</td></tr></tbody></table>
+<h2 id="section-15">附录 B　参考资料</h2>
+<ol><li>《认知副驾》产品定位与五层能力梯度说明（项目内部文档）；</li><li>GB/T 8567—2006《计算机软件文档编制规范》——软件需求规格说明章节结构参考；</li><li>IEEE Std 830—1998《Recommended Practice for Software Requirements Specifications》——需求可验证性与追踪关系参考；</li><li>DeepSeek 开放平台 API 文档——模型接入与计费口径依据。</li></ol>
+    </main>
+  </section>
+</body>
+</html>
