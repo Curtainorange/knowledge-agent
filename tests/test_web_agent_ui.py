@@ -169,6 +169,22 @@ def test_history_rows_reuse_shared_escaping():
     assert "historyRow: historyRow" in js
 
 
+def test_history_sidebar_separates_conflict_sessions():
+    """历史侧栏按 kind 分段：冲突检测与对话分开成段，且只认服务端 kind。
+
+    不许按标题/正文猜归类（「帮我检测冲突」当标题只是一句用户话术）；
+    归类口径在后端 `derive_kind`，前端只分组不判定。
+    """
+    js = _agent_js()
+    assert "function historyGroups" in js
+    assert "historyGroups: historyGroups" in js
+    assert "data-history-group" in js
+    # 分段标签是产品语义（「对话 / 冲突检测」），文案改动要同步改测试
+    assert "'对话'" in js and "'冲突检测'" in js
+    assert "item.kind" in js
+    assert "title.indexOf" not in js
+
+
 # ---------- 运行时行为（Node；环境无 node 时跳过）------------------------
 
 

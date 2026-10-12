@@ -699,13 +699,33 @@ window.CCA = (function () {
       '</div>';
   }
 
+  /* 历史侧栏分段：冲突检测与对话分开（2026-10-12）。kind 由服务端派生
+     （跑过 l2 扫描的会话归 "l2"，其余 "chat"），这里只按它分组——
+     固定两段、固定顺序，空段由渲染层补「暂无记录」，分组本身不吞数据。 */
+  function historyGroups(items) {
+    var chat = [];
+    var l2 = [];
+    (items || []).forEach(function (item) {
+      if (String(item && item.kind || '') === 'l2') {
+        l2.push(item);
+      } else {
+        chat.push(item);
+      }
+    });
+    return [
+      { key: 'chat', label: '对话', items: chat },
+      { key: 'l2', label: '冲突检测', items: l2 }
+    ];
+  }
+
   return {
     renderCard: renderCard,
     candidatesHtml: candidatesHtml,
     embedBadge: embedBadge,
     pct: pct,
     relTime: relTime,
-    historyRow: historyRow
+    historyRow: historyRow,
+    historyGroups: historyGroups
   };
 })();
 
@@ -959,33 +979,51 @@ window.CCA = (function () {
 
   /* ---- 历史侧栏：找回旧对话、切换、改名、删除 ----
      列表行由 CCA.historyRow 纯函数渲染（用户数据在那层已过 esc），
+     分段由 CCA.historyGroups（对话 / 冲突检测分开）完成，
      这里只负责取数、事件委托与状态切换。 */
 
   var HISTORY_PAGE = 50;
-  var historyLoaded = 0;
+  var historyItems = [];
   var historyTotal = 0;
+
+  function renderHistoryList() {
+    var box = document.getElementById('history-list');
+    if (!box) {
+      return;
+    }
+    if (!historyItems.length) {
+      box.innerHTML = '<div class="empty">暂无历史会话</div>';
+      return;
+    }
+    // 「加载更多」会攒出跨页的混合列表，分段必须对全量重排——只拼当页的话
+    // 同一段会被拆到两个页块里。重绘丢滚动位置，这里先存后还。
+    var panel = document.getElementById('history-panel');
+    var keepScroll = panel ? panel.scrollTop : 0;
+    box.innerHTML = CCA.historyGroups(historyItems).map(function (group) {
+      var rows = group.items.map(function (item) {
+        return CCA.historyRow(item, state.convId);
+      }).join('');
+      return '<div class="history-group" data-history-group="' + esc(group.key) + '">' +
+        '<div class="history-group-label">' + esc(group.label) + '</div>' +
+        (rows || '<div class="empty">暂无记录</div>') +
+        '</div>';
+    }).join('');
+    if (panel) {
+      panel.scrollTop = keepScroll;
+    }
+  }
 
   async function loadHistory(append) {
     try {
-      var offset = append ? historyLoaded : 0;
+      var offset = append ? historyItems.length : 0;
       var data = await CC.api('GET', '/api/v1/agent/conversations?limit=' + HISTORY_PAGE + '&offset=' + offset);
       var items = data.items || [];
       historyTotal = Number(data.total || 0);
-      historyLoaded = append ? historyLoaded + items.length : items.length;
-      var box = document.getElementById('history-list');
-      if (box) {
-        var html = items.map(function (item) {
-          return CCA.historyRow(item, state.convId);
-        }).join('');
-        if (append) {
-          box.insertAdjacentHTML('beforeend', html);
-        } else {
-          box.innerHTML = historyLoaded ? html : '<div class="empty">暂无历史会话</div>';
-        }
-      }
+      historyItems = append ? historyItems.concat(items) : items;
+      renderHistoryList();
       var moreWrap = document.getElementById('history-more-wrap');
       if (moreWrap) {
-        moreWrap.hidden = historyLoaded >= historyTotal;
+        moreWrap.hidden = historyItems.length >= historyTotal;
       }
     } catch (err) {
       // 侧栏是辅助入口：拉不下来不打断聊天，也不往消息流里刷错误

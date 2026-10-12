@@ -34,6 +34,7 @@ from app.core import trace
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.conversation_repository import (
     ConversationRepository,
+    derive_kind,
     derive_title,
 )
 from app.llm.gateway import ModelGateway
@@ -75,11 +76,16 @@ class ConversationOut(BaseModel):
 
 
 class ConversationBrief(BaseModel):
-    """历史列表行：侧栏只展示摘要，消息正文仍走 `GET /conversation/{id}`。"""
+    """历史列表行：侧栏只展示摘要，消息正文仍走 `GET /conversation/{id}`。
+
+    `kind` 是侧栏分段用的归类（"chat" / "l2"）：冲突检测类会话与普通对话
+    在历史里分开成段，判定口径见 `derive_kind`。
+    """
 
     conversation_id: str
     title: str
     state: str
+    kind: str
     message_count: int
     preview: str
     created_at: datetime
@@ -215,7 +221,8 @@ def list_conversations(
 
     `title` 在库里可能是空串（自动命名上线前的老会话），列表现场派生兜底：
     首条用户消息 → 「新会话」。不回写库——兜底只是展示，回写会让一次列表请求
-    意外变成写操作。
+    意外变成写操作。`kind` 同样现场派生（不加列），侧栏按它把冲突检测类会话
+    与普通对话分开成段。
     """
     repo = ConversationRepository(session, user_id=user_id)
     total = repo.count_by_user(user_id)
@@ -229,6 +236,7 @@ def list_conversations(
                 conversation_id=conv.id,
                 title=title,
                 state=conv.state,
+                kind=derive_kind(conv.messages),
                 message_count=len(conv.messages or []),
                 preview=derive_title(first, limit=60),
                 created_at=conv.created_at,

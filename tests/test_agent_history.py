@@ -1,6 +1,6 @@
 """对话历史会话测试：列表 / 自动命名 / 重命名 / 删除（全 Mock，不触网）。
 
-三条最值得钉死的不变量：
+四条最值得钉死的不变量：
 
 1. **自动命名 write-once**。首条用户消息派生标题，但用户重命名后永不覆盖——
    重命名是显式意图，被下一条消息冲掉等于「改了也白改」。
@@ -8,6 +8,8 @@
    否则历史侧栏全是「新会话」，等于没有历史。
 3. **越权语义与 GET /conversation 一致**。他人会话 403、不存在 404——
    列表/改名/删除三个入口不能成为越权的旁门。
+4. **冲突检测与对话分开**。`kind` 现场派生（不加列），历史侧栏据此分段——
+   跑过 l2 扫描的会话归 "l2"，其余归 "chat"。
 """
 from __future__ import annotations
 
@@ -18,6 +20,7 @@ from sqlalchemy import select
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.conversation_repository import (
     ConversationRepository,
+    derive_kind,
     derive_title,
 )
 from tests.helpers import sign_in
@@ -292,3 +295,64 @@ def test_first_chat_message_sets_the_title(client, session):
     data = _list(client, user.headers)
     row = next(i for i in data["items"] if i["conversation_id"] == conversation_id)
     assert row["title"].startswith("记一下：B+树更适合范围查询")
+
+
+# ---- kind 派生：冲突检测与对话分开（历史侧栏分段）----------------------
+
+
+def test_derive_kind_marks_conflict_detection_runs():
+    """判定只认卡片协议：l2 结果卡 / l2 占位卡 → "l2"，其余 → "chat"。"""
+    # 空会话、纯文本聊天都是对话
+    assert derive_kind([]) == "chat"
+    assert derive_kind(None) == "chat"
+    assert derive_kind([{"role": "user", "content": "帮我检测冲突"}]) == "chat"
+    # l2 扫描结果卡 → 冲突检测
+    assert derive_kind([
+        {"role": "user", "content": "帮我检测冲突"},
+        {"role": "assistant", "content": "扫出 2 处", "card": {"kind": "l2_conflicts", "items": []}},
+    ]) == "l2"
+    # 进行中 / 失败的占位卡带 capability="l2"，同样算检测记录（否则失败的扫描
+    # 会留在对话段里，「分开」就有了漏网的）
+    assert derive_kind([
+        {"role": "assistant", "content": "正在扫描冲突", "card": {"kind": "pending", "capability": "l2"}},
+    ]) == "l2"
+    assert derive_kind([
+        {"role": "assistant", "content": "扫描失败", "card": {"kind": "failed", "capability": "l2"}},
+    ]) == "l2"
+    # 其它能力的占位卡不算冲突检测
+    assert derive_kind([
+        {"role": "assistant", "content": "同步中", "card": {"kind": "pending", "capability": "weread_sync"}},
+    ]) == "chat"
+    # 先聊后扫的混合会话带检测记录 → 归 "l2"
+    assert derive_kind([
+        {"role": "user", "content": "聊点别的"},
+        {"role": "assistant", "content": "好"},
+        {"role": "user", "content": "帮我检测冲突"},
+        {"role": "assistant", "content": "扫出 1 处", "card": {"kind": "l2_conflicts", "items": []}},
+    ]) == "l2"
+    # 挖掘、同步这些非检测能力不改归类（要不要再细分等有需要再说）
+    assert derive_kind([
+        {"role": "user", "content": "咖啡馆", "source": "l1"},
+        {"role": "assistant", "content": "想定位哪一段？", "source": "l1", "card": {"kind": "l1_clarify"}},
+    ]) == "chat"
+
+
+def test_list_exposes_kind_for_sidebar_grouping(client, session):
+    """列表行带 kind：侧栏据此把冲突检测会话与普通对话分段。"""
+    user = sign_in(client, "hist_kind")
+    repo = _repo(session, user.user_id)
+
+    chat_conv = repo.create(user_id=user.user_id)
+    repo.append_message(chat_conv, "user", "普通聊天")
+    l2_conv = repo.create(user_id=user.user_id)
+    repo.append_message(l2_conv, "user", "帮我检测冲突")
+    repo.append_message(
+        l2_conv, "assistant", "扫出 2 处",
+        card={"kind": "l2_conflicts", "items": [], "summary": {}},
+    )
+    session.commit()
+
+    data = _list(client, user.headers)
+    kinds = {i["conversation_id"]: i["kind"] for i in data["items"]}
+    assert kinds[chat_conv.id] == "chat"
+    assert kinds[l2_conv.id] == "l2"

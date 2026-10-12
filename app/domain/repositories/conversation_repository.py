@@ -24,6 +24,30 @@ def derive_title(content: str, limit: int = _TITLE_LIMIT) -> str:
     return text[:limit] + "…"
 
 
+def derive_kind(messages: list[dict] | None) -> str:
+    """派生会话归类：`"l2"`（冲突检测）或 `"chat"`（对话）。
+
+    两类必须分开（2026-10-12）：冲突检测跑在对话里时会留下扫描卡，会话接着
+    进历史侧栏，「帮我检测冲突」这类一次性运行就和真正的聊天混排在一起。
+    侧栏据此分「对话 / 冲突检测」两段——同在一张列表里，切换/继续不受影响，
+    只是不再混着看。
+
+    判定只认**卡片协议**（`app/agent/cards.py`，字面量在这里刻意不 import——
+    领域层不能反向依赖能力层）：l2 结果卡 `kind="l2_conflicts"`，或还在跑/失败的
+    占位卡 `kind` 为 pending/failed 且 `capability="l2"`。先聊后扫的混合会话也算
+    `"l2"`——它带着检测记录，归到检测段比混进对话段更诚实。
+    其余一切（闲聊、录入、挖掘、同步…）都是 `"chat"`；要不要再细分，等有需要再说。
+    """
+    for message in messages or []:
+        card = message.get("card") or {}
+        kind = str(card.get("kind") or "")
+        if kind == "l2_conflicts":
+            return "l2"
+        if kind in ("pending", "failed") and str(card.get("capability") or "") == "l2":
+            return "l2"
+    return "chat"
+
+
 class ConversationRepository(BaseRepository[Conversation]):
     def __init__(self, session: Session, user_id: str | None = None):
         super().__init__(session, user_id)

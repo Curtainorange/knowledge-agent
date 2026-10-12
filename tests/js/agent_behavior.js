@@ -432,6 +432,21 @@ check('relTime 小时', CCA.relTime(new Date(Date.now() - 3 * 60 * 60 * 1000).to
 check('relTime 昨天', CCA.relTime(new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()) === '昨天');
 check('relTime 更早给日期', /^\d{2}-\d{2}$/.test(CCA.relTime(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())));
 
+console.log('\n历史分段（冲突检测与对话分开）');
+check('导出 historyGroups', typeof (CCA && CCA.historyGroups) === 'function');
+const groups = CCA.historyGroups([
+  { conversation_id: 'c1', title: '普通对话', kind: 'chat' },
+  { conversation_id: 'c2', title: '帮我检测冲突', kind: 'l2' },
+  { conversation_id: 'c3', title: '没有 kind 字段' }
+]);
+check('固定两段且对话在前', groups.length === 2 && groups[0].key === 'chat' && groups[1].key === 'l2');
+check('分段标签「对话 / 冲突检测」', groups[0].label === '对话' && groups[1].label === '冲突检测');
+check('冲突检测归组', groups[1].items.length === 1 && groups[1].items[0].conversation_id === 'c2');
+check('无 kind 默认视为对话', groups[0].items.length === 2);
+check('空列表仍给两段结构（渲染层补空态）', CCA.historyGroups(null).length === 2
+  && CCA.historyGroups([])[0].items.length === 0 && CCA.historyGroups([])[1].items.length === 0);
+check('只看 kind 不看标题语义', CCA.historyGroups([{ conversation_id: 'c4', title: '帮我检测冲突', kind: 'chat' }])[0].items.length === 1);
+
 console.log('');
 if (failed) {
   console.log('失败 ' + failed + ' 项');
