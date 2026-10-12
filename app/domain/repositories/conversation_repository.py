@@ -1,7 +1,7 @@
 """会话仓储：创建/读取/追加消息/迁移状态，并强制 user_id 作用域。"""
 from __future__ import annotations
 
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.domain.models.conversation import Conversation
@@ -22,6 +22,31 @@ def derive_title(content: str, limit: int = _TITLE_LIMIT) -> str:
     if len(text) <= limit:
         return text
     return text[:limit] + "…"
+
+
+def derive_kind(messages: list[dict] | None) -> str:
+    """派生会话归类：`"l2"`（检测记录）/ `"l1"`（挖掘记录）/ `"chat"`（对话）。
+
+    读时从消息形状派生，不加列不迁移——卡片与 `source` 已经把三种会话说清楚了：
+
+    - 带**任何**冲突检测卡的会话归 `"l2"`（结果卡 `l2_conflicts`，或 pending/failed
+      且 `capability="l2"`）——先聊后扫的混合会话也一样：它带着检测记录，就整条
+      不进对话历史。
+    - 全部消息 `source="l1"` 的会话归 `"l1"`——那是 mine.html 的工具会话（没有
+      开场白、没有工作台回合）。工作台里顺手挖过料的对话有开场白和 agent 回合，
+      仍是对话。
+    - 其余归 `"chat"`。
+    """
+    for message in messages or []:
+        card = message.get("card") or {}
+        kind = str(card.get("kind") or "")
+        if kind == "l2_conflicts":
+            return "l2"
+        if kind in ("pending", "failed") and str(card.get("capability") or "") == "l2":
+            return "l2"
+    if messages and all(str(m.get("source") or "") == "l1" for m in messages):
+        return "l1"
+    return "chat"
 
 
 class ConversationRepository(BaseRepository[Conversation]):
@@ -80,22 +105,24 @@ class ConversationRepository(BaseRepository[Conversation]):
     def set_state(self, conversation: Conversation, state: str) -> None:
         conversation.state = state
 
-    def count_by_user(self, user_id: str) -> int:
-        self._guard(user_id)
-        stmt = select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
-        return int(self._session.execute(stmt).scalar_one())
+    def list_by_user(self, user_id: str, kind: str | None = None) -> list[Conversation]:
+        """用户全部会话（最近活跃在前），可按派生归类过滤（`kind=None` 不过滤）。
 
-    def page_by_user(self, user_id: str, limit: int = 50, offset: int = 0) -> list[Conversation]:
-        """按最近活跃分页（`updated_at` 只精确到秒，用 id 二级排序保证顺序确定）。"""
+        归类要读消息 JSON 里的卡片与 `source`，SQL 过滤不了——单人规模整表取回
+        内存过滤即可。`updated_at` 只精确到秒，同秒时用 id 二级排序保证顺序确定。
+        分页请在过滤后的列表上切片（`rows[offset:offset + limit]`）：过滤和
+        limit/offset 都交给 SQL 的话，页码和 total 会当场错位。
+        """
         self._guard(user_id)
         stmt = (
             select(Conversation)
             .where(Conversation.user_id == user_id)
             .order_by(Conversation.updated_at.desc(), Conversation.id.asc())
-            .limit(limit)
-            .offset(offset)
         )
-        return list(self._session.execute(stmt).scalars().all())
+        rows = list(self._session.execute(stmt).scalars().all())
+        if kind is None:
+            return rows
+        return [conv for conv in rows if derive_kind(conv.messages) == kind]
 
     def rename(self, conversation_id: str, title: str) -> Conversation | None:
         conv = self.get(conversation_id)

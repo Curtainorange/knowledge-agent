@@ -9,7 +9,8 @@
 - `POST /start`        开启 / 恢复会话——**新会话由副驾主动开场**（进工作台只调它）
 - `POST /chat`         一轮对话（可能同步返回结果，也可能返回一张 pending 卡）
 - `GET  /conversation` 读会话（前端轮询 pending 卡 + 刷新页面恢复历史）
-- `GET  /conversations` 历史会话列表（侧栏；title 为空时现场派生兜底）
+- `GET  /conversations` 历史会话列表（侧栏；title 为空时现场派生兜底；**默认只回
+                      对话**——检测/挖掘记录不进对话历史，kind 参数可取其它归类）
 - `PATCH /conversations/{id}`  重命名会话
 - `DELETE /conversations/{id}` 删除会话（硬删，含消息记录）
 - `POST /actions`      卡片内操作（采纳/忽略）——**不写新消息**，只更新卡片状态
@@ -20,7 +21,7 @@
 from __future__ import annotations
 
 from datetime import datetime
-from typing import Any
+from typing import Any, Literal
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
@@ -34,6 +35,7 @@ from app.core import trace
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.conversation_repository import (
     ConversationRepository,
+    derive_kind,
     derive_title,
 )
 from app.llm.gateway import ModelGateway
@@ -80,6 +82,7 @@ class ConversationBrief(BaseModel):
     conversation_id: str
     title: str
     state: str
+    kind: str
     message_count: int
     preview: str
     created_at: datetime
@@ -208,20 +211,29 @@ def _first_user_content(conv: Conversation) -> str:
 def list_conversations(
     limit: int = Query(default=50, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
+    kind: Literal["chat", "l1", "l2", "all"] = Query(
+        default="chat",
+        description="归类过滤：chat=对话（默认）/ l1=挖掘记录 / l2=检测记录 / all=不过滤",
+    ),
     user_id: str = Depends(get_user_id),
     session: Session = Depends(get_session),
 ) -> ConversationListResponse:
-    """历史会话列表（最近活跃在前），供侧栏找回旧对话。
+    """历史会话列表（最近活跃在前），供侧栏找回旧对话——**默认只含对话**。
+
+    「彻底分开」：检测记录（带冲突卡的会话）与挖掘记录（mine.html 的纯 L1 会话）
+    不进对话历史。侧栏不带 kind 参数拿到的就是干净的对话；`kind="l1"`/`"l2"` 留给
+    挖掘页 / 检测页各自的记录清单，`kind="all"` 全量（调试与测试）。归类读时从
+    消息派生（`derive_kind`），分页在过滤**之后**切，total 与 items 同口径。
 
     `title` 在库里可能是空串（自动命名上线前的老会话），列表现场派生兜底：
     首条用户消息 → 「新会话」。不回写库——兜底只是展示，回写会让一次列表请求
     意外变成写操作。
     """
     repo = ConversationRepository(session, user_id=user_id)
-    total = repo.count_by_user(user_id)
-    rows = repo.page_by_user(user_id, limit=limit, offset=offset)
+    rows = repo.list_by_user(user_id, kind=None if kind == "all" else kind)
+    total = len(rows)
     items = []
-    for conv in rows:
+    for conv in rows[offset : offset + limit]:
         first = _first_user_content(conv)
         title = (conv.title or "").strip() or derive_title(first) or "新会话"
         items.append(
@@ -229,6 +241,7 @@ def list_conversations(
                 conversation_id=conv.id,
                 title=title,
                 state=conv.state,
+                kind=derive_kind(conv.messages),
                 message_count=len(conv.messages or []),
                 preview=derive_title(first, limit=60),
                 created_at=conv.created_at,

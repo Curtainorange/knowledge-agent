@@ -1,6 +1,6 @@
-"""对话历史会话测试：列表 / 自动命名 / 重命名 / 删除（全 Mock，不触网）。
+"""对话历史会话测试：列表 / 归类过滤 / 自动命名 / 重命名 / 删除（全 Mock，不触网）。
 
-三条最值得钉死的不变量：
+四条最值得钉死的不变量：
 
 1. **自动命名 write-once**。首条用户消息派生标题，但用户重命名后永不覆盖——
    重命名是显式意图，被下一条消息冲掉等于「改了也白改」。
@@ -8,6 +8,9 @@
    否则历史侧栏全是「新会话」，等于没有历史。
 3. **越权语义与 GET /conversation 一致**。他人会话 403、不存在 404——
    列表/改名/删除三个入口不能成为越权的旁门。
+4. **检测与挖掘记录不进对话历史**（「彻底分开」）。默认列表只回对话：带冲突卡的
+   会话归 l2、mine.html 的纯 L1 会话归 l1，都不出现；kind 参数给挖掘页 / 检测页
+   各自取自己的记录。分页在归类过滤**之后**切，total 与 items 同口径。
 """
 from __future__ import annotations
 
@@ -18,6 +21,7 @@ from sqlalchemy import select
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.conversation_repository import (
     ConversationRepository,
+    derive_kind,
     derive_title,
 )
 from tests.helpers import sign_in
@@ -292,3 +296,130 @@ def test_first_chat_message_sets_the_title(client, session):
     data = _list(client, user.headers)
     row = next(i for i in data["items"] if i["conversation_id"] == conversation_id)
     assert row["title"].startswith("记一下：B+树更适合范围查询")
+
+
+# ---- 归类与「彻底分开」 ------------------------------------------------------
+
+
+def test_derive_kind_classifies_detection_mining_and_chat():
+    """归类三条线：带检测卡→l2；纯 L1 会话→l1；其余→chat。"""
+    assert derive_kind(None) == "chat"
+    assert derive_kind([]) == "chat"
+    # 裸 /api/v1/chat 的老数据没有 source 字段，也算对话
+    assert derive_kind([{"role": "user", "content": "你好"}]) == "chat"
+    assert derive_kind([{"role": "user", "content": "你好", "source": ""}]) == "chat"
+
+    # 检测记录：结果卡 / pending 卡 / failed 卡（异步三态都算）
+    for card in (
+        {"kind": "l2_conflicts", "key": "k1"},
+        {"kind": "pending", "capability": "l2", "turn_id": "t1"},
+        {"kind": "failed", "capability": "l2", "turn_id": "t1"},
+    ):
+        assert derive_kind([
+            {"role": "user", "content": "帮我检测冲突", "source": "agent"},
+            {"role": "assistant", "content": "结果", "source": "agent", "card": card},
+        ]) == "l2"
+
+    # 别的能力的 pending/failed 卡不是检测
+    assert derive_kind([
+        {"role": "user", "content": "按建议重排计划", "source": "agent"},
+        {"role": "assistant", "content": "处理中", "source": "agent",
+         "card": {"kind": "pending", "capability": "l4", "turn_id": "t1"}},
+    ]) == "chat"
+
+    # 先聊后扫的混合会话带着检测记录，一样归 l2——整条不进对话历史
+    assert derive_kind([
+        {"role": "assistant", "content": "开场白", "source": "agent"},
+        {"role": "user", "content": "聊聊最近学的东西", "source": "agent"},
+        {"role": "assistant", "content": "好呀", "source": "agent"},
+        {"role": "user", "content": "帮我检测冲突", "source": "agent"},
+        {"role": "assistant", "content": "找到 1 处", "source": "agent",
+         "card": {"kind": "l2_conflicts", "key": "k2"}},
+    ]) == "l2"
+
+    # 挖掘记录：mine.html 工具会话——没有开场白，全部消息 source="l1"
+    assert derive_kind([
+        {"role": "user", "content": "咖啡馆", "source": "l1"},
+        {"role": "assistant", "content": "想找回哪段线索？", "source": "l1"},
+    ]) == "l1"
+    # 空挖掘会话（只有用户消息）同样是挖掘记录
+    assert derive_kind([{"role": "user", "content": "咖啡馆", "source": "l1"}]) == "l1"
+
+    # 工作台里顺手挖过料的对话不算挖掘记录：开场白是 agent 写的，混不进纯 L1
+    assert derive_kind([
+        {"role": "assistant", "content": "开场白", "source": "agent"},
+        {"role": "user", "content": "之前存的那段讲查询优化的内容", "source": "l1"},
+        {"role": "assistant", "content": "找到了", "source": "agent",
+         "card": {"kind": "l1_located", "items": []}},
+    ]) == "chat"
+
+
+def test_history_excludes_detection_and_mining_sessions(client, session):
+    """「彻底分开」端到端：检测会话与挖掘会话都不进默认列表，只剩对话。
+
+    检测走对话入口真路由出 l2 卡；挖掘走 /api/v1/l1/mine 真路径（与 mine.html
+    同一入口），两边都是真实写入形状，不是手工摆的数据。
+    """
+    user = sign_in(client, "hist_separate")
+    chat_id = _send(client, user.headers, "记一下：B+树更适合范围查询 #数据库")["conversation_id"]
+
+    det = _send(client, user.headers, "扫描知识冲突")
+    assert det["card"]["kind"] == "l2_conflicts"
+    det_id = det["conversation_id"]
+
+    resp = client.post(
+        "/api/v1/l1/mine",
+        json={"message": "咖啡馆那本书的读书笔记"},
+        headers=user.headers,
+    )
+    assert resp.status_code == 200, resp.text
+    mine_id = resp.json()["conversation_id"]
+
+    data = _list(client, user.headers)
+    assert [i["conversation_id"] for i in data["items"]] == [chat_id]
+    assert data["total"] == 1
+    assert data["items"][0]["kind"] == "chat"
+
+    # 记录本身没丢：kind=all 三条都在，各归各位
+    everything = _list(client, user.headers, kind="all")
+    assert everything["total"] == 3
+    kinds = {i["conversation_id"]: i["kind"] for i in everything["items"]}
+    assert kinds == {chat_id: "chat", det_id: "l2", mine_id: "l1"}
+
+
+def test_history_kind_filter_slices_each_class(client, session):
+    """kind 参数各取所需；分页在过滤之后切，total 与 items 同口径。"""
+    user = sign_in(client, "hist_kind_filter")
+    chat_id = _send(client, user.headers, "记一下：哈希索引不适合范围查询 #数据库")["conversation_id"]
+    det_id = _send(client, user.headers, "扫描知识冲突")["conversation_id"]
+    repo = _repo(session, user.user_id)
+    mine = repo.create(user_id=user.user_id)
+    repo.append_message(mine, "user", "时间管理", source="l1")
+    repo.append_message(mine, "assistant", "想找回哪段线索？", source="l1")
+    session.commit()
+
+    assert [i["conversation_id"] for i in _list(client, user.headers, kind="chat")["items"]] == [chat_id]
+
+    det = _list(client, user.headers, kind="l2")
+    assert [i["conversation_id"] for i in det["items"]] == [det_id]
+    assert det["items"][0]["kind"] == "l2"
+
+    mining = _list(client, user.headers, kind="l1")
+    assert [i["conversation_id"] for i in mining["items"]] == [mine.id]
+    assert mining["items"][0]["kind"] == "l1"
+
+    # 过滤后分页：l1 只有一条，第二页为空，但 total 仍是过滤口径下的 1
+    page2 = _list(client, user.headers, kind="l1", limit=1, offset=1)
+    assert page2["total"] == 1
+    assert page2["items"] == []
+
+
+def test_history_rejects_unknown_kind(client):
+    """kind 只认 chat/l1/l2/all，乱写 422。"""
+    user = sign_in(client, "hist_kind_bad")
+    resp = client.get(
+        "/api/v1/agent/conversations",
+        params={"kind": "conflict"},
+        headers=user.headers,
+    )
+    assert resp.status_code == 422
