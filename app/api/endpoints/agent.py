@@ -4,11 +4,14 @@
 用户说什么都往这里发，由 `Copilot` 决定交给哪个能力。原 /chat 保留不动，
 旧调用方与既有测试不受影响。
 
-五个端点各管一件事：
+八个端点各管一件事：
 
 - `POST /start`        开启 / 恢复会话——**新会话由副驾主动开场**（进工作台只调它）
 - `POST /chat`         一轮对话（可能同步返回结果，也可能返回一张 pending 卡）
 - `GET  /conversation` 读会话（前端轮询 pending 卡 + 刷新页面恢复历史）
+- `GET  /conversations` 历史会话列表（侧栏；title 为空时现场派生兜底）
+- `PATCH /conversations/{id}`  重命名会话
+- `DELETE /conversations/{id}` 删除会话（硬删，含消息记录）
 - `POST /actions`      卡片内操作（采纳/忽略）——**不写新消息**，只更新卡片状态
 - `GET  /capabilities` 能力清单（「是否已接入」由服务端给，供外部集成与测试用；
                       前端**不再**据此渲染快捷入口按钮——理由见 `web/assets/agent.js`
@@ -16,9 +19,10 @@
 """
 from __future__ import annotations
 
+from datetime import datetime
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
@@ -27,6 +31,11 @@ from app.agent.copilot import Copilot
 from app.agent.router import CAPABILITY_CATALOG, WIRED_CAPABILITIES
 from app.api.deps import get_gateway, get_session, get_user_id
 from app.core import trace
+from app.domain.models.conversation import Conversation
+from app.domain.repositories.conversation_repository import (
+    ConversationRepository,
+    derive_title,
+)
 from app.llm.gateway import ModelGateway
 
 router = APIRouter(prefix="/api/v1/agent", tags=["agent"])
@@ -62,6 +71,42 @@ class ConversationOut(BaseModel):
     conversation_id: str
     state: str
     messages: list[ConversationMessageOut]
+    request_id: str
+
+
+class ConversationBrief(BaseModel):
+    """历史列表行：侧栏只展示摘要，消息正文仍走 `GET /conversation/{id}`。"""
+
+    conversation_id: str
+    title: str
+    state: str
+    message_count: int
+    preview: str
+    created_at: datetime
+    updated_at: datetime
+
+
+class ConversationListResponse(BaseModel):
+    items: list[ConversationBrief]
+    total: int
+    limit: int
+    offset: int
+    request_id: str
+
+
+class ConversationRenameRequest(BaseModel):
+    title: str = Field(min_length=1, max_length=128)
+
+
+class ConversationRenameResponse(BaseModel):
+    conversation_id: str
+    title: str
+    request_id: str
+
+
+class ConversationDeleteResponse(BaseModel):
+    conversation_id: str
+    deleted: bool
     request_id: str
 
 
@@ -149,6 +194,102 @@ def agent_conversation(
     except PermissionError as exc:
         raise HTTPException(status_code=403, detail="无权访问该会话") from exc
     return ConversationOut(**data, request_id=trace.get_request_id() or "")
+
+
+def _first_user_content(conv: Conversation) -> str:
+    for message in conv.messages or []:
+        if message.get("role") == "user":
+            return str(message.get("content") or "")
+    messages = conv.messages or []
+    return str(messages[0].get("content") or "") if messages else ""
+
+
+@router.get("/conversations", response_model=ConversationListResponse)
+def list_conversations(
+    limit: int = Query(default=50, ge=1, le=100),
+    offset: int = Query(default=0, ge=0),
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> ConversationListResponse:
+    """历史会话列表（最近活跃在前），供侧栏找回旧对话。
+
+    `title` 在库里可能是空串（自动命名上线前的老会话），列表现场派生兜底：
+    首条用户消息 → 「新会话」。不回写库——兜底只是展示，回写会让一次列表请求
+    意外变成写操作。
+    """
+    repo = ConversationRepository(session, user_id=user_id)
+    total = repo.count_by_user(user_id)
+    rows = repo.page_by_user(user_id, limit=limit, offset=offset)
+    items = []
+    for conv in rows:
+        first = _first_user_content(conv)
+        title = (conv.title or "").strip() or derive_title(first) or "新会话"
+        items.append(
+            ConversationBrief(
+                conversation_id=conv.id,
+                title=title,
+                state=conv.state,
+                message_count=len(conv.messages or []),
+                preview=derive_title(first, limit=60),
+                created_at=conv.created_at,
+                updated_at=conv.updated_at,
+            )
+        )
+    return ConversationListResponse(
+        items=items,
+        total=total,
+        limit=limit,
+        offset=offset,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.patch("/conversations/{conversation_id}", response_model=ConversationRenameResponse)
+def rename_conversation(
+    conversation_id: str,
+    body: ConversationRenameRequest,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> ConversationRenameResponse:
+    """重命名会话。用户改过的名字优先级最高，不会被后续消息的自动命名覆盖。"""
+    title = body.title.strip()
+    if not title:
+        raise HTTPException(status_code=422, detail="标题不能为空")
+    repo = ConversationRepository(session, user_id=user_id)
+    try:
+        conv = repo.rename(conversation_id, title)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="无权访问该会话") from exc
+    if conv is None:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    session.commit()
+    return ConversationRenameResponse(
+        conversation_id=conversation_id,
+        title=conv.title,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.delete("/conversations/{conversation_id}", response_model=ConversationDeleteResponse)
+def delete_conversation(
+    conversation_id: str,
+    user_id: str = Depends(get_user_id),
+    session: Session = Depends(get_session),
+) -> ConversationDeleteResponse:
+    """删除会话（硬删整行，消息记录随之消失，不可恢复）。"""
+    repo = ConversationRepository(session, user_id=user_id)
+    try:
+        deleted = repo.delete(conversation_id)
+    except PermissionError as exc:
+        raise HTTPException(status_code=403, detail="无权访问该会话") from exc
+    if not deleted:
+        raise HTTPException(status_code=404, detail="会话不存在")
+    session.commit()
+    return ConversationDeleteResponse(
+        conversation_id=conversation_id,
+        deleted=True,
+        request_id=trace.get_request_id() or "",
+    )
 
 
 @router.post("/actions", response_model=AgentActionResponse)

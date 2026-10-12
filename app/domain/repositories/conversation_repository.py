@@ -1,10 +1,27 @@
 """会话仓储：创建/读取/追加消息/迁移状态，并强制 user_id 作用域。"""
 from __future__ import annotations
 
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.domain.models.conversation import Conversation
 from app.domain.repositories.base import BaseRepository
+
+_TITLE_LIMIT = 40
+
+
+def derive_title(content: str, limit: int = _TITLE_LIMIT) -> str:
+    """从一段消息文本派生会话标题：换行/制表→空格、压缩空白、超长截断加省略号。
+
+    侧栏是单行布局，换行和连续空白都会撑破它；标题只是列表里的辨认锚点，
+    截断到 `limit` 字足够，完整内容仍在消息流里。
+    """
+    text = " ".join((content or "").split())
+    if not text:
+        return ""
+    if len(text) <= limit:
+        return text
+    return text[:limit] + "…"
 
 
 class ConversationRepository(BaseRepository[Conversation]):
@@ -43,6 +60,11 @@ class ConversationRepository(BaseRepository[Conversation]):
 
         注意 `messages` 是 JSON 列且此处整体重新赋值——SQLAlchemy 不会追踪 JSON 内部
         的原地修改，只有重新赋值才会落库。
+
+        **自动命名也在这里**：首条用户消息派生 `title`（write-once）。写在这层是因为
+        所有写消息的路径（Orchestrator / Copilot / L1 / turns）都经过本方法，写在任何
+        一个调用方都会漏掉其它路径。用户重命名后 `title` 不再为空，后续消息不会覆盖——
+        重命名是显式意图，不能被冲掉。
         """
         messages = list(conversation.messages or [])
         message: dict = {"role": role, "content": content}
@@ -52,6 +74,40 @@ class ConversationRepository(BaseRepository[Conversation]):
             message["card"] = card
         messages.append(message)
         conversation.messages = messages
+        if role == "user" and not (conversation.title or "").strip():
+            conversation.title = derive_title(content)
 
     def set_state(self, conversation: Conversation, state: str) -> None:
         conversation.state = state
+
+    def count_by_user(self, user_id: str) -> int:
+        self._guard(user_id)
+        stmt = select(func.count()).select_from(Conversation).where(Conversation.user_id == user_id)
+        return int(self._session.execute(stmt).scalar_one())
+
+    def page_by_user(self, user_id: str, limit: int = 50, offset: int = 0) -> list[Conversation]:
+        """按最近活跃分页（`updated_at` 只精确到秒，用 id 二级排序保证顺序确定）。"""
+        self._guard(user_id)
+        stmt = (
+            select(Conversation)
+            .where(Conversation.user_id == user_id)
+            .order_by(Conversation.updated_at.desc(), Conversation.id.asc())
+            .limit(limit)
+            .offset(offset)
+        )
+        return list(self._session.execute(stmt).scalars().all())
+
+    def rename(self, conversation_id: str, title: str) -> Conversation | None:
+        conv = self.get(conversation_id)
+        if conv is None:
+            return None
+        conv.title = title
+        return conv
+
+    def delete(self, conversation_id: str) -> bool:
+        conv = self.get(conversation_id)
+        if conv is None:
+            return False
+        self._session.delete(conv)
+        self._session.flush()
+        return True

@@ -83,9 +83,11 @@ _FIELD_LABELS = {
     "goal_id": "目标 ID",
     "plan_id": "计划 ID",
     "job_id": "推送任务 ID",
+    "conversation_id": "会话 ID",
     "page": "页码",
     "page_size": "每页条数",
     "limit": "条数上限",
+    "offset": "偏移量",
 }
 
 
