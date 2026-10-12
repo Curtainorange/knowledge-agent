@@ -793,3 +793,33 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
   }
   .toc-item{min-height:44px;align-items:center}
 }
+
+/* ============ 对话历史侧栏（对话工作台） ============
+   桌面：250px 常驻左栏（复用 .item/.snippet/.meta 列表原子）；
+   ≤720px：收成左侧抽屉（照 .toc-panel 的固定层方案），聊天区布局不动。 */
+main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px;align-items:start;gap:16px}
+.history-panel{display:flex;flex-direction:column;gap:6px;max-height:calc(100vh - 140px);max-height:calc(100dvh - 140px);overflow-y:auto}
+.history-panel .panel-head{display:flex;align-items:center;justify-content:space-between;gap:8px}
+.history-panel h3{margin:0;font-size:15px}
+.history-list{display:flex;flex-direction:column}
+.history-item{margin-bottom:8px;min-width:0}
+.history-item .h-title{flex:1;min-width:0;font-weight:600;font-size:13.5px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-item .snippet{white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.history-actions{display:flex;gap:4px;flex:0 0 auto;opacity:0;transition:opacity .12s}
+.history-item:hover .history-actions,.history-item:focus-within .history-actions{opacity:1}
+.h-act{border:none;background:none;color:var(--muted);font-size:12px;cursor:pointer;padding:2px 7px;border-radius:6px}
+.h-act:hover{color:var(--accent);background:var(--accent-weak)}
+#btn-history-close,#btn-history{display:none}
+
+@media(max-width:720px){
+  main.single.workbench{grid-template-columns:1fr;padding:10px 12px 0}
+  #btn-history,#btn-history-close{display:inline-block}
+  .history-panel{
+    position:fixed;left:0;top:0;bottom:0;width:300px;max-width:85vw;z-index:70;
+    background:#fff;border-right:1px solid var(--border);box-shadow:8px 0 32px rgba(26,32,51,.10);
+    padding:14px;max-height:100%;
+    transform:translateX(-105%);transition:transform .18s ease;
+  }
+  .history-panel.open{transform:translateX(0)}
+  .history-actions{opacity:1}
+}

@@ -143,6 +143,32 @@ def test_messages_array_is_the_single_source_of_truth():
     assert "function signature(" in js
 
 
+def test_history_sidebar_uses_its_own_endpoints():
+    """历史侧栏走 /conversations 列表接口，且只有一条恢复路径 startConversation。
+
+    不许另写一个 restoreConversation：两条恢复路径迟早对不上（开场重复插、历史丢卡片）。
+    """
+    js = _agent_js()
+    assert "/api/v1/agent/conversations" in js
+    assert "function loadHistory" in js
+    assert "function switchConversation" in js
+    assert "function startConversation()" in js  # 切换会话复用它，不新开恢复函数
+
+
+def test_history_delete_and_rename_require_interaction():
+    """删除不可恢复，必须 confirm；重命名走 prompt。"""
+    js = _agent_js()
+    assert "confirm(" in js
+    assert "prompt(" in js
+
+
+def test_history_rows_reuse_shared_escaping():
+    """侧栏行渲染是 CCA 纯函数，用户数据走共享 esc（转义细节由 Node 用例钉死）。"""
+    js = _agent_js()
+    assert "function historyRow(" in js
+    assert "historyRow: historyRow" in js
+
+
 # ---------- 运行时行为（Node；环境无 node 时跳过）------------------------
 
 

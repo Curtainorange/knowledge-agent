@@ -405,6 +405,33 @@ check('embedBadge 三态', CCA.embedBadge('embedded').indexOf('已向量化') !=
   && CCA.embedBadge('embed_failed').indexOf('关键词兜底') !== -1
   && CCA.embedBadge('pending').indexOf('待向量化') !== -1);
 
+console.log('\n历史侧栏');
+check('导出 historyRow', typeof (CCA && CCA.historyRow) === 'function');
+check('导出 relTime', typeof (CCA && CCA.relTime) === 'function');
+const row = CCA.historyRow({
+  conversation_id: 'c1', title: 'B+树笔记', preview: '记一下：B+树更适合范围查询',
+  updated_at: new Date().toISOString()
+}, 'c1');
+check('当前会话高亮', row.indexOf('history-item active') !== -1);
+check('行携带会话 id', row.indexOf('data-conversation-id="c1"') !== -1);
+check('标题渲染', row.indexOf('B+树笔记') !== -1);
+check('预览渲染', row.indexOf('记一下：B+树更适合范围查询') !== -1);
+check('改名/删除按钮在行内', row.indexOf('data-history-rename') !== -1
+  && row.indexOf('data-history-delete') !== -1);
+const rowOther = CCA.historyRow({ conversation_id: 'c2', title: '别的', preview: '', updated_at: '' }, 'c1');
+check('非当前会话不高亮', rowOther.indexOf('active') === -1);
+const rowEmpty = CCA.historyRow({ conversation_id: 'c3', title: '  ', preview: '', updated_at: '' }, null);
+check('空标题兜底「新会话」', rowEmpty.indexOf('新会话') !== -1);
+const rowXss = CCA.historyRow({ conversation_id: 'c4', title: XSS, preview: XSS, updated_at: '' }, null);
+check('标题被转义（XSS）', rowXss.indexOf('<img src=x') === -1 && rowXss.indexOf('&lt;img') !== -1);
+check('预览被转义（XSS）', rowXss.split('&lt;img').length - 1 === 2);
+check('relTime 非法输入返回空串', CCA.relTime('') === '' && CCA.relTime(null) === '' && CCA.relTime('not-a-date') === '');
+check('relTime 刚刚', CCA.relTime(new Date(Date.now() - 10 * 1000).toISOString()) === '刚刚');
+check('relTime 分钟', CCA.relTime(new Date(Date.now() - 5 * 60 * 1000).toISOString()).indexOf('分钟前') !== -1);
+check('relTime 小时', CCA.relTime(new Date(Date.now() - 3 * 60 * 60 * 1000).toISOString()).indexOf('小时前') !== -1);
+check('relTime 昨天', CCA.relTime(new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()) === '昨天');
+check('relTime 更早给日期', /^\d{2}-\d{2}$/.test(CCA.relTime(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())));
+
 console.log('');
 if (failed) {
   console.log('失败 ' + failed + ' 项');

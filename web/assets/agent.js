@@ -644,11 +644,68 @@ window.CCA = (function () {
     return render(card);
   }
 
+  /* 历史侧栏的时间标签：从「刚刚」渐退到日期。输入是 ISO 串，容错非法值。 */
+  function relTime(iso) {
+    if (!iso) {
+      return '';
+    }
+    var t = new Date(iso).getTime();
+    if (isNaN(t)) {
+      return '';
+    }
+    var diff = Date.now() - t;
+    if (diff < 0) {
+      diff = 0;
+    }
+    var minute = 60 * 1000;
+    var hour = 60 * minute;
+    var day = 24 * hour;
+    if (diff < minute) {
+      return '刚刚';
+    }
+    if (diff < hour) {
+      return Math.floor(diff / minute) + ' 分钟前';
+    }
+    if (diff < day) {
+      return Math.floor(diff / hour) + ' 小时前';
+    }
+    if (diff < 2 * day) {
+      return '昨天';
+    }
+    var d = new Date(t);
+    var mm = d.getMonth() + 1;
+    var dd = d.getDate();
+    return (mm < 10 ? '0' : '') + mm + '-' + (dd < 10 ? '0' : '') + dd;
+  }
+
+  /* 历史侧栏一行。标题与预览都是用户数据，一律过 esc。
+     行本身可点（data-history-open），改名/删除是行内小按钮（stopPropagation 由
+     事件委托层按 closest 判断先后处理）。 */
+  function historyRow(item, activeId) {
+    var id = String(item && item.conversation_id || '');
+    var title = String(item && item.title || '').trim() || '新会话';
+    var preview = String(item && item.preview || '');
+    var active = activeId && id === String(activeId) ? ' active' : '';
+    return '<div class="item history-item' + active + '" data-history-open data-conversation-id="' + esc(id) + '">' +
+      '<div class="row">' +
+      '<div class="h-title">' + esc(title) + '</div>' +
+      '<div class="history-actions">' +
+      '<button type="button" class="h-act" data-history-rename title="重命名">改名</button>' +
+      '<button type="button" class="h-act" data-history-delete title="删除会话">删除</button>' +
+      '</div>' +
+      '</div>' +
+      (preview ? '<div class="snippet">' + esc(preview) + '</div>' : '') +
+      '<div class="meta">' + esc(relTime(item && item.updated_at)) + '</div>' +
+      '</div>';
+  }
+
   return {
     renderCard: renderCard,
     candidatesHtml: candidatesHtml,
     embedBadge: embedBadge,
-    pct: pct
+    pct: pct,
+    relTime: relTime,
+    historyRow: historyRow
   };
 })();
 
@@ -823,8 +880,10 @@ window.CCA = (function () {
       state.messages = data.messages || [];
       state.polls = 0;
       syncMessages();
+      return data;
     } catch (err) {
       pushNotice('连不上服务：' + ((err && err.message) || err));
+      return null;
     }
   }
 
@@ -853,6 +912,7 @@ window.CCA = (function () {
       state.polls = 0;
       syncMessages();
       setStatus('');
+      loadHistory();  // 首条消息可能刚定下标题，且该会话升到列表顶部
     } catch (err) {
       // 失败时把乐观追加的那条撤掉，避免界面里留下一条后端并不知道的「我说的」
       state.messages.pop();
@@ -894,6 +954,125 @@ window.CCA = (function () {
     } catch (err) {
       button.disabled = false;
       CC.toast('操作失败：' + ((err && err.message) || err));
+    }
+  }
+
+  /* ---- 历史侧栏：找回旧对话、切换、改名、删除 ----
+     列表行由 CCA.historyRow 纯函数渲染（用户数据在那层已过 esc），
+     这里只负责取数、事件委托与状态切换。 */
+
+  var HISTORY_PAGE = 50;
+  var historyLoaded = 0;
+  var historyTotal = 0;
+
+  async function loadHistory(append) {
+    try {
+      var offset = append ? historyLoaded : 0;
+      var data = await CC.api('GET', '/api/v1/agent/conversations?limit=' + HISTORY_PAGE + '&offset=' + offset);
+      var items = data.items || [];
+      historyTotal = Number(data.total || 0);
+      historyLoaded = append ? historyLoaded + items.length : items.length;
+      var box = document.getElementById('history-list');
+      if (box) {
+        var html = items.map(function (item) {
+          return CCA.historyRow(item, state.convId);
+        }).join('');
+        if (append) {
+          box.insertAdjacentHTML('beforeend', html);
+        } else {
+          box.innerHTML = historyLoaded ? html : '<div class="empty">暂无历史会话</div>';
+        }
+      }
+      var moreWrap = document.getElementById('history-more-wrap');
+      if (moreWrap) {
+        moreWrap.hidden = historyLoaded >= historyTotal;
+      }
+    } catch (err) {
+      // 侧栏是辅助入口：拉不下来不打断聊天，也不往消息流里刷错误
+    }
+  }
+
+  function openHistoryDrawer(open) {
+    var panel = document.getElementById('history-panel');
+    if (panel) {
+      panel.classList.toggle('open', !!open);
+    }
+  }
+
+  function resetConversationView() {
+    state.messages = [];
+    state.notices = [];
+    state.polls = 0;
+    if (state.timer) {
+      clearTimeout(state.timer);
+      state.timer = null;
+    }
+    syncMessages();
+    setStatus('');
+  }
+
+  /* 切换会话：清场后走 startConversation() 同一条恢复路径（不新开恢复函数——
+     两条恢复路径迟早会对不上）。已删除的会话在服务端会被静默换成新会话，
+     所以对比回包 id 提示用户，别让他对着一段不存在的历史继续说。 */
+  async function switchConversation(id) {
+    if (state.sending) {
+      CC.toast('正在处理，请稍候');
+      return;
+    }
+    if (id && id === state.convId) {
+      openHistoryDrawer(false);
+      return;
+    }
+    resetConversationView();
+    rememberConversation(id || null);
+    openHistoryDrawer(false);
+    var data = await startConversation();
+    if (data && id && data.conversation_id !== id) {
+      CC.toast('该会话已不存在，已开启新会话');
+    }
+    loadHistory();
+    document.getElementById('agent-input').focus();
+  }
+
+  async function renameConversation(id, oldTitle) {
+    var title = window.prompt('会话标题', oldTitle || '');
+    if (title == null) {
+      return;
+    }
+    title = title.trim();
+    if (!title) {
+      CC.toast('标题不能为空');
+      return;
+    }
+    if (title.length > 128) {
+      CC.toast('标题最多 128 个字符');
+      return;
+    }
+    try {
+      await CC.api('PATCH', '/api/v1/agent/conversations/' + encodeURIComponent(id), { title: title });
+      CC.toast('已重命名');
+      loadHistory();
+    } catch (err) {
+      CC.toast('重命名失败：' + ((err && err.message) || err));
+    }
+  }
+
+  async function deleteConversation(id) {
+    if (!window.confirm('确定删除该会话？（含全部消息记录，不可恢复）')) {
+      return;
+    }
+    try {
+      await CC.api('DELETE', '/api/v1/agent/conversations/' + encodeURIComponent(id));
+      CC.toast('已删除');
+      if (id === state.convId) {
+        // 删掉的正是当前会话：落回全新会话，副驾重新开场
+        resetConversationView();
+        rememberConversation(null);
+        await startConversation();
+      }
+      loadHistory();
+    } catch (err) {
+      CC.toast('删除失败：' + ((err && err.message) || err));
     }
   }
 
@@ -940,8 +1119,67 @@ window.CCA = (function () {
       CC.toast('已开启新会话');
       // 新会话同样要副驾先开口，否则用户面对的又是一块空白
       startConversation();
+      loadHistory();
       document.getElementById('agent-input').focus();
     });
+    // 历史侧栏：行会因 loadHistory 重建，必须事件委托而不是逐行绑定
+    var historyList = document.getElementById('history-list');
+    if (historyList) {
+      historyList.addEventListener('click', function (event) {
+        var target = event.target;
+        if (!target || !target.closest) {
+          return;
+        }
+        var del = target.closest('[data-history-delete]');
+        if (del) {
+          event.preventDefault();
+          var delRow = del.closest('[data-conversation-id]');
+          if (delRow) {
+            deleteConversation(delRow.getAttribute('data-conversation-id'));
+          }
+          return;
+        }
+        var ren = target.closest('[data-history-rename]');
+        if (ren) {
+          event.preventDefault();
+          var renRow = ren.closest('[data-conversation-id]');
+          if (renRow) {
+            var titleEl = renRow.querySelector('.h-title');
+            renameConversation(
+              renRow.getAttribute('data-conversation-id'),
+              titleEl ? titleEl.textContent : ''
+            );
+          }
+          return;
+        }
+        var open = target.closest('[data-history-open]');
+        if (open) {
+          event.preventDefault();
+          switchConversation(open.getAttribute('data-conversation-id'));
+        }
+      });
+    }
+    var btnHistory = document.getElementById('btn-history');
+    if (btnHistory) {
+      btnHistory.addEventListener('click', function () {
+        var panel = document.getElementById('history-panel');
+        if (panel) {
+          openHistoryDrawer(!panel.classList.contains('open'));
+        }
+      });
+    }
+    var btnHistoryClose = document.getElementById('btn-history-close');
+    if (btnHistoryClose) {
+      btnHistoryClose.addEventListener('click', function () {
+        openHistoryDrawer(false);
+      });
+    }
+    var btnHistoryMore = document.getElementById('btn-history-more');
+    if (btnHistoryMore) {
+      btnHistoryMore.addEventListener('click', function () {
+        loadHistory(true);
+      });
+    }
   }
 
   (async function boot() {
@@ -950,6 +1188,7 @@ window.CCA = (function () {
     }
     bind();
     startConversation();   // 开场 or 恢复历史（含会话已失效时静默开新会话）
+    loadHistory();
     document.getElementById('agent-input').focus();
   })();
 })();
