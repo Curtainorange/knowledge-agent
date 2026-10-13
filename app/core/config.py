@@ -90,7 +90,7 @@ class Settings(BaseSettings):
     # 留空则同步入口不可用（不影响其它功能）。**Key 等同账号访问凭据，切勿提交到仓库。**
     weread_api_key: str = ""
     # 官方技能包版本：每次请求必须上报；回包出现 upgrade_info 时需按提示升级
-    weread_skill_version: str = "1.0.4"
+    weread_skill_version: str = "1.0.5"
     weread_gateway_url: str = "https://i.weread.qq.com/api/agent/gateway"
     weread_timeout_seconds: float = 20.0
     # 单次同步的条目上限：超出部分不计入，前端提示「还有 N 条待同步」

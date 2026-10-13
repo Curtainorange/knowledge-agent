@@ -41,7 +41,7 @@ class WeReadClient:
         api_key: str,
         *,
         gateway_url: str,
-        skill_version: str = "1.0.4",
+        skill_version: str = "1.0.5",
         page_size: int = 50,
         timeout: float = 20.0,
         request_interval: float = 0.0,
@@ -115,10 +115,16 @@ class WeReadClient:
 
         upgrade = data.get("upgrade_info")
         if upgrade:
-            message = upgrade.get("message") if isinstance(upgrade, dict) else str(upgrade)
-            raise WeReadError(
-                f"微信读书技能包需要升级：{message or '请到官方页面获取最新版本后重试'}"
-            )
+            if isinstance(upgrade, dict):
+                message = upgrade.get("message") or "请到官方页面获取最新版本后重试"
+                latest = upgrade.get("latest_version")
+                url = upgrade.get("upgrade_url")
+                if latest:
+                    message += f"（当前 skill_version={self._skill_version}，最新 {latest}）"
+                if url:
+                    message += f"（下载：{url}）"
+                raise WeReadError(f"微信读书技能包需要升级：{message}")
+            raise WeReadError(f"微信读书技能包需要升级：{upgrade}")
 
         errcode = data.get("errcode") or 0
         if errcode:

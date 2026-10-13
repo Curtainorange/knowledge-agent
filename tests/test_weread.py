@@ -22,7 +22,7 @@ def _make_client(handler, api_key: str = "wrk-test-key"):
     return WeReadClient(
         api_key,
         gateway_url=GATEWAY,
-        skill_version="1.0.4",
+        skill_version="1.0.5",
         http=httpx.Client(transport=httpx.MockTransport(handler)),
     )
 
@@ -54,7 +54,7 @@ def test_call_sends_flat_params_with_version():
 
     assert seen["auth"] == "Bearer wrk-test-key"
     assert seen["body"]["api_name"] == "/user/notebooks"
-    assert seen["body"]["skill_version"] == "1.0.4"
+    assert seen["body"]["skill_version"] == "1.0.5"
     assert seen["body"]["count"] == 7
     assert "params" not in seen["body"]  # 包进 params 会被后端忽略
 
@@ -104,15 +104,32 @@ def test_call_raises_readable_error_on_errcode():
 
 
 def test_call_stops_on_upgrade_info():
-    """官方要求：回包带 upgrade_info 必须停下提示升级，不能忽略继续。"""
+    """官方要求：回包带 upgrade_info 必须停下提示升级，不能忽略继续。
+
+    报错需带上最新版本号与官方下载地址，方便直接照做升级。
+    """
     from app.weread.client import WeReadError
 
     client = _make_client(
-        lambda request: httpx.Response(200, json={"errcode": 0, "upgrade_info": {"message": "请升级到 1.0.5"}})
+        lambda request: httpx.Response(
+            200,
+            json={
+                "errcode": 0,
+                "upgrade_info": {
+                    "latest_version": "1.0.6",
+                    "current_version": "1.0.5",
+                    "message": "微信读书 Skill 有新版本，请立即下载最新版替换本地版本",
+                    "upgrade_url": "https://cdn.weread.qq.com/skills/weread-skills.zip",
+                },
+            },
+        )
     )
     with pytest.raises(WeReadError) as excinfo:
         client.call("/user/notebooks")
-    assert "升级" in str(excinfo.value)
+    message = str(excinfo.value)
+    assert "升级" in message
+    assert "1.0.6" in message  # 最新版本号
+    assert "weread-skills.zip" in message  # 官方下载地址
 
 
 @pytest.mark.parametrize("status", [401, 429])
