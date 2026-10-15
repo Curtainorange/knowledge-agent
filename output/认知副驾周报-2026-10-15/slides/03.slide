@@ -1,0 +1,21 @@
+<Slide style={{ width: 1280, height: 720, position: 'relative', background: 'linear-gradient(120deg, #1B1856 0%, #3730A3 52%, #4F46E5 100%)', overflow: 'hidden', padding: 0, fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <svg width={1280} height={720} viewBox='0 0 1280 720' style={{ position: 'absolute', top: 0, left: 0 }}>
+        <circle cx='1010' cy='300' r='268' fill='none' stroke='#A5B4FC' strokeWidth='1' opacity='0.16' />
+        <circle cx='1010' cy='300' r='190' fill='none' stroke='#A5B4FC' strokeWidth='1' opacity='0.12' />
+        <circle cx='1010' cy='300' r='112' fill='none' stroke='#0EA5E9' strokeWidth='1.5' opacity='0.35' />
+        <rect x='92' y='132' width='64' height='3' fill='#0EA5E9' />
+    </svg>
+
+    <Text style={{ position: 'absolute', right: 78, top: 118, fontSize: 300, fontWeight: 'bold', color: '#FFFFFF', opacity: 0.12, lineHeight: 1, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>01</Text>
+
+    <Box style={{ position: 'absolute', left: 92, top: 296, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 13, color: '#0EA5E9', letterSpacing: 4, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>SECTION 01</Text>
+        <Text style={{ fontSize: 60, fontWeight: 'bold', color: '#FFFFFF', letterSpacing: 1, marginTop: 18 }}>本周概览：改了什么</Text>
+        <Box style={{ height: 3, width: 88, background: '#0EA5E9', marginTop: 26 }} />
+        <Text style={{ fontSize: 19, color: '#C7D2FE', marginTop: 24 }}>先把量级摆出来，再讲学到的和做到的</Text>
+    </Box>
+
+    <Text style={{ position: 'absolute', right: 72, bottom: 24, fontSize: 13, color: '#7C8CD8', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>03 / 16</Text>
+
+</Slide>

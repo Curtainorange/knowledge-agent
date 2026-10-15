@@ -1,0 +1,103 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>03</Text>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>MCP 解决的是「接什么」和「怎么接」</Text>
+        </Box>
+        <Text style={{ fontSize: 16, color: '#6B7280', paddingBottom: 6 }}>Model Context Protocol</Text>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 24 }}>
+
+        <Box style={{ width: 660, height: '100%', background: '#F6F7FB', borderRadius: 16 }}>
+            <svg width={660} height={520} viewBox='0 0 660 520'>
+                <text x='36' y='40' fontSize='15' fontWeight='bold' fill='#3730A3'>改造前：N × M 直连</text>
+                <text x='36' y='62' fontSize='12' fill='#6B7280'>每个数据源 × 每种用法，各写一套适配</text>
+
+                <rect x='40' y='78' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='101' fontSize='13' fill='#1F2430' textAnchor='middle'>本地书籍</text>
+                <rect x='40' y='128' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='151' fontSize='13' fill='#1F2430' textAnchor='middle'>微信读书</text>
+                <rect x='40' y='178' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='201' fontSize='13' fill='#1F2430' textAnchor='middle'>文档文件</text>
+
+                <rect x='510' y='78' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='101' fontSize='13' fill='#1F2430' textAnchor='middle'>挖掘</text>
+                <rect x='510' y='128' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='151' fontSize='13' fill='#1F2430' textAnchor='middle'>冲突检测</text>
+                <rect x='510' y='178' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='201' fontSize='13' fill='#1F2430' textAnchor='middle'>简报 / 诊断</text>
+
+                <line x1='150' y1='96' x2='510' y2='96' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='96' x2='510' y2='146' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='96' x2='510' y2='196' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='146' x2='510' y2='96' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='146' x2='510' y2='146' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='146' x2='510' y2='196' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='196' x2='510' y2='96' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='196' x2='510' y2='146' stroke='#C7D2FE' strokeWidth='1' />
+                <line x1='150' y1='196' x2='510' y2='196' stroke='#C7D2FE' strokeWidth='1' />
+
+                <line x1='36' y1='252' x2='624' y2='252' stroke='#E5E7EB' strokeWidth='1' />
+
+                <text x='36' y='288' fontSize='15' fontWeight='bold' fill='#0EA5E9'>接入 MCP：收敛成 N + M</text>
+                <text x='36' y='310' fontSize='12' fill='#6B7280'>数据源只说清自己有什么，用法只说清自己要什么</text>
+
+                <rect x='40' y='326' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='349' fontSize='13' fill='#1F2430' textAnchor='middle'>本地书籍</text>
+                <rect x='40' y='376' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='399' fontSize='13' fill='#1F2430' textAnchor='middle'>微信读书</text>
+                <rect x='40' y='426' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='95' y='449' fontSize='13' fill='#1F2430' textAnchor='middle'>文档文件</text>
+
+                <rect x='510' y='326' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='349' fontSize='13' fill='#1F2430' textAnchor='middle'>挖掘</text>
+                <rect x='510' y='376' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='399' fontSize='13' fill='#1F2430' textAnchor='middle'>冲突检测</text>
+                <rect x='510' y='426' width='110' height='36' rx='8' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='565' y='449' fontSize='13' fill='#1F2430' textAnchor='middle'>简报 / 诊断</text>
+
+                <rect x='272' y='348' width='116' height='104' rx='16' fill='#0EA5E9' />
+                <text x='330' y='392' fontSize='19' fontWeight='bold' fill='#FFFFFF' textAnchor='middle'>MCP</text>
+                <text x='330' y='416' fontSize='12' fill='#E6F6FE' textAnchor='middle'>工具 / 资源 / 提示</text>
+
+                <line x1='150' y1='344' x2='268' y2='392' stroke='#0EA5E9' strokeWidth='1.2' />
+                <line x1='150' y1='394' x2='268' y2='398' stroke='#0EA5E9' strokeWidth='1.2' />
+                <line x1='150' y1='444' x2='268' y2='406' stroke='#0EA5E9' strokeWidth='1.2' />
+                <line x1='392' y1='392' x2='510' y2='344' stroke='#0EA5E9' strokeWidth='1.2' />
+                <line x1='392' y1='398' x2='510' y2='394' stroke='#0EA5E9' strokeWidth='1.2' />
+                <line x1='392' y1='406' x2='510' y2='444' stroke='#0EA5E9' strokeWidth='1.2' />
+            </svg>
+        </Box>
+
+        <Box style={{ flex: 1, height: '100%', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>它到底标准化了什么</Text>
+            <Text style={{ fontSize: 15, color: '#1F2430', lineHeight: 1.7, marginTop: 12 }}>把「模型 / 智能体 ↔ 外部工具与数据源」的连接定成一套协议：工具、资源、提示三类能力走同一套接口，连接方和被连接方各自只实现一次。</Text>
+
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430', marginTop: 20 }}>项目里的两处用法</Text>
+
+            <Box style={{ flexDirection: 'column', gap: 12, marginTop: 12 }}>
+                <Box style={{ background: '#F6F7FB', borderRadius: 12, padding: '14px 16px', flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>文档流水线：按目的选工具</Text>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 6 }}>要「定位」就走 MCP 读既有 docx 的标题、段落与表格结构；要「迁移全文」改用一次性只读提取——同一份文件、两种目的，不硬用同一把工具。</Text>
+                </Box>
+                <Box style={{ background: '#F6F7FB', borderRadius: 12, padding: '14px 16px', flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>微信读书：接官方技能包</Text>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 6 }}>阅读数据通过官方技能包同步；本周修的就是它的版本校验——服务端对版本做强制校验，落后即要求升级。</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ marginTop: 'auto', background: '#EEEDFE', borderLeft: '3px solid #0EA5E9', borderRadius: 8, padding: '14px 16px' }}>
+                <Text style={{ fontSize: 15, color: '#1F2430', lineHeight: 1.6 }}>判断：MCP 的收益不在「能连」，而在把 N × M 的适配收敛成 N + M。</Text>
+            </Box>
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>11 / 16</Text>
+    </Box>
+
+</Slide>

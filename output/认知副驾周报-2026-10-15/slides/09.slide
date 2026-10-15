@@ -1,0 +1,93 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>02</Text>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>Loop：决定要不要再来一轮</Text>
+        </Box>
+        <Text style={{ fontSize: 16, color: '#6B7280', paddingBottom: 6 }}>闭环不等于完成</Text>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 24 }}>
+
+        <Box style={{ width: 680, height: '100%', background: '#F6F7FB', borderRadius: 16 }}>
+            <svg width={680} height={520} viewBox='0 0 680 520'>
+                <defs>
+                    <marker id='arl' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'>
+                        <path d='M2 1L8 5L2 9' fill='none' stroke='#3730A3' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                    </marker>
+                    <marker id='arl2' viewBox='0 0 10 10' refX='8' refY='5' markerWidth='6' markerHeight='6' orient='auto-start-reverse'>
+                        <path d='M2 1L8 5L2 9' fill='none' stroke='#0EA5E9' strokeWidth='1.5' strokeLinecap='round' strokeLinejoin='round' />
+                    </marker>
+                </defs>
+
+                <text x='16' y='48' fontSize='15' fontWeight='bold' fill='#3730A3'>项目里的知识闭环：上一轮的产出是下一轮的输入</text>
+
+                <rect x='16' y='120' width='120' height='68' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='76' y='152' fontSize='15' fontWeight='bold' fill='#1F2430' textAnchor='middle'>挖掘</text>
+                <text x='76' y='174' fontSize='12' fill='#6B7280' textAnchor='middle'>L1</text>
+
+                <rect x='148' y='120' width='120' height='68' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='208' y='152' fontSize='15' fontWeight='bold' fill='#1F2430' textAnchor='middle'>冲突检测</text>
+                <text x='208' y='174' fontSize='12' fill='#6B7280' textAnchor='middle'>L2</text>
+
+                <rect x='280' y='120' width='120' height='68' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='340' y='152' fontSize='15' fontWeight='bold' fill='#1F2430' textAnchor='middle'>周简报</text>
+                <text x='340' y='174' fontSize='12' fill='#6B7280' textAnchor='middle'>L3</text>
+
+                <rect x='412' y='120' width='120' height='68' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='472' y='152' fontSize='15' fontWeight='bold' fill='#1F2430' textAnchor='middle'>计划修正</text>
+                <text x='472' y='174' fontSize='12' fill='#6B7280' textAnchor='middle'>L4</text>
+
+                <rect x='544' y='120' width='120' height='68' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='604' y='152' fontSize='15' fontWeight='bold' fill='#1F2430' textAnchor='middle'>偏误诊断</text>
+                <text x='604' y='174' fontSize='12' fill='#6B7280' textAnchor='middle'>L5</text>
+
+                <line x1='138' y1='154' x2='144' y2='154' stroke='#3730A3' strokeWidth='1.5' markerEnd='url(#arl)' />
+                <line x1='270' y1='154' x2='276' y2='154' stroke='#3730A3' strokeWidth='1.5' markerEnd='url(#arl)' />
+                <line x1='402' y1='154' x2='408' y2='154' stroke='#3730A3' strokeWidth='1.5' markerEnd='url(#arl)' />
+                <line x1='534' y1='154' x2='540' y2='154' stroke='#3730A3' strokeWidth='1.5' markerEnd='url(#arl)' />
+
+                <path d='M 604 188 L 604 300 L 76 300 L 76 196' fill='none' stroke='#0EA5E9' strokeWidth='1.5' strokeDasharray='5 4' markerEnd='url(#arl2)' />
+                <rect x='250' y='286' width='180' height='28' rx='6' fill='#F6F7FB' />
+                <text x='340' y='305' fontSize='13' fill='#6B7280' textAnchor='middle'>产出成为下一轮输入</text>
+
+                <rect x='16' y='340' width='648' height='150' rx='12' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='36' y='370' fontSize='15' fontWeight='bold' fill='#3730A3'>刹车：三处必须有，否则循环会空转</text>
+                <text x='36' y='400' fontSize='14' fill='#1F2430'>① 迭代上限与预算　　② 重试 3 次仍失败才切备用，且模拟结果绝不冒充真实结果</text>
+                <text x='36' y='428' fontSize='14' fill='#1F2430'>③ 完成检查：评估护栏断言 recall@5 ≥ 0.95、recall@1 ≥ 0.75</text>
+                <text x='36' y='460' fontSize='13' fill='#6B7280'>不满足就停下、落成失败卡；不满足却继续转圈，才是 Loop 最贵的失败形态。</text>
+            </svg>
+        </Box>
+
+        <Box style={{ flex: 1, height: '100%', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>Loop 管的是目标生命周期</Text>
+
+            <Box style={{ flexDirection: 'column', gap: 12, marginTop: 16 }}>
+                <Box style={{ height: 124, background: '#F6F7FB', borderRadius: 12, padding: '14px 16px', flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>迭代与幂等</Text>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.55, marginTop: 8 }}>复用项目已有的后台任务框架，自带幂等、重试与死信；不新造队列，也不让同一件事被执行两次。</Text>
+                </Box>
+                <Box style={{ height: 124, background: '#F6F7FB', borderRadius: 12, padding: '14px 16px', flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>回退的边界</Text>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.55, marginTop: 8 }}>切备用必须同时换模型名并重算输出约束；成本按实际服务的模型名记账，否则一笔整笔错记。</Text>
+                </Box>
+                <Box style={{ height: 124, background: '#F6F7FB', borderRadius: 12, padding: '14px 16px', flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>进度怎么算「真的推进了」</Text>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.55, marginTop: 8 }}>定时扫描原本是固定间隔轮询，改成可被唤醒的事件等待；否则「异步」会退化成纯等待。</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ marginTop: 'auto', background: '#EEEDFE', borderLeft: '3px solid #0EA5E9', borderRadius: 8, padding: '14px 16px' }}>
+                <Text style={{ fontSize: 15, color: '#1F2430', lineHeight: 1.6 }}>判断：没有完成检查的 Loop 不是自治，是空转。</Text>
+            </Box>
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>09 / 16</Text>
+    </Box>
+
+</Slide>

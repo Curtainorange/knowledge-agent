@@ -1,0 +1,71 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>04</Text>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>安全边界与下一步</Text>
+        </Box>
+        <Text style={{ fontSize: 16, color: '#6B7280', paddingBottom: 6 }}>能到哪儿、不到哪儿，先说清楚</Text>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 24 }}>
+
+        <Box style={{ width: 680, height: '100%', background: '#F6F7FB', borderRadius: 16 }}>
+            <svg width={680} height={520} viewBox='0 0 680 520'>
+                <text x='40' y='40' fontSize='15' fontWeight='bold' fill='#3730A3'>可达范围分三层，每一层的信任假设不同</text>
+
+                <rect x='40' y='60' width='600' height='90' rx='12' fill='#EEEDFE' stroke='#3730A3' strokeWidth='1' />
+                <text x='66' y='96' fontSize='17' fontWeight='bold' fill='#3730A3'>本机 / localhost</text>
+                <text x='66' y='124' fontSize='13' fill='#6B7280'>攻击面最小；start_server_local.bat 只绑 127.0.0.1</text>
+
+                <rect x='40' y='165' width='600' height='110' rx='12' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' />
+                <text x='66' y='201' fontSize='17' fontWeight='bold' fill='#1F2430'>家庭局域网 / 0.0.0.0</text>
+                <text x='66' y='228' fontSize='13' fill='#6B7280'>明文 HTTP，同网段可嗅探 JWT —— 信任模型就限定在这里</text>
+                <text x='66' y='250' fontSize='13' fill='#6B7280'>start_server.bat 绑 0.0.0.0 供手机可达，防火墙只勾专用网络</text>
+
+                <rect x='40' y='290' width='600' height='110' rx='12' fill='#FFFFFF' stroke='#0EA5E9' strokeWidth='1.5' />
+                <text x='66' y='326' fontSize='17' fontWeight='bold' fill='#0EA5E9'>出门：Tailscale 加密隧道</text>
+                <text x='66' y='353' fontSize='13' fill='#6B7280'>tailscale serve 反代 HTTPS，tailnet 自动证书</text>
+                <text x='66' y='375' fontSize='13' fill='#6B7280'>顺带满足 PWA 安装所需的安全上下文（HTTPS 或 localhost）</text>
+
+                <rect x='40' y='418' width='600' height='52' rx='12' fill='#FFFFFF' stroke='#E5E7EB' strokeWidth='1' strokeDasharray='5 4' />
+                <text x='66' y='450' fontSize='14' fill='#1F2430'>明确不做：路由器端口映射 / 公网直暴露 —— 收益配不上风险</text>
+            </svg>
+        </Box>
+
+        <Box style={{ flex: 1, height: '100%', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>安全边界的三句话</Text>
+            <Box style={{ flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                <Box style={{ height: 64, background: '#F6F7FB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}>明文 HTTP 下 JWT 可被同网段嗅探，所以信任模型<span style={{ fontWeight: 'bold' }}>只到家庭私人网络</span>。</Text>
+                </Box>
+                <Box style={{ height: 64, background: '#F6F7FB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}>两个启动脚本并存：局域网可达版与仅本机版，默认不一刀切。</Text>
+                </Box>
+                <Box style={{ height: 64, background: '#F6F7FB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}>出门一律加密隧道；不做端口映射，也不做公网直暴露。</Text>
+                </Box>
+            </Box>
+
+            <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430', marginTop: 18 }}>下一步</Text>
+            <Box style={{ flexDirection: 'column', gap: 8, marginTop: 12 }}>
+                <Box style={{ height: 64, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}><span style={{ fontWeight: 'bold', color: '#3730A3' }}>真机验收　</span>底部导航横滑 / 对话贴底 / 阅读器手势与划词 / PWA 安装引导。</Text>
+                </Box>
+                <Box style={{ height: 64, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}><span style={{ fontWeight: 'bold', color: '#3730A3' }}>重立基线　</span>评测基线以 deepseek-flash 重跑，历史基线换供应商后不再可比。</Text>
+                </Box>
+                <Box style={{ height: 64, background: '#FFFFFF', border: '1px solid #E5E7EB', borderRadius: 10, padding: '0px 16px', flexDirection: 'row', alignItems: 'center' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.5 }}><span style={{ fontWeight: 'bold', color: '#3730A3' }}>阶段 2　</span>通知角标、可选外发与云部署，按真机反馈排期。</Text>
+                </Box>
+            </Box>
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>15 / 16</Text>
+    </Box>
+
+</Slide>

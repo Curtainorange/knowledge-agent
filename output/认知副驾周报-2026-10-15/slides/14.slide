@@ -1,0 +1,52 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>04</Text>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>四个关键取舍：布局、触控、手势、缓存</Text>
+        </Box>
+        <Text style={{ fontSize: 16, color: '#6B7280', paddingBottom: 6 }}>每条都给了判据，不是「已适配」</Text>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 20 }}>
+
+        <Box style={{ width: 300, height: '100%', background: '#3730A3', borderRadius: 16, padding: '26px 24px', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 12, color: '#A5B4FC', letterSpacing: 2, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>MOBILE PHASE 1</Text>
+            <Text style={{ fontSize: 96, fontWeight: 'bold', color: '#0EA5E9', lineHeight: 1.0, letterSpacing: -3, marginTop: 18, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>4</Text>
+            <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#FFFFFF', marginTop: 10 }}>个关键取舍</Text>
+            <Box style={{ height: 2, width: 56, background: '#0EA5E9', marginTop: 20 }} />
+            <Text style={{ fontSize: 15, color: '#C7D2FE', lineHeight: 1.75, marginTop: 20 }}>移动端的问题不是「变小了」，是「输入方式换了」——手指、软键盘、断网、隐私，四件事都不在桌面端的设计假设里。</Text>
+        </Box>
+
+        <Box style={{ flex: 1, height: '100%', flexDirection: 'column', gap: 18 }}>
+
+            <Box style={{ height: 104, background: '#F6F7FB', borderRadius: 12, padding: '14px 18px', flexDirection: 'column' }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>① 布局：底部导航</Text>
+                <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 8 }}>顶栏导航脱出为 fixed 横滑条，scroll-snap + 刘海安全区避让；纯 CSS、零 JS、零 HTML 改动，桌面端布局完全不变。</Text>
+            </Box>
+
+            <Box style={{ height: 104, background: '#F6F7FB', borderRadius: 12, padding: '14px 18px', flexDirection: 'column' }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>② 触控：目标与字号</Text>
+                <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 8 }}>按钮与输入 ≥ 44px；输入框 16px 防 iOS 聚焦缩放；阅读器字号三档（15 / 18 / 22），旧连续值载入时吸附最近档。</Text>
+            </Box>
+
+            <Box style={{ height: 104, background: '#F6F7FB', borderRadius: 12, padding: '14px 18px', flexDirection: 'column' }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>③ 手势：与滚动共存</Text>
+                <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 8 }}>翻章要求水平位移 ≥ 60px 且 &gt; 1.5 倍垂直位移才触发；抽屉上滑关闭只挂不滚动的头部——绑在滚动容器上必然误触。</Text>
+            </Box>
+
+            <Box style={{ height: 104, background: '#F6F7FB', borderRadius: 12, padding: '14px 18px', flexDirection: 'column' }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#3730A3' }}>④ 缓存：PWA 的边界</Text>
+                <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.6, marginTop: 8 }}>Service Worker 走网络优先，缓存只做断网兜底；/api/ 带 JWT 绝不进缓存；且必须挂根路径，放 /assets 下整站不受控。</Text>
+            </Box>
+
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>14 / 16</Text>
+    </Box>
+
+</Slide>

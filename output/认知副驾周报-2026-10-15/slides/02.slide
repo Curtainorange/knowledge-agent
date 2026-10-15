@@ -1,0 +1,65 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>目录</Text>
+        <Text style={{ fontSize: 16, color: '#6B7280', paddingBottom: 6 }}>本周两件事：把新学的四层概念在项目里落地，以及把项目搬进手机</Text>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 24 }}>
+
+        <Box style={{ width: 300, height: '100%', background: 'linear-gradient(150deg, #3730A3 0%, #4F46E5 100%)', borderRadius: 16, padding: '26px 26px', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 12, color: '#A5B4FC', letterSpacing: 2, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>CATALOG</Text>
+            <Text style={{ fontSize: 42, fontWeight: 'bold', color: '#FFFFFF', marginTop: 12, letterSpacing: 2 }}>目录</Text>
+            <Box style={{ height: 2, width: 56, background: '#0EA5E9', marginTop: 20 }} />
+            <Text style={{ fontSize: 16, color: '#C7D2FE', lineHeight: 1.75, marginTop: 22 }}>四章。前两章讲概念与本项目的对应位置，第三章讲 MCP，最后一章讲手机端改造与边界。</Text>
+            <Text style={{ fontSize: 13, color: '#A5B4FC', marginTop: 'auto', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>4 CHAPTERS / 16 PAGES</Text>
+        </Box>
+
+        <Box style={{ flex: 1, flexDirection: 'column', gap: 14 }}>
+
+            <Box style={{ height: 110, flexDirection: 'row', alignItems: 'center', gap: 18, padding: '0px 24px', background: '#F6F7FB', borderRadius: 12 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace", width: 46 }}>01</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>本周概览：改了什么</Text>
+                    <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8 }}>8 次提交 · 680 项用例 · 三条实质改动</Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>P3</Text>
+            </Box>
+
+            <Box style={{ height: 110, flexDirection: 'row', alignItems: 'center', gap: 18, padding: '0px 24px', background: '#F6F7FB', borderRadius: 12 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace", width: 46 }}>02</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>四层工程：Prompt · Context · Harness · Loop</Text>
+                    <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8 }}>四个名词各自的边界，以及它们在本项目里的落点</Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>P5</Text>
+            </Box>
+
+            <Box style={{ height: 110, flexDirection: 'row', alignItems: 'center', gap: 18, padding: '0px 24px', background: '#F6F7FB', borderRadius: 12 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace", width: 46 }}>03</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>MCP：把外部工具接进来</Text>
+                    <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8 }}>一次协议、多处复用；项目里的两处实际用法</Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>P10</Text>
+            </Box>
+
+            <Box style={{ height: 110, flexDirection: 'row', alignItems: 'center', gap: 18, padding: '0px 24px', background: '#F6F7FB', borderRadius: 12 }}>
+                <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace", width: 46 }}>04</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2430' }}>手机端改造与边界</Text>
+                    <Text style={{ fontSize: 15, color: '#6B7280', marginTop: 8 }}>M1–M5 六个提交、接口零改动；以及安全边界与下一步</Text>
+                </Box>
+                <Text style={{ fontSize: 15, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>P12</Text>
+            </Box>
+
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>02 / 16</Text>
+    </Box>
+
+</Slide>

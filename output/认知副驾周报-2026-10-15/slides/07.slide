@@ -1,0 +1,59 @@
+<Slide style={{ width: 1280, height: 720, padding: '34px 72px 22px 72px', background: '#FFFFFF', flexDirection: 'column', fontFamily: "'Source Han Sans SC', 'Noto Sans SC', 'Microsoft YaHei', sans-serif" }}>
+
+    <Box style={{ height: 84, flexDirection: 'row', alignItems: 'flex-end', justifyContent: 'space-between', borderBottom: '1px solid #E5E7EB', paddingBottom: 14 }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 14 }}>
+            <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>02</Text>
+            <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2430', letterSpacing: 0.5 }}>Prompt 与 Context：把「怎么说」和「给什么看」分开</Text>
+        </Box>
+    </Box>
+
+    <Box style={{ height: 544, paddingTop: 20, flexDirection: 'row', gap: 20 }}>
+
+        <Box style={{ width: 340, height: '100%', background: '#3730A3', borderRadius: 16, padding: '26px 26px', flexDirection: 'column' }}>
+            <Text style={{ fontSize: 12, color: '#A5B4FC', letterSpacing: 2, fontFamily: "'JetBrains Mono', Consolas, monospace" }}>LAYER 01 / 02</Text>
+            <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#FFFFFF', lineHeight: 1.35, marginTop: 14 }}>Prompt 与<br />Context</Text>
+            <Box style={{ height: 2, width: 56, background: '#0EA5E9', marginTop: 20 }} />
+            <Text style={{ fontSize: 15, color: '#C7D2FE', lineHeight: 1.75, marginTop: 20 }}>一个管「一条消息怎么写」，一个管「这一轮给它看什么」。混在一起谈，就会出现「改措辞去修证据缺失」这种南辕北辙。</Text>
+            <Text style={{ fontSize: 13, color: '#A5B4FC', marginTop: 'auto', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>ONE MESSAGE / ONE TURN</Text>
+        </Box>
+
+        <Box style={{ flex: 1, height: '100%', flexDirection: 'column', gap: 16 }}>
+
+            <Box style={{ height: 254, background: '#F6F7FB', borderRadius: 12, padding: '18px 22px', flexDirection: 'column' }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Box style={{ width: 28, height: 28, borderRadius: 8, background: '#3730A3', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#FFFFFF', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>P</Text>
+                    </Box>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>Prompt · 一条消息的措辞与形状</Text>
+                </Box>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', marginTop: 12, letterSpacing: 1 }}>项目里的落点</Text>
+                <Text style={{ fontSize: 15, color: '#1F2430', lineHeight: 1.65, marginTop: 6 }}>各能力的提示词模板与卡片文案口径；输出形状不手写 Schema，而是由数据模型自动派生——手写 9 份的结果一定是改一处忘一处。</Text>
+                <Box style={{ marginTop: 'auto', background: '#EEEDFE', borderRadius: 8, padding: '10px 14px' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.55 }}>判断：「必须是什么形状」讲给服务端听，比事后在本地修补可靠。</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ height: 254, background: '#F6F7FB', borderRadius: 12, padding: '18px 22px', flexDirection: 'column' }}>
+                <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+                    <Box style={{ width: 28, height: 28, borderRadius: 8, background: '#0EA5E9', justifyContent: 'center', alignItems: 'center' }}>
+                        <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#FFFFFF', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>C</Text>
+                    </Box>
+                    <Text style={{ fontSize: 18, fontWeight: 'bold', color: '#1F2430' }}>Context · 一轮窗口里留下什么</Text>
+                </Box>
+                <Text style={{ fontSize: 13, fontWeight: 'bold', color: '#3730A3', marginTop: 12, letterSpacing: 1 }}>项目里的落点</Text>
+                <Text style={{ fontSize: 15, color: '#1F2430', lineHeight: 1.65, marginTop: 6 }}>检索 top-k 与相关性阈值（余弦 ≥ 0.45 才注入）、注入条数硬上限；本周的变化是把冲突<span style={{ fontWeight: 'bold' }}>双方的具体主张</span>写进简报与诊断，此前上层只拿到一个计数。</Text>
+                <Box style={{ marginTop: 'auto', background: '#EEEDFE', borderRadius: 8, padding: '10px 14px' }}>
+                    <Text style={{ fontSize: 14, color: '#1F2430', lineHeight: 1.55 }}>判断：阈值与条数是两种闸门——一个管「相关」，一个管「预算」。</Text>
+                </Box>
+            </Box>
+
+        </Box>
+
+    </Box>
+
+    <Box style={{ height: 36, flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Text style={{ fontSize: 13, color: '#6B7280' }}>认知副驾 · 周技术汇报</Text>
+        <Text style={{ fontSize: 13, color: '#6B7280', fontFamily: "'JetBrains Mono', Consolas, monospace" }}>07 / 16</Text>
+    </Box>
+
+</Slide>
