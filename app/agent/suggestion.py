@@ -38,6 +38,9 @@ logger = logging.getLogger(__name__)
 MAX_BASIS_PER_ITEM = 5
 # 证据池上限：喂给模型的片段不是越多越好，噪音会稀释相关性
 MAX_EVIDENCE = 8
+# 用户否过某类建议后的收敛窗口（天）。与验收清单第 1 条对应用：
+# 「不强制」不只是措辞客气，而是**被否掉之后真的改变行为**。
+RESTRAIN_DAYS = 7
 
 
 class SuggestionDraftItem(BaseModel):
@@ -115,6 +118,37 @@ def build_query(ctx: intake.IntakeContext) -> str:
     return " ".join(p for p in parts if p).strip()
 
 
+def _restrained_reason(session: Session, *, user_id: str, ctx: intake.IntakeContext) -> str:
+    """最近是否否过同类建议（同目标 + 有交集的帮助类型）。
+
+    读失败一律按"没否过"处理：收敛是体验优化，不该因为读不到事件就不给建议。
+    """
+    try:
+        from datetime import datetime, timedelta, timezone
+
+        from app.domain.repositories.learning_event_repository import LearningEventRepository
+        from app.feedback import events
+
+        rows = LearningEventRepository(session, user_id=user_id).list_recent(
+            user_id, event_type=events.SUGGESTION_REJECTED, limit=20
+        )
+    except Exception:  # pragma: no cover - 防御性兜底
+        return ""
+
+    cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=RESTRAIN_DAYS)
+    wanted = set(ctx.help_type or [])
+    for row in rows:
+        occurred = getattr(row, "occurred_at", None)
+        if occurred is not None and occurred < cutoff:
+            continue
+        payload = getattr(row, "payload", None) or {}
+        if str(payload.get("goal") or "") != (ctx.goal or ""):
+            continue
+        if wanted & set(payload.get("help_type") or []):
+            return "这类建议你之前否过，我们先换个方向——你可以说说哪里不对，或者换个问法。"
+    return ""
+
+
 def generate(
     session: Session,
     *,
@@ -135,6 +169,19 @@ def generate(
         )
 
     query = build_query(ctx)
+    restrained = _restrained_reason(session, user_id=user_id, ctx=ctx)
+    if restrained:
+        return SuggestionOutcome(
+            state="restrained",
+            digest=digest,
+            note=restrained,
+            hints=[
+                "换个角度描述你的问题",
+                "说说上次那条哪里不对",
+                "先记一条你觉得对的说法",
+            ],
+        )
+
     evidence = grounding.build_evidence(
         session, user_id=user_id, query=query, top_k=MAX_EVIDENCE, embedding=embedding
     )
@@ -228,10 +275,13 @@ def generate(
     weakest = min(len(it["basis_item_ids"]) for it in complete)
     used_ids = {b for it in complete for b in it["basis_item_ids"]}
     rels = [ev.relevance for ev in citable if ev.evidence_id in used_ids]
+    # 槽位"完整"= 用户确实回答了目标 / 水平 / 帮助类型，而不是跳过后拿默认值。
+    # 跳过的建议可以给，但不该显示得和"确认过的建议"一样可靠。
+    slots_complete = not (ctx.skipped or ctx.reduced_mode)
     confidence = grounding.confidence_for(
         basis_count=weakest,
         mean_relevance=(sum(rels) / len(rels)) if rels else 0.0,
-        slots_complete=ctx.is_ready,
+        slots_complete=slots_complete,
         dropped=dropped,
     )
     for it in complete:

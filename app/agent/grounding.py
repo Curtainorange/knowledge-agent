@@ -51,6 +51,10 @@ DEFAULT_TOP_K = 8
 DEFAULT_MIN_RELEVANCE = 0.55
 # 纯关键词召回（无向量）时的 relevance 上限：关键词命中不等于语义相关
 KEYWORD_RELEVANCE_CAP = 0.55
+# 关键词召回的最低门槛。作用是挡住**完全没有重叠**的条目（score=0），
+# 不是做精确相关性判断——中文 2-gram 的重叠率天然偏低，
+# 门槛设高了会把真实相关的条目一起滤掉（0.2 就会，已实测）。
+KEYWORD_MIN_RELEVANCE = 0.05
 # 建议里同书证据上限：防"一本书撑起全部建议"
 MAX_PER_BOOK = 2
 
@@ -330,6 +334,8 @@ def build_evidence(
 
         if relevance < min_relevance and retrieval == "vector":
             continue  # 余弦不过阈值：库里确实没有相关内容
+        if relevance < KEYWORD_MIN_RELEVANCE and retrieval == "keyword":
+            continue  # 关键词只擦到边也算依据的话，证据池就成了噪音池
 
         locator = _locator_of(item)
         jumpable = _jumpable(item.source or "manual", locator, item.id)
@@ -358,10 +364,18 @@ def build_evidence(
 
 
 def dedupe_by_book(evidence: list[Evidence], *, max_per_book: int = MAX_PER_BOOK) -> list[Evidence]:
-    """同书证据限流。用 book_id（weread locator / book source_item 无 book_id 时退到标题）。"""
+    """同书证据限流（防"一本书撑起全部建议"）。
+
+    只对**有书归属**的来源限流（`book` / `weread`）。手记（`manual`）没有"书"的概念，
+    强行按标题归并会把两条标题相同的独立笔记（都叫「读书笔记」很常见）误裁掉——
+    那是真的少给了用户依据，比多给一条更难发现。
+    """
     counts: dict[str, int] = {}
     kept: list[Evidence] = []
     for ev in evidence:
+        if ev.source not in ("book", "weread"):
+            kept.append(ev)
+            continue
         key = str((ev.locator or {}).get("book_id") or ev.title or ev.evidence_id)
         if counts.get(key, 0) >= max_per_book:
             continue

@@ -274,7 +274,9 @@ def _execute_suggestion(
 
     outcome = sugg.generate(session, user_id=user_id, ctx=ctx, gateway=gateway)
 
-    if outcome.state == "insufficient_evidence":
+    if outcome.state in ("insufficient_evidence", "restrained"):
+        # 收敛（用户否过同类）与"没依据"是同一类结果：这次不给建议。
+        # 用同一种卡片呈现，避免前端为它单独加一条渲染分支。
         card = insufficient_evidence_card(key=key, reason=outcome.note, hints=outcome.hints)
         intake.save(session, conversation=conversation, ctx=ctx)
         return outcome.note, card
@@ -946,7 +948,7 @@ def _load_ctx(session: Session, *, user_id: str, conversation_id: str):
     return conversation, ctx
 
 
-def _intake_card(ctx, *, note: str = "", with_generate: bool = False) -> dict:
+def intake_card(ctx, *, note: str = "", with_generate: bool = False) -> dict:
     from app.agent import intake
 
     # 发卡即进入"等作答"状态（调用方负责随后 save）
@@ -985,14 +987,14 @@ def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value
     _record_intake(session, user_id=user_id, slot=slot, skipped=False)
 
     if ctx.is_ready:
-        card = _intake_card(
+        card = intake_card(
             ctx, note="确认没问题就生成；有不对的继续说。", with_generate=True
         )
         intake.save(session, conversation=conversation, ctx=ctx)
         session.commit()
         return "信息齐了，点下面生成建议。", card
 
-    card = _intake_card(ctx)
+    card = intake_card(ctx)
     intake.save(session, conversation=conversation, ctx=ctx)
     session.commit()
     return intake.confirm_text(ctx), card
@@ -1006,7 +1008,7 @@ def _apply_intake_skip(session, *, user_id, conversation_id, card):
     _record_intake(session, user_id=user_id, slot="", skipped=True)
 
     if ctx.is_ready:
-        card = _intake_card(ctx, note="确认没问题就生成。", with_generate=True)
+        card = intake_card(ctx, note="确认没问题就生成。", with_generate=True)
         intake.save(session, conversation=conversation, ctx=ctx)
         session.commit()
         return "行，那就先这样。", card
@@ -1016,7 +1018,7 @@ def _apply_intake_skip(session, *, user_id, conversation_id, card):
         if ctx.reduced_mode
         else "不想答就跳过，按已知信息来。"
     )
-    card = _intake_card(ctx, note=note)
+    card = intake_card(ctx, note=note)
     intake.save(session, conversation=conversation, ctx=ctx)
     session.commit()
     return "跳过这轮。", card

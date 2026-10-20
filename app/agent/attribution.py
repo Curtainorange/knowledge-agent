@@ -93,26 +93,84 @@ def _excerpt(text: str, *, limit: int = EXCERPT_MAX) -> str:
     return body[:limit] + ("…" if len(body) > limit else "")
 
 
+def _book_side_block(
+    session: Session, *, user_id: str, suffix: str, claim, source_id: str
+) -> str | None:
+    """「书籍通读笔记」这一侧的文本。
+
+    为什么单独处理：这类冲突的 `item_a_id` 是 `book:<id>` 影子来源，不是
+    `knowledge_items` 里的行（见 `l2_orchestrator.is_book_source`）。
+    拿它去查条目表必然查不到，原来的实现会把整处冲突判成"原文缺失"而跳过——
+    也就是说所有「书 vs 笔记」的冲突永远得不到归因，用户看到的原因还是错的。
+    """
+    from app.domain.models.book import Book
+    from app.domain.repositories.book_agent_reading_repository import BookAgentReadingRepository
+
+    book_id = source_id[len("book:"):]
+    book = session.get(Book, book_id)
+    if book is None or getattr(book, "is_deleted", False):
+        return None
+
+    try:
+        reading = BookAgentReadingRepository(session, user_id=user_id).get_by_book(book_id)
+    except Exception:  # pragma: no cover - 读不到通读笔记就退化到主张
+        reading = None
+
+    statement = (claim.statement or "").strip() if claim is not None else ""
+    if not statement and reading is not None:
+        statement = (reading.summary or "").strip()[:300]
+    if not statement:
+        return None
+
+    points: list[str] = []
+    for chapter in (reading.chapters_note or [])[:6] if reading is not None else []:
+        gist = str(chapter.get("gist") or "").strip()
+        if gist:
+            points.append(f"{chapter.get('title') or ''}：{gist}")
+    excerpt = "；".join(points) or statement
+
+    return (
+        f"说法{suffix}（id={suffix}）\n"
+        f"出处：《{book.title}》通读笔记（智能体读的，不是用户摘录）\n"
+        f"主张：{statement}\n"
+        f"原文片段：{_excerpt(excerpt)}\n"
+    )
+
+
 def _pair_block(session: Session, *, user_id: str, conflict) -> str | None:
     """拼双方说法 + 出处 + 原文片段。缺任何一侧都归因不了。"""
+    from app.agent.l2_orchestrator import is_book_source
+
     claims = ClaimRepository(session, user_id=user_id)
     items = KnowledgeRepository(session, user_id=user_id)
 
-    sides = []
+    sides: list[str] = []
     for suffix, claim_id, item_id in (
         ("A", conflict.claim_a_id, conflict.item_a_id),
         ("B", conflict.claim_b_id, conflict.item_b_id),
     ):
-        claim = claims.get(claim_id) if claim_id else None
-        item = items.get(item_id) if item_id else None
-        if claim is None or item is None:
+        if not item_id:
             return None
-        sides.append(
-            f"说法{suffix}（id={suffix}）\n"
-            f"出处：《{item.title}》\n"
-            f"主张：{claim.statement}\n"
-            f"原文片段：{_excerpt(item.raw_content or '')}\n"
-        )
+        claim = claims.get(claim_id) if claim_id else None
+
+        if is_book_source(item_id):
+            block = _book_side_block(
+                session, user_id=user_id, suffix=suffix, claim=claim, source_id=item_id
+            )
+        else:
+            item = items.get(item_id)
+            if item is None or claim is None:
+                return None
+            block = (
+                f"说法{suffix}（id={suffix}）\n"
+                f"出处：《{item.title}》\n"
+                f"主张：{claim.statement}\n"
+                f"原文片段：{_excerpt(item.raw_content or '')}\n"
+            )
+
+        if block is None:
+            return None
+        sides.append(block)
     return "\n".join(sides)
 
 

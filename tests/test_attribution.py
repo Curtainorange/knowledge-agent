@@ -217,6 +217,51 @@ def test_unparseable_output_degrades(session):
     assert provider.calls == ["conflict_attribution"]
 
 
+def test_book_source_conflict_can_be_attributed(session):
+    """「书 vs 笔记」的冲突里，书那一侧是 `book:<id>` 影子来源。
+
+    回归：原实现拿 `book:<id>` 去查 knowledge_items，必然查不到，
+    于是所有书侧冲突都被判成"原文缺失"跳过——用户永远拿不到归因，
+    而且看到的原因是错的（说缺原文，其实原文就在通读笔记里）。
+    """
+    from app.domain.models.book import Book
+    from app.domain.repositories.claim_repository import ClaimRepository
+    from app.domain.repositories.conflict_repository import ConflictRepository
+    from app.domain.repositories.knowledge_repository import KnowledgeRepository
+
+    book = Book(
+        user_id="u1", title="原则", author="", format="txt", file_path="x.txt",
+        full_text="x" * 100, total_chars=100,
+    )
+    session.add(book)
+    session.commit()
+
+    item_b = KnowledgeRepository(session, user_id="u1").create(
+        user_id="u1", title="我的笔记", content="极度透明在团队里做不到。"
+    )
+    crepo = ClaimRepository(session, user_id="u1")
+    claim_a = crepo.create(
+        user_id="u1", knowledge_item_id=f"book:{book.id}",
+        statement="极度透明是组织高效的前提", topic="管理",
+    )
+    claim_b = crepo.create(
+        user_id="u1", knowledge_item_id=item_b.id,
+        statement="极度透明在团队里做不到", topic="管理",
+    )
+    conflict = ConflictRepository(session, user_id="u1").create(
+        user_id="u1",
+        item_a_id=f"book:{book.id}", item_b_id=item_b.id,
+        claim_a_id=claim_a.id, claim_b_id=claim_b.id,
+        conflict_type="立场对立", confidence=0.8,
+    )
+    session.commit()
+
+    outcome = attribution.attribute_conflict(
+        session, user_id="u1", conflict_id=conflict.id, context={"draft": _good_draft()}
+    )
+    assert outcome.state == "ok", outcome.note
+
+
 # ---- 视图与端点 -------------------------------------------------------------
 
 

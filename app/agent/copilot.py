@@ -50,7 +50,6 @@ from app.agent.cards import (
     l1_located_card,
     located_reply,
     note_empty_card,
-    reading_intake_card,
 )
 from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
@@ -333,8 +332,12 @@ class Copilot:
             return None
 
         if args.get("skipped"):
-            # 允许跳过：门禁放行，但置信度会在 grounding 侧被封顶（槽位不齐）
+            # 「别问了直接给建议」：只保留 question 一项必需，其余按默认处理。
+            # 为什么不能全跳：没有「想解决什么」就没有检索 query，依据一定为空，
+            # 那生成出来的只能是空话。所以跳过的边界是"枚举项可跳，问题本身不可跳"。
             ctx.skipped = True
+            ctx.reduced_mode = True
+            ctx.refresh_missing()
 
         slots = intake.extract_slots(message)
         if is_suggestion_command(message):
@@ -375,17 +378,14 @@ class Copilot:
             return False
 
     def _intake_reply(self, ctx, *, prefix: str = ""):
-        """构造确认卡与一句引导。**不调模型**——确认阶段不该花钱。"""
+        """构造确认卡与一句引导。**不调模型**——确认阶段不该花钱。
+
+        卡片结构复用 `turns.intake_card`：同一张卡在两处各拼一遍，
+        迟早会出现「开场那张有两个问题、追问那张只有一个」这种分叉。
+        """
         from app.agent import intake
 
-        intake.mark_card_sent(ctx)
-        card = reading_intake_card(
-            key="intake",
-            round=ctx.round,
-            inferred={"book": ctx.book, "basis": "system"},
-            questions=intake.next_questions(ctx),
-            digest_payload=intake.digest(ctx),
-        )
+        card = turns.intake_card(ctx)
         labels = "、".join(intake.SLOT_LABELS.get(m, m) for m in ctx.missing)
         tail = f"还差{labels}——选一下就好。"
         return (f"{prefix}{tail}" if prefix else tail), card

@@ -143,7 +143,10 @@ def test_evidence_jumpable_by_source():
 def _seed(session, *, title, content, hex_id=None, embed_failed=False):
     item = _svc(session).add_knowledge(user_id="u1", title=title, content=content)
     if embed_failed:
+        # 真实的 embed_failed 是「向量没算出来」，所以连向量也要清掉；
+        # 只改状态不清向量，会让后面的相关性判定拿到一个其实存在的余弦。
         item.embed_status = "embed_failed"
+        item.embedding = None
         session.commit()
     return item
 
@@ -233,6 +236,37 @@ def test_dedupe_by_book_limits_per_book():
     ]
     kept = grounding.dedupe_by_book(ev, max_per_book=2)
     assert len(kept) == 2
+
+
+def test_dedupe_does_not_limit_manual_items():
+    """手记没有"书"的归属，不能按标题归并限流。
+
+    回归：原实现用 `locator.book_id or title` 作 key，两条都叫「读书笔记」的
+    独立手记会被当成同一本书裁掉一条——少给依据比多给更难发现。
+    """
+    ev = [
+        grounding.Evidence(
+            evidence_id=f"ki:{i}", kind="knowledge_item", basis=grounding.BASIS_LIBRARY,
+            source="manual", title="读书笔记", quote="片段",
+            locator={}, relevance=0.8, item_id=str(i), level=grounding.LEVEL_L3,
+        )
+        for i in range(4)
+    ]
+    assert len(grounding.dedupe_by_book(ev, max_per_book=2)) == 4
+
+
+def test_keyword_zero_overlap_filtered_out(session):
+    """完全没有词面重叠的条目不能进证据池。
+
+    回归：原实现 keyword 路径不过任何门槛，语义检索失败时几乎任何条目都能
+    变成"依据"，"依据不足"的判定随之失效。
+    """
+    item = _seed(session, title="番茄炒蛋", content="三个番茄两个蛋，先炒蛋再炒番茄。", embed_failed=True)
+    items = grounding.build_evidence(
+        session, user_id="u1", query="B+树 索引 查询优化",
+        min_relevance=0.0, embedding=HashEmbedding(),
+    )
+    assert all(e.item_id != item.id for e in items)
 
 
 # ---- 引用校验 ---------------------------------------------------------------

@@ -1082,9 +1082,11 @@ window.CCA = (function () {
   async function runAction(button) {
     var cardKey = button.getAttribute('data-card-key');
     var action = button.getAttribute('data-agent-action');
-    var target = button.getAttribute('data-target');
+    var target = button.getAttribute('data-target') || '';
     var value = button.getAttribute('data-value') || '';
-    if (!cardKey || !action || !target || !state.convId) {
+    /* target 允许为空：「跳过这轮」这类操作本来就没有目标对象。
+       之前这里要求 !target 也 return，导致跳过按钮点了完全没反应。 */
+    if (!cardKey || !action || !state.convId) {
       return;
     }
     button.disabled = true;

@@ -117,7 +117,9 @@ class AgentActionRequest(BaseModel):
     conversation_id: str
     card_key: str = Field(min_length=1, description="卡片的 key（操作回流时就地替换用）")
     action: str = Field(min_length=1)
-    target_id: str = Field(min_length=1)
+    # 不强制非空：有些操作本来就没有目标对象（如「跳过这轮」）。
+    # 原来写 min_length=1，结果前端传空串直接 422，跳过按钮点了没反应。
+    target_id: str = ""
     value: str = ""
 
 

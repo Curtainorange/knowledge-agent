@@ -253,6 +253,92 @@ def test_reply_text_matches_state(session):
     assert "2" in text
 
 
+# ---- 跳过确认后仍能生成（回归：原来跳了也没用）-------------------------------
+
+
+def test_skipped_context_still_generates(session):
+    """「别问了直接给建议」→ 只保留 question 必需，其余按默认。
+
+    回归：原来 `skipped` 只设了一个布尔标记，门禁仍要求四项齐全，
+    用户说了"直接给"还是被拦住——等于这个说法没有实现。
+    """
+    item = _seed(session)
+    ctx = _ready_ctx()
+    ctx.goal = ""
+    ctx.self_level = ""
+    ctx.help_type = []
+    ctx.skipped = True
+    ctx.reduced_mode = True
+    ctx.refresh_missing()
+    assert ctx.is_ready  # 只剩 question
+
+    provider = _Scripted([_draft(f"ki:{item.id}")])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=ctx, gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "ok"
+
+
+def test_skipped_suggestion_confidence_capped(session):
+    """跳过的建议可以给，但不该显得和"确认过的建议"一样可靠。"""
+    item = _seed(session)
+    ctx = _ready_ctx()
+    ctx.goal = ""
+    ctx.self_level = ""
+    ctx.help_type = []
+    ctx.skipped = True
+    ctx.reduced_mode = True
+    ctx.refresh_missing()
+
+    provider = _Scripted([_draft(f"ki:{item.id}")])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=ctx, gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.confidence <= 0.6
+
+
+# ---- 同类建议收敛（回归：承诺了 7 天收敛但没实现）----------------------------
+
+
+def test_rejected_same_kind_is_restrained(session):
+    from app.feedback import events
+
+    events.record(
+        session, user_id="u1", event_type=events.SUGGESTION_REJECTED,
+        payload={"goal": "problem", "help_type": ["path"]},
+    )
+    _seed(session)
+    provider = _Scripted([_draft("ki:whatever")])
+
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=_ready_ctx(), gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "restrained"
+    assert provider.calls == []  # 收敛期间连模型都不调
+
+
+def test_other_kind_not_restrained(session):
+    """否掉的是「给步骤」，不该连「讲清楚」也一起收敛。"""
+    from app.feedback import events
+
+    events.record(
+        session, user_id="u1", event_type=events.SUGGESTION_REJECTED,
+        payload={"goal": "problem", "help_type": ["path"]},
+    )
+    item = _seed(session)
+    ctx = _ready_ctx(help_type=["explain"])
+    provider = _Scripted([_draft(f"ki:{item.id}")])
+
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=ctx, gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "ok"
+
+
 # ---- 端到端：确认 → 生成 -----------------------------------------------------
 
 
@@ -352,6 +438,39 @@ def test_end_to_end_confirm_then_generate(client, session, provider_override):
     pool = {e["evidence_id"] for e in result["evidence"]}
     for it in result["items"]:
         assert set(it["basis_item_ids"]) <= pool
+
+
+def test_end_to_end_skip_action_accepts_empty_target(client, session, provider_override):
+    """「跳过这轮」没有目标对象，target_id 为空也必须能进。
+
+    回归：原来前端 `!target` 直接 return、后端 `target_id min_length=1` 直接 422，
+    这个按钮点下去完全没反应——UI 上有个按钮，功能却不存在。
+    """
+    user = sign_in(client, "sugg_skip_btn")
+    headers = dict(user.headers)
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
+        headers=headers,
+    )
+    start = client.post("/api/v1/agent/start", json={}, headers=headers).json()
+    headers["_cid"] = start["conversation_id"]
+    card = _last_card(start)
+    assert card is not None and card["kind"] == "reading_intake"
+
+    resp = client.post(
+        "/api/v1/agent/actions",
+        json={
+            "conversation_id": headers["_cid"],
+            "card_key": card["key"],
+            "action": "intake.skip",
+            "target_id": "",
+            "value": "",
+        },
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    assert resp.json()["card"]["kind"] == "reading_intake"
 
 
 def test_end_to_end_insufficient_evidence(client, session, provider_override):
