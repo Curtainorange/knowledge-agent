@@ -102,7 +102,10 @@ def test_note_creates_item_and_card(client, session, provider):
     session.flush()
     items = session.query(KnowledgeItem).filter(KnowledgeItem.title == "B+树更适合范围查询").all()
     assert len(items) == 1
-    assert items[0].source == "agent"             # 与表单录入（manual）区分得开
+    # 来源只表达内容来源（口述记一条 = manual）；「从对话录的」是渠道信息，放 tags。
+    # 原断言（source == "agent"）把渠道混进了来源枚举，已按下述方式保住区分能力。
+    assert items[0].source == "manual"
+    assert "对话录入" in (items[0].tags or [])
 
 
 def test_note_without_body_writes_nothing(client, session, provider):

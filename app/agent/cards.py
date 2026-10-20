@@ -23,6 +23,12 @@ from app.agent.router import capability_spec
 PENDING_KIND = "pending"
 FAILED_KIND = "failed"
 
+# 录入渠道标记（A 模块 6.1）：写在 `tags` 里，不写 `source`。
+# `source` 只表达内容来源（book / weread / manual 三种枚举），渠道不是来源。
+# 定义在 cards 而不是 copilot：copilot 依赖 cards，反过来会成环；
+# 卡片渲染与入库都要用它，放这里两边都能取。
+CHANNEL_TAG_CHAT = "对话录入"
+
 # 需要「卡片内直接操作」的卡片类型：读取会话时它们的展示状态要按数据库刷新，
 # 否则重新打开页面会看到已经处理过的冲突又变回「待处理」——卡片在说谎。
 ACTIONABLE_KINDS: frozenset[str] = frozenset({"l2_conflicts", "l5_diagnosis"})
@@ -600,7 +606,9 @@ def knowledge_created_card(item) -> dict:
         "kind": "knowledge_created",
         "item_id": item.id,
         "title": item.title,
-        "tags": [str(tag) for tag in (item.tags or [])],
+        # 渠道标签（对话录入）存在 tags 里供统计与复盘用，但**不在卡片上展示**：
+        # 用户看到的标签应该是内容相关的（数据库 / 划线），不是"你从哪录的"。
+        "tags": [str(tag) for tag in (item.tags or []) if str(tag) != CHANNEL_TAG_CHAT],
         "embed_status": item.embed_status,
         "href": f"/knowledge.html?item={item.id}",
     }

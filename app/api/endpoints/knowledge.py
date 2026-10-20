@@ -95,6 +95,20 @@ class TagCount(BaseModel):
     count: int
 
 
+class BookStat(BaseModel):
+    """按书聚合的同步情况（状态条的折叠明细）。
+
+    `source` 用来区分内置书（`book`）与微信读书（`weread`）：两者的"已同步"含义不同，
+    前者是用户划的词，后者是平台带过来的划线/想法。
+    """
+
+    book_id: str
+    title: str = ""
+    source: str = ""
+    count: int = 0
+    last_at: datetime | None = None
+
+
 class KnowledgeStatsResponse(BaseModel):
     """知识库概览统计（前端仪表盘）。"""
 
@@ -102,6 +116,11 @@ class KnowledgeStatsResponse(BaseModel):
     by_source: dict[str, int] = Field(default_factory=dict)
     by_embed_status: dict[str, int] = Field(default_factory=dict)
     top_tags: list[TagCount] = Field(default_factory=list)
+    # A 模块状态条：书级明细 / 上次同步时间 / 暂不可检索条数
+    by_book: list[BookStat] = Field(default_factory=list)
+    last_synced_at: datetime | None = None
+    # pending + embed_failed：**代码算**，不让前端各自加一遍（两处各算必然分叉）
+    not_ready: int = 0
     request_id: str
 
 
@@ -160,15 +179,24 @@ def get_stats(
     """知识库概览统计（前端仪表盘用）：总数 / 来源分布 / 向量化状态 / 高频标签。
 
     纯本地聚合，不调模型。标签频次取前 15 个（出现次数降序、同频按名称排序）。
+    另给三项供 A 模块「同步状态条」使用：`by_book`（书级明细）、`last_synced_at`、`not_ready`。
     """
     from collections import Counter
 
     from sqlalchemy import select
 
+    from app.domain.models.book import Book
     from app.domain.models.knowledge_item import KnowledgeItem
 
     rows = session.execute(
-        select(KnowledgeItem.source, KnowledgeItem.embed_status, KnowledgeItem.tags).where(
+        select(
+            KnowledgeItem.source,
+            KnowledgeItem.embed_status,
+            KnowledgeItem.tags,
+            KnowledgeItem.source_item_id,
+            KnowledgeItem.source_locator,
+            KnowledgeItem.created_at,
+        ).where(
             KnowledgeItem.is_deleted.is_(False),
             KnowledgeItem.user_id == user_id,
         )
@@ -181,13 +209,96 @@ def get_stats(
         tag_counter.update(t.strip() for t in (r.tags or []) if t and t.strip())
     top_tags = sorted(tag_counter.items(), key=lambda kv: (-kv[1], kv[0]))[:15]
 
+    book_buckets = _aggregate_by_book(rows)
+    _fill_book_titles(session, user_id, book_buckets)
+
+    last_synced_at = _last_weread_sync(session, user_id)
+
     return KnowledgeStatsResponse(
         total=len(rows),
         by_source=dict(by_source),
         by_embed_status=dict(by_embed),
         top_tags=[TagCount(tag=tag, count=count) for tag, count in top_tags],
+        by_book=[
+            BookStat(
+                book_id=b["book_id"],
+                title=b["title"],
+                source=b["source"],
+                count=b["count"],
+                last_at=b["last_at"],
+            )
+            for b in sorted(book_buckets.values(), key=lambda x: (-x["count"], x["book_id"]))
+        ],
+        last_synced_at=last_synced_at,
+        not_ready=int(by_embed.get("pending", 0)) + int(by_embed.get("embed_failed", 0)),
         request_id=trace.get_request_id() or "",
     )
+
+
+def _aggregate_by_book(rows) -> dict[str, dict]:
+    """按书聚合条目数。
+
+    两种来源的书 id 存在不同位置，这里统一成 `{source}:{book_id}` 作键：
+    - 内置书：`source_item_id` 就是 book_id（`books/service.add_note` 写入）
+    - 微信读书：book_id 在 `source_locator.book_id` 里（`_collect_book::locator` 写入）
+
+    `title` 先取 locator 里的书名（微信读书自带）；内置书留空，由 `_fill_book_titles` 补。
+    """
+    buckets: dict[str, dict] = {}
+    for r in rows:
+        book_id = ""
+        title = ""
+        if r.source == "book" and r.source_item_id:
+            book_id = str(r.source_item_id)
+        elif r.source == "weread":
+            loc = r.source_locator or {}
+            book_id = str(loc.get("book_id") or "")
+            title = str(loc.get("book_title") or "")
+        if not book_id:
+            continue  # 手动记的条目不属于任何书，不计入书级明细
+        key = f"{r.source}:{book_id}"
+        bucket = buckets.setdefault(
+            key,
+            {"book_id": book_id, "title": title, "source": r.source, "count": 0, "last_at": None},
+        )
+        bucket["count"] += 1
+        if r.created_at is not None and (bucket["last_at"] is None or r.created_at > bucket["last_at"]):
+            bucket["last_at"] = r.created_at
+    return buckets
+
+
+def _fill_book_titles(session: Session, user_id: str, buckets: dict[str, dict]) -> None:
+    """给内置书的书级明细补书名（微信读书自带书名，不查库）。"""
+    from sqlalchemy import select
+
+    from app.domain.models.book import Book
+
+    ids = [b["book_id"] for b in buckets.values() if b["source"] == "book" and not b["title"]]
+    if not ids:
+        return
+    titles = {
+        b.id: b.title
+        for b in session.scalars(
+            select(Book).where(Book.user_id == user_id, Book.id.in_(ids))
+        )
+    }
+    for bucket in buckets.values():
+        if bucket["source"] == "book" and not bucket["title"]:
+            bucket["title"] = titles.get(bucket["book_id"], "")
+
+
+def _last_weread_sync(session: Session, user_id: str) -> datetime | None:
+    """微信读书上次同步时间。读失败按"没有"处理——状态条少一个时间不影响主流程。"""
+    try:
+        from app.domain.repositories.learning_event_repository import LearningEventRepository
+        from app.feedback import events
+
+        rows = LearningEventRepository(session, user_id=user_id).list_recent(
+            user_id, event_type=events.WEREAD_SYNCED, limit=1
+        )
+        return rows[0].occurred_at if rows else None
+    except Exception:  # pragma: no cover - 防御性兜底
+        return None
 
 
 @router.get("/items/{item_id}", response_model=KnowledgeDetailResponse)

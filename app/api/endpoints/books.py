@@ -95,6 +95,8 @@ class NoteResponse(BaseModel):
     item_id: str
     embed_status: str
     has_note: bool = False
+    # 命中去重：这次划的词之前已经存过（返回的是既有条目，没有新建）
+    already_exists: bool = False
     request_id: str
 
 
@@ -360,8 +362,9 @@ def add_note(
     session: Session = Depends(get_session),
 ) -> NoteResponse:
     """阅读时划选一段文字存为知识；可附带自己的想法。"""
+    svc = BookService(session)
     try:
-        item = BookService(session).add_note(
+        item = svc.add_note(
             user_id=user_id,
             book_id=book_id,
             text=body.text,
@@ -378,6 +381,7 @@ def add_note(
         item_id=item.id,
         embed_status=item.embed_status,
         has_note=bool(item.note),
+        already_exists=svc.last_note_deduped,
         request_id=trace.get_request_id() or "",
     )
 

@@ -16,6 +16,17 @@ from app.retrieval.vector_store import VectorStore, build_vector_store
 
 logger = logging.getLogger(__name__)
 
+# 知识来源白名单（A 模块 6.1）：只允许这三种。
+# 为什么要有白名单：`source` 决定统计口径与"能否作为建议依据"的判定，
+# 一旦允许任意字符串写入，`stats.by_source` 会冒出设计里不存在的分类，
+# 前端按 3 类渲染就会把条目漏掉。**来源是枚举，不是自由文本。**
+# 注意：模型注释里写的 notion / obsidian / feishu / bookmark 全是**预留、未实现**，
+# 不要因为看到注释就以为它们是合法值。
+KNOWN_SOURCES: frozenset[str] = frozenset({"manual", "book", "weread"})
+SOURCE_MANUAL = "manual"
+SOURCE_BOOK = "book"
+SOURCE_WEREAD = "weread"
+
 
 class IngestionService:
     def __init__(
@@ -34,10 +45,17 @@ class IngestionService:
         return self._store
 
     def add_knowledge(
-        self, *, user_id: str, title: str, content: str, source: str = "manual", tags: list | None = None
+        self, *, user_id: str, title: str, content: str, source: str = SOURCE_MANUAL, tags: list | None = None
     ) -> KnowledgeItem:
+        normalized = (source or SOURCE_MANUAL).strip()
+        if normalized not in KNOWN_SOURCES:
+            # 直接拒绝而不是兜底成 manual：兜底会把"写错了来源"这件事悄悄抹平，
+            # 统计口径从此再也对不上，而且没人会发现。宁可在这里炸。
+            raise ValueError(
+                f"未知知识来源: {source!r}（可选 {sorted(KNOWN_SOURCES)}）"
+            )
         repo = KnowledgeRepository(self._session, user_id=user_id)
-        item = repo.create(user_id=user_id, title=title, content=content, source=source, tags=tags)
+        item = repo.create(user_id=user_id, title=title, content=content, source=normalized, tags=tags)
 
         # 先落库提交，再算向量。模型首次加载 / 下载可能耗时数十秒，若压在写事务里，
         # SQLite 的写锁会被长期占用，其它请求会直接撞上 "database is locked"。

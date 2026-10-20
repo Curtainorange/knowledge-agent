@@ -61,6 +61,10 @@ def _user_dir(user_id: str) -> Path:
 class BookService:
     def __init__(self, session: Session):
         self._session = session
+        # 最近一次 add_note 是否命中去重（A 模块 5.5）。
+        # 用实例属性而不是改返回值：add_note 的调用方与测试都依赖
+        # `KnowledgeItem | None` 这个签名，为了一枚布尔改签名不划算。
+        self.last_note_deduped = False
 
     def upload(self, *, user_id: str, filename: str, content: bytes) -> Book:
         repo = BookRepository(self._session, user_id=user_id)
@@ -168,6 +172,32 @@ class BookService:
         thought = (note or "").strip()
         content = excerpt if not thought else f"{excerpt}\n\n【我的想法】{thought}"
 
+        # 查重（A 模块 5.5）：同一本书、同一段原文、同一份想法重复划词 → 返回既有条目。
+        # 为什么必须做：内置书的 `source_item_id` 是 book_id（整本同一个值），
+        # 没有条目级去重键，重复划词会产生两条一模一样的条目，直接污染证据池——
+        # 建议会为同一段原文引用两次，看起来"证据充分"，实际只有一条。
+        duplicate = self.find_duplicate_note(
+            user_id=user_id,
+            book_id=book_id,
+            content=content,
+            char_start=char_start,
+            char_end=char_end,
+        )
+        if duplicate is not None:
+            self.last_note_deduped = True
+            from app.feedback import events
+
+            events.record(
+                self._session, user_id=user_id, event_type=events.NOTE_CREATED,
+                payload={
+                    "item_id": duplicate.id, "book_id": book_id,
+                    "chapter_index": chapter_index, "has_thought": bool(thought),
+                    "excerpt_len": len(excerpt), "deduped": True,
+                },
+            )
+            return duplicate
+        self.last_note_deduped = False
+
         svc = IngestionService(self._session, build_embedding())
         item = svc.add_knowledge(
             user_id=user_id,
@@ -193,10 +223,44 @@ class BookService:
             payload={
                 "item_id": item.id, "book_id": book_id,
                 "chapter_index": chapter_index, "has_thought": bool(thought),
-                "excerpt_len": len(excerpt),
+                "excerpt_len": len(excerpt), "deduped": False,
             },
         )
         return item
+
+    def find_duplicate_note(
+        self,
+        *,
+        user_id: str,
+        book_id: str,
+        content: str,
+        char_start: int | None = None,
+        char_end: int | None = None,
+    ) -> KnowledgeItem | None:
+        """查是否已有「同书 + 同原文 + 同想法」的条目（A 模块 5.5）。
+
+        判定口径：
+        - 给了字符区间 → 要求区间也一致。同一本书里相同文字可能出现在不同位置，
+          那是两处独立摘录，不该合并。
+        - 没给区间 → 按内容匹配即可。
+
+        只比 `raw_content`（原文 + 想法拼接后的结果）而不单比原文：
+        同一段原文、不同想法是两条有价值的不同条目，合并会把后写的想法吃掉。
+        """
+        stmt = select(KnowledgeItem).where(
+            KnowledgeItem.user_id == user_id,
+            KnowledgeItem.source == "book",
+            KnowledgeItem.source_item_id == book_id,
+            KnowledgeItem.raw_content == content,
+            KnowledgeItem.is_deleted.is_(False),
+        )
+        for item in self._session.scalars(stmt):
+            if char_start is None or char_end is None:
+                return item
+            loc = item.source_locator or {}
+            if loc.get("char_start") == int(char_start) and loc.get("char_end") == int(char_end):
+                return item
+        return None
 
     def list_notes(self, *, user_id: str, book_id: str) -> list[KnowledgeItem]:
         """本书已录入的知识，按原文位置排序。

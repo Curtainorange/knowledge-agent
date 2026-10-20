@@ -42,6 +42,7 @@ from sqlalchemy.orm import Session
 
 from app.agent import turns
 from app.agent.cards import (
+    CHANNEL_TAG_CHAT,
     guide_card,
     knowledge_created_card,
     l1_clarify_card,
@@ -58,9 +59,18 @@ from app.agent.turns import SOURCE
 from app.core.config import settings
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.feedback import events
-from app.ingestion.service import IngestionService
+from app.ingestion.service import SOURCE_MANUAL, IngestionService
 from app.llm.gateway import ModelGateway
 from app.retrieval.embedding import build_embedding
+
+# 录入渠道标记：写在 tags 里而不是 source 里，常量定义在 `cards`（两处共用，
+# 且 copilot 已依赖 cards，不会成环）。
+def _with_channel_tag(tags: list[str] | None) -> list[str]:
+    """给对话录入口的条目补渠道标记，保留用户自己的标签。"""
+    out = [t for t in (tags or []) if t]
+    if CHANNEL_TAG_CHAT not in out:
+        out.append(CHANNEL_TAG_CHAT)
+    return out
 
 logger = logging.getLogger(__name__)
 
@@ -275,8 +285,13 @@ class Copilot:
             user_id=user_id,
             title=note["title"],
             content=note["content"],
-            source=SOURCE,
-            tags=note["tags"],
+            # 来源只表达「内容从哪来」，不表达「从哪个入口录进来」。
+            # 口述记一条的内容来源就是 manual；来源是枚举（A 模块 6.1 白名单），
+            # 多一个 "agent" 会让 stats.by_source 出现设计外的分类，
+            # 也会让 grounding 的跳转分派多一个与 manual 完全相同的分支。
+            # 「从对话录的」是**渠道**信息，放 tags，与「书籍摘录 / 微信读书」等同构。
+            source=SOURCE_MANUAL,
+            tags=_with_channel_tag(note["tags"]),
         )
         card = knowledge_created_card(item)
         reply = f"已记下：{item.title}"
