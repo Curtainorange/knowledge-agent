@@ -861,3 +861,8 @@ main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px
 .cf-attr summary::-webkit-details-marker{display:none}
 .attr-body{margin-top:8px}
 .attr-scene{margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.6}
+
+/* 计划任务的依据抽屉（F 模块） */
+.task-basis{margin:2px 0 10px;padding-left:8px}
+.task-basis summary{cursor:pointer;color:var(--accent);font-size:12.5px;list-style:none}
+.task-basis summary::-webkit-details-marker{display:none}

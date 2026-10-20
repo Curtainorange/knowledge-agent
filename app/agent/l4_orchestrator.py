@@ -121,6 +121,8 @@ class L4PlanView:
     rationale: str
     tasks: list[dict]
     progress: dict
+    # 本次排期用的规则参数（F 模块）：计划页头部拿它说明"按什么排的"
+    rules_snapshot: dict = field(default_factory=dict)
 
 
 @dataclass
@@ -206,16 +208,28 @@ class L4Orchestrator:
                 note="计划生成失败（模型输出无法解析），已保留既有计划，请重试。",
             )
 
+        # F 模块：模型只负责「学什么」，排期约束交给规则引擎。
+        # 模型排得再漂亮，装不进每周 5 小时也是废纸；复习点也必须真的落在日历上。
+        from app.agent import plan_rules
+
+        normalized, snapshot = plan_rules.normalize(
+            [t.model_dump() for t in draft.tasks[: settings.l4_max_tasks]],
+            params=plan_rules.DEFAULT_PARAMS,
+            remaining_ratio=self._remaining_ratio(user_id),
+        )
         plan = self._apply_plan_change(
             user_id=user_id, goal_id=goal_id,
-            content={"rationale": draft.rationale},
-            tasks=[t.model_dump() for t in draft.tasks[: settings.l4_max_tasks]],
+            content={"rationale": draft.rationale, "rules_snapshot": snapshot},
+            tasks=[t.as_dict() for t in normalized],
             version=self._next_version(goal_id),
         )
         events.record(
             self._session, user_id=user_id, event_type=events.L4_PLAN_GENERATED,
-            payload={"goal_id": goal_id, "plan_id": plan.id, "version": plan.version,
-                     "tasks": len(draft.tasks)},
+            payload={
+                "goal_id": goal_id, "plan_id": plan.id, "version": plan.version,
+                "tasks": len(normalized), "reviews": snapshot.get("review_count", 0),
+                "deferred": snapshot.get("deferred", 0),
+            },
         )
         return L4PlanResult(state="ok", view=self._view(goal_id, plan))
 
@@ -329,6 +343,23 @@ class L4Orchestrator:
     def _next_version(self, goal_id: str) -> int:
         latest = LearningPlanRepository(self._session).latest_for_goal(goal_id)
         return (latest.version + 1) if latest else 1
+
+    def _remaining_ratio(self, user_id: str) -> float:
+        """还剩多少没学（1.0 = 从头开始）。
+
+        用「关联条目的完成比」近似（判据与 L5 的 completed 一致：`read_progress >= 1`）。
+        没有条目、或统计失败，一律返回 1.0——**默认从头排**比默认跳过安全：
+        多排了几条用户能删，少排了他会以为漏了。
+        """
+        try:
+            items = KnowledgeRepository(self._session, user_id=user_id).list_active(user_id)
+        except Exception as exc:  # noqa: BLE001 - 读不到就按从头排
+            logger.warning("l4: 读完成比失败，按从头排: %s", exc)
+            return 1.0
+        if not items:
+            return 1.0
+        done = sum(1 for i in items if float(i.read_progress or 0.0) >= 1.0)
+        return max(0.0, min(1.0, round(1.0 - done / len(items), 3)))
 
     # ---- 内部：未解冲突与目标的相关性 ---------------------------------------
 
@@ -589,11 +620,16 @@ class L4Orchestrator:
                 {
                     "task_id": t.id, "week_index": t.week_index,
                     "subject": t.subject, "status": t.status,
+                    "focus": t.focus or "",
+                    "minutes": int(t.minutes or 0),
+                    "task_type": t.task_type or "new",
+                    "basis": dict(t.basis or {}),
                     "related_item_ids": list(t.related_item_ids or []),
                 }
                 for t in tasks
             ],
             progress=PlanTaskRepository(self._session).progress(plan.id),
+            rules_snapshot=dict((plan.content or {}).get("rules_snapshot") or {}),
         )
 
     def _latest_view(self, goal_id: str) -> L4PlanView | None:

@@ -115,6 +115,10 @@ class PlanTaskRepository(BaseRepository[PlanTask]):
                 plan_id=plan_id,
                 week_index=int(task.get("week_index", 1)),
                 subject=str(task.get("subject", ""))[:256],
+                focus=str(task.get("focus") or "")[:300],
+                minutes=int(task.get("minutes") or 0),
+                task_type=str(task.get("task_type") or "new")[:16],
+                basis=dict(task.get("basis") or {}),
                 status=str(task.get("status", "pending")),
                 related_item_ids=list(task.get("related_item_ids") or []),
             )

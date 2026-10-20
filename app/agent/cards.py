@@ -332,6 +332,7 @@ def l4_plan_card(
     *, key: str, state: str, goal_description: str = "", plan_id: str = "",
     version: int = 0, rationale: str = "", tasks: list[dict] | None = None,
     progress: dict | None = None, note: str = "",
+    rules_snapshot: dict | None = None,
 ) -> dict:
     spec = capability_spec("l4_plan")
     return {
@@ -348,10 +349,18 @@ def l4_plan_card(
                 "week_index": int(t.get("week_index") or 0),
                 "subject": str(t.get("subject") or ""),
                 "status": str(t.get("status") or "pending"),
+                # F 模块：时长 / 类型 / 依据。卡片上也给出来，
+                # 用户不必跳去计划页才看得到"为什么排这一条"。
+                "focus": str(t.get("focus") or ""),
+                "minutes": int(t.get("minutes") or 0),
+                "task_type": str(t.get("task_type") or "new"),
+                "basis": dict(t.get("basis") or {}),
             }
             for t in (tasks or [])
         ],
         "progress": dict(progress or {}),
+        # 本次排期用的规则参数：周容量 / 新复比 / 复习周 / 剩余进度
+        "rules_snapshot": dict(rules_snapshot or {}),
         "note": note,
         "href": spec.href if spec else "",
         "sends": [_send("重新生成周计划", "重新生成周计划")] if state == "ok" else [],

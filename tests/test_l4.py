@@ -81,8 +81,14 @@ def test_create_goal_and_generate_plan(session):
     assert result is not None and result.state == "ok"
     view = result.view
     assert view.version == 1
-    assert [t["week_index"] for t in view.tasks] == [1, 2]
-    assert view.progress == {"total": 2, "done": 0, "pending": 2}
+    # 两周的模型任务按周排；第 2 周还会由规则插入一条「回看第 1 周」的复习任务
+    new_tasks = [t for t in view.tasks if t["task_type"] == "new"]
+    assert [t["week_index"] for t in new_tasks] == [1, 2]
+    assert any(t["task_type"] == "review" for t in view.tasks)
+    # 进度统计包含复习任务：回看也是要做的事，不算进去会让进度看起来比实际乐观
+    assert view.progress["total"] == len(view.tasks)
+    assert view.progress["done"] == 0
+    assert view.progress["pending"] == len(view.tasks)
     assert view.rationale == "先补原理再实战"
 
     # 事件留痕
@@ -122,7 +128,10 @@ def test_plan_tasks_capped(session):
     orch = _orch(session, {"plan_generation": [many]})
     goal_id = orch.create_goal(user_id="u1", description="大目标")
     view = orch.generate_plan(user_id="u1", goal_id=goal_id).view
-    assert len(view.tasks) == settings.l4_max_tasks
+    # `l4_max_tasks` 限制的是**模型产出的新学任务**；复习任务是规则附加的，
+    # 所以总数可以超过上限——它本来就是"额外留出的回看时间"。
+    new_tasks = [t for t in view.tasks if t["task_type"] == "new"]
+    assert len(new_tasks) == settings.l4_max_tasks
 
 
 # ---------- UC-L4-02 偏离监测 ----------
@@ -300,7 +309,10 @@ def test_api_goal_plan_and_deviation_flow(client):
         plan = client.post(f"/api/v1/l4/goals/{goal_id}/plan", headers=headers)
         assert plan.status_code == 200, plan.text
         body = plan.json()
-        assert body["version"] == 1 and len(body["tasks"]) == 2
+        assert body["version"] == 1
+        # 两个模型任务 + 一条规则插入的复习任务（第 2 周回看第 1 周）
+        assert len([t for t in body["tasks"] if t["task_type"] == "new"]) == 2
+        assert any(t["task_type"] == "review" for t in body["tasks"])
 
         latest = client.get("/api/v1/l4/plan", headers=headers).json()
         assert latest["plan_id"] == body["plan_id"]

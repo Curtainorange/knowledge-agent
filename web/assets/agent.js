@@ -266,15 +266,41 @@ window.CCA = (function () {
     parts.push('<div class="plan-head"><strong>' + esc(card.goal_description) + '</strong>' +
       '<span class="badge">v' + Number(card.version || 1) + '</span></div>');
 
+    /* 每条任务带上时长与类型，并把「为什么排在这里」放进折叠细节。
+       依据是规则算出来的（周容量 / 复习点 / 剩余进度），不是模型的说辞——
+       用户能看到它、也能据此反驳规则。 */
     parts.push((card.tasks || []).map(function (t) {
       var done = t.status === 'done';
-      return '<div class="task-row' + (done ? ' done' : '') + '">' +
+      var basis = t.basis || {};
+      var meta = [];
+      if (t.minutes) {
+        meta.push(Number(t.minutes) + ' 分钟');
+      }
+      meta.push(t.task_type === 'review' ? '复习' : '新学');
+      var row = '<div class="task-row' + (done ? ' done' : '') + '">' +
         '<span class="task-week">第 ' + Number(t.week_index) + ' 周</span>' +
         '<span class="task-subject">' + esc(t.subject) + '</span>' +
+        '<span class="meta">' + esc(meta.join(' · ')) + '</span>' +
         '<span class="badge' + (done ? ' ok' : '') + '">' +
           esc(TASK_STATE_LABEL[t.status] || t.status) + '</span>' +
       '</div>';
+      if (basis.why) {
+        row += '<details class="task-basis"><summary>为什么排在这里</summary>' +
+          '<div class="meta">' + esc(basis.why) + '</div></details>';
+      }
+      return row;
     }).join(''));
+
+    var snapshot = card.rules_snapshot || {};
+    if (snapshot.weekly_minutes) {
+      parts.push('<div class="meta">排期规则：每周 ' + Number(snapshot.weekly_minutes) +
+        ' 分钟 · 新学占 ' + Math.round(Number(snapshot.new_ratio || 0) * 100) + '%' +
+        (snapshot.review_count ? (' · 含 ' + Number(snapshot.review_count) + ' 个复习任务') : '') +
+        (Number(snapshot.remaining_ratio || 1) < 0.99
+          ? (' · 只排剩下没学的 ' + Math.round(Number(snapshot.remaining_ratio) * 100) + '%')
+          : '') +
+      '</div>');
+    }
 
     var progress = card.progress || {};
     parts.push('<div class="meta">共 ' + Number(progress.total || 0) + ' 项，已完成 ' +

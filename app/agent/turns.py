@@ -510,6 +510,7 @@ def _execute_l4_goal(*, user_id: str, session: Session, key: str, args: dict | N
     card = l4_plan_card(
         key=key, state="ok", goal_description=view.goal_description, plan_id=view.plan_id,
         version=view.version, rationale=view.rationale, tasks=view.tasks, progress=view.progress,
+        rules_snapshot=getattr(view, "rules_snapshot", {}) or {},
     )
     total = int(view.progress.get("total") or 0)
     done = int(view.progress.get("done") or 0)
@@ -546,6 +547,7 @@ def _execute_l4_plan(
         key=key, state=result.state, goal_description=view.goal_description,
         plan_id=view.plan_id, version=view.version, rationale=view.rationale,
         tasks=view.tasks, progress=view.progress, note=result.note,
+        rules_snapshot=getattr(view, "rules_snapshot", {}) or {},
     )
     return plan_reply(result.state, tasks=view.tasks, progress=view.progress, note=result.note), card
 

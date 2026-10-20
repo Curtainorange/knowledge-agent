@@ -93,12 +93,26 @@
     if (!tasks || !tasks.length) {
       return '<div class="empty">暂无任务。</div>';
     }
+    /* 每条任务带时长 / 类型，并把依据放进折叠区。
+       依据来自规则引擎（周容量 / 复习点 / 剩余进度），不是模型的说辞——
+       「为什么排在这里」能点开看，规则才有可被质疑的余地。 */
     var rows = tasks.map(function (t) {
       var status = t.status === 'done' ? '<span class="badge ok">已完成</span>' : '<span class="badge">待开始</span>';
-      return '<div class="topic-row">' +
+      var meta = [];
+      if (t.minutes) {
+        meta.push(t.minutes + ' 分钟');
+      }
+      meta.push(t.task_type === 'review' ? '复习' : '新学');
+      var basis = t.basis || {};
+      var row = '<div class="topic-row">' +
         '<div class="topic-name">第 ' + t.week_index + ' 周 · ' + esc(t.subject) + '</div>' +
-        '<div class="topic-levels">' + status + '</div>' +
+        '<div class="topic-levels">' + esc(meta.join(' · ')) + ' ' + status + '</div>' +
       '</div>';
+      if (basis.why) {
+        row += '<details class="task-basis"><summary>为什么排在这里</summary>' +
+          '<div class="meta">' + esc(basis.why) + '</div></details>';
+      }
+      return row;
     }).join('');
     var p = progress || {};
     var bar = (p.total ? Math.round((p.done || 0) / p.total * 100) : 0) + '%';
@@ -114,7 +128,23 @@
     $('#plan-note').textContent = '目标：' + (result.goal_description || '') +
       ' · 版本 v' + result.version + (result.note ? (' · ' + result.note) : '');
     var rationale = result.rationale ? ('<div class="meta">排法理由：' + esc(result.rationale) + '</div>') : '';
-    $('#plan-view').innerHTML = rationale + taskRows(result.tasks, result.progress);
+    /* 排期规则摘要：用户要能一眼看到"按什么排的"，而不是只看到排好的结果 */
+    var snap = result.rules_snapshot || {};
+    var rules = '';
+    if (snap.weekly_minutes) {
+      var bits = [
+        '每周 ' + snap.weekly_minutes + ' 分钟',
+        '新学占 ' + Math.round((snap.new_ratio || 0) * 100) + '%'
+      ];
+      if (snap.review_count) {
+        bits.push('含 ' + snap.review_count + ' 个复习任务');
+      }
+      if (Number(snap.remaining_ratio || 1) < 0.99) {
+        bits.push('只排剩下没学的 ' + Math.round(Number(snap.remaining_ratio) * 100) + '%');
+      }
+      rules = '<div class="meta">排期规则：' + esc(bits.join(' · ')) + '</div>';
+    }
+    $('#plan-view').innerHTML = rationale + rules + taskRows(result.tasks, result.progress);
   }
 
   function renderDeviation(result) {

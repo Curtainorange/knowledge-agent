@@ -54,6 +54,11 @@ class PlanTaskOut(BaseModel):
     week_index: int
     subject: str
     status: str
+    # F 模块：时长 / 类型 / 依据——计划页的「为什么排这里」抽屉读这三项
+    focus: str = ""
+    minutes: int = 0
+    task_type: str = "new"   # new | review
+    basis: dict = Field(default_factory=dict)
     related_item_ids: list[str] = Field(default_factory=list)
 
 
@@ -66,6 +71,8 @@ class PlanResponse(BaseModel):
     rationale: str = ""
     tasks: list[PlanTaskOut] = Field(default_factory=list)
     progress: dict = Field(default_factory=dict)
+    # 本次排期用的规则参数（F 模块）：周容量 / 新复比 / 复习周 / 剩余进度
+    rules_snapshot: dict = Field(default_factory=dict)
     note: str = ""
     request_id: str
 
@@ -118,6 +125,7 @@ def _plan_response(view, request_id: str, note: str = "", state: str = "ok") -> 
         rationale=view.rationale,
         tasks=[PlanTaskOut(**t) for t in view.tasks],
         progress=view.progress,
+        rules_snapshot=getattr(view, "rules_snapshot", {}) or {},
         note=note,
         request_id=request_id,
     )
