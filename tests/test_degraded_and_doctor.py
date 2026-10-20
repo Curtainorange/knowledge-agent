@@ -126,3 +126,14 @@ def test_doctor_reports_degraded_without_keys(client):
     assert body["checks"]["embedding"]["ok"] is True
     assert body["checks"]["llm"]["ok"] is False
     assert "未配置模型 Key" in body["checks"]["llm"]["detail"]
+
+
+def test_doctor_exposes_lexical_backend(client):
+    """关键词通道用哪种打分要看得见。
+
+    BM25 与重叠率的召回质量不同，且切到 pgvector 后端会静默退回重叠率——
+    自检是唯一能一眼确认"现在到底在用哪个"的地方，别把它藏起来。
+    """
+    user = sign_in(client, "doctor_lexical")
+    body = client.get("/api/v1/system/doctor", headers=user.headers).json()
+    assert "bm25" in body["checks"]["vector_store"]["detail"]

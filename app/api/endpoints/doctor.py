@@ -76,7 +76,10 @@ def _check_vector_store(session: Session) -> dict:
     except Exception as exc:  # noqa: BLE001
         return {"ok": False, "detail": f"向量索引（{backend}）{store_count} 条；条目数查询失败：{exc}"}
 
-    detail = f"后端 {backend}，索引 {store_count} 条 / 条目 {db_count} 条"
+    # 关键词通道用的哪种打分要看得见：BM25 与重叠率的召回质量不同，
+    # 换后端（memory → pgvector）会静默降级，自检是唯一能一眼确认的地方
+    lexical = getattr(store, "lexical_backend", "unknown")
+    detail = f"后端 {backend}，索引 {store_count} 条 / 条目 {db_count} 条，关键词通道 {lexical}"
     if store_count is None:
         detail += "（该后端不支持计数，跳过一致性比对）"
         return {"ok": True, "detail": detail}
