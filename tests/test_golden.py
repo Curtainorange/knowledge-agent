@@ -156,9 +156,16 @@ def _check(name: str, parsed) -> None:
             assert item.action and item.how_to_verify, "建议缺动作或验证方式"
             assert item.basis_item_ids, "建议没带依据 id（会被引用校验丢弃）"
     elif name == "conflict_attribute":
-        # 七项结构：缺背景就是「两本书看法不同」，等于没解释
+        # 七项结构：缺背景就是「两本书看法不同」，等于没解释。
+        # 长度上下限引用 `attribution` 的常量，不在测试里另抄一份数字。
+        from app.agent.attribution import MAX_BACKGROUND_LEN, MIN_BACKGROUND_LEN
+
         assert parsed.cause_type, "缺冲突原因类型"
-        assert parsed.background_a and parsed.background_b, "缺双方背景"
+        for side, bg in (("A", parsed.background_a), ("B", parsed.background_b)):
+            assert bg, f"缺 {side} 的背景"
+            assert MIN_BACKGROUND_LEN <= len(bg.strip()) <= MAX_BACKGROUND_LEN, (
+                f"{side} 背景 {len(bg)} 字，超出 {MIN_BACKGROUND_LEN}-{MAX_BACKGROUND_LEN} 区间"
+            )
         assert parsed.premise_a and parsed.premise_b, "缺双方前提"
         assert parsed.boundary_a and parsed.boundary_b, "缺双方适用边界"
         assert len(parsed.scene_guidance) >= 2, "场景指引少于 2 条"

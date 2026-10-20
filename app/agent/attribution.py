@@ -45,6 +45,10 @@ SCENE_FOLLOW = ("a", "b", "both")
 MIN_CONFIDENCE = 0.6
 # 背景描述的最短长度（字）。太短的必然是套话（"背景不同"），视为未填写。
 MIN_BACKGROUND_LEN = 8
+# 背景的最长长度（字）。超过它基本可以断定模型在写分析报告，而不是一句判断——
+# 真机产出出现过 150+ 字的背景，前半段全是"题面出处为…未提供作者信息…"，
+# 用户要读三行才看到有用的那半句。
+MAX_BACKGROUND_LEN = 120
 # 每侧原文片段上限：归因需要前提与上下文，但不需要读完整本书
 EXCERPT_MAX = 800
 
@@ -183,8 +187,14 @@ def _validate(draft: AttributionDraft) -> str:
     if draft.cause_type not in CAUSE_TYPES:
         return f"原因类型不在枚举内：{draft.cause_type!r}"
     for side, value in (("A", draft.background_a), ("B", draft.background_b)):
-        if len((value or "").strip()) < MIN_BACKGROUND_LEN:
+        text = (value or "").strip()
+        if len(text) < MIN_BACKGROUND_LEN:
             return f"说法{side} 的背景缺失或过于笼统（背景是必填项）"
+        if len(text) > MAX_BACKGROUND_LEN:
+            return (
+                f"说法{side} 的背景 {len(text)} 字，写成了一段分析而不是一句话——"
+                f"只保留「作者站在什么立场、所以这样讲」那一句"
+            )
     if not (draft.premise_a.strip() and draft.premise_b.strip()):
         return "双方前提至少各写一条"
     if not (draft.boundary_a.strip() and draft.boundary_b.strip()):

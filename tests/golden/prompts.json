@@ -60,8 +60,8 @@
     "sha256": "cc677e378600e92d19d16804b43116151287e16e8d016dab68e58d0917772d5d"
   },
   "conflict_attribute": {
-    "version": "v1",
-    "sha256": "440ddaa5d4830f6299833037a842f5d1098d272c6b8dcc26677c36ed360696b6"
+    "version": "v3",
+    "sha256": "c97924cd12a665f7e4de52291e62c7c8e8a6e5ae556eaa612acd626b1e80ca19"
   },
   "probe_question": {
     "version": "v1",

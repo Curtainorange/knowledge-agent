@@ -169,6 +169,29 @@ def test_missing_background_rejected(session):
     _assert_rejected(session, _good_draft(background_a="背景不同"), keyword="背景")
 
 
+def test_overlong_background_rejected(session):
+    """背景写成一段分析而不是一句判断 → 不落库。
+
+    真机产出过 150+ 字的背景：前半段是「题面出处为…未提供作者信息…不能补作者生平」，
+    用户要读三行才看到有用那半句。可判定的（长度）就该由代码拦，不靠提示词自觉。
+    """
+    from app.agent.attribution import MAX_BACKGROUND_LEN
+
+    _assert_rejected(
+        session,
+        _good_draft(background_a="作" * (MAX_BACKGROUND_LEN + 10)),
+        keyword="背景",
+    )
+
+
+def test_background_length_ceiling_is_documented():
+    from app.agent.attribution import MAX_BACKGROUND_LEN, MIN_BACKGROUND_LEN
+
+    assert MIN_BACKGROUND_LEN < MAX_BACKGROUND_LEN
+    # 一句判断的合理长度：太短是套话，太长是分析报告
+    assert 60 <= MAX_BACKGROUND_LEN <= 200
+
+
 def test_missing_premise_rejected(session):
     _assert_rejected(session, _good_draft(premise_b=""), keyword="前提")
 
