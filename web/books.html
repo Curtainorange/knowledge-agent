@@ -36,20 +36,24 @@
         <button id="btn-weread" class="sm">同步微信读书</button>
         <button id="btn-log" class="sm">阅读日志</button>
         <button id="btn-upload" class="sm">上传书籍</button>
+        <button id="btn-compare" class="sm" disabled>选两本对比（0/2）</button>
       </span>
     </h2>
     <input type="file" id="file-input" accept=".txt,.epub,.pdf" hidden>
     <div class="meta" style="margin-bottom:12px">
       支持 .txt / .epub / .pdf，上传后自动解析章节（PDF 优先用书内书签分章，没有书签则按页）；
       点开即可阅读并记录进度，选中文字可一键记入知识库。<br>
-      「同步微信读书」会把你在微信读书里的划线与想法导入知识库（走官方 AI Skills 接口，可反复点击、不会重复）。
+      「同步微信读书」会把你在微信读书里的划线与想法导入知识库（走官方 AI Skills 接口，可反复点击、不会重复）。<br>
+      勾选两本已通读的书，可以直接对比它们在同一个主题上的说法差异。
     </div>
+    <div id="compare-out"></div>
     <div class="list" id="book-list"></div>
   </div>
 </main>
 
 <div id="toast"></div>
 <script src="/assets/app.js"></script>
+<script src="/assets/compare.js"></script>
 <script>
 (function () {
   'use strict';
@@ -73,6 +77,7 @@
     box.innerHTML = books.map(function (b) {
       var pct = Math.round((b.read_progress || 0) * 100);
       return '<div class="book-item" data-id="' + esc(b.book_id) + '">' +
+        '<input type="checkbox" class="pick" data-pick="' + esc(b.book_id) + '" title="勾选两本可对比">' +
         '<div class="book-cover">' + esc((b.format || '?').toUpperCase()) + '</div>' +
         '<div class="book-info">' +
           '<div class="row"><strong>' + esc(b.title) + '</strong>' +
@@ -182,6 +187,9 @@
     if (!item) {
       return;
     }
+    if (event.target.classList && event.target.classList.contains('pick')) {
+      return;  // 勾选是用来对比的，不该打开阅读器
+    }
     var id = item.getAttribute('data-id');
     var act = event.target.closest('[data-act]');
     if (act && act.getAttribute('data-act') === 'del') {
@@ -198,6 +206,58 @@
       return;
     }
     location.href = '/reader.html?book=' + encodeURIComponent(id);
+  });
+
+  /* ---- 选两本对比（C 模块）----
+     勾选 -> 记 id -> 点按钮 -> 调接口 -> 用 CCCompare.render 渲染。
+     渲染与对话卡片共用 assets/compare.js 同一份，不各自实现一遍表格。 */
+  var picked = [];
+
+  function syncCompareBtn() {
+    var btn = $('#btn-compare');
+    if (!btn) {
+      return;
+    }
+    btn.disabled = picked.length !== 2;
+    btn.textContent = '选两本对比（' + picked.length + '/2）';
+  }
+
+  document.addEventListener('change', function (event) {
+    var box = event.target;
+    if (!box.classList || !box.classList.contains('pick')) {
+      return;
+    }
+    var id = box.getAttribute('data-pick');
+    if (box.checked) {
+      if (picked.length >= 2) {
+        box.checked = false;
+        CC.toast('一次只能对比两本');
+        return;
+      }
+      picked.push(id);
+    } else {
+      picked = picked.filter(function (x) { return x !== id; });
+    }
+    syncCompareBtn();
+  });
+
+  $('#btn-compare').addEventListener('click', async function () {
+    if (picked.length !== 2) {
+      return;
+    }
+    var out = $('#compare-out');
+    out.innerHTML = '<div class="meta">正在对比这两本书，通常十秒左右……</div>';
+    try {
+      var card = await CC.api('POST', '/api/v1/books/compare', {
+        book_a_id: picked[0],
+        book_b_id: picked[1]
+      });
+      out.innerHTML = window.CCCompare
+        ? CCCompare.render(card)
+        : '<div class="notice">渲染脚本没加载，刷新页面再试。</div>';
+    } catch (err) {
+      out.innerHTML = '<div class="notice">对比失败：' + esc(err.message || err) + '</div>';
+    }
   });
 
   (async function boot() {

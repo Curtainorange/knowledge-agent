@@ -225,6 +225,45 @@ def reading_log(
     )
 
 
+class CompareRequest(BaseModel):
+    book_a_id: str = Field(min_length=1)
+    book_b_id: str = Field(min_length=1)
+    force: bool = False
+
+
+@router.post("/compare")
+def compare_books(
+    body: CompareRequest,
+    session: Session = Depends(get_session),
+    user_id: str = Depends(get_user_id),
+) -> dict:
+    """两本书对比（C 模块的书架入口）。
+
+    返回**与对话卡片同构**的 dict（由 `book_compare_card` 构造），前端复用同一套渲染。
+    两个入口各写一份表格，早晚会分叉——这正是"同一条规则实现两遍"的老问题。
+
+    注意：本路由必须注册在 `/{book_id}` 之前，否则 "compare" 会被当成 book_id。
+    """
+    from app.agent import book_compare
+    from app.agent.cards import book_compare_card
+
+    outcome = book_compare.compare(
+        session, user_id=user_id,
+        book_a_id=body.book_a_id, book_b_id=body.book_b_id, force=body.force,
+    )
+    card = book_compare_card(
+        key="shelf-compare", state=outcome.state,
+        book_a=outcome.book_a, book_b=outcome.book_b,
+        overview=outcome.overview, rows=outcome.rows,
+        only_a=outcome.unmatched_a, only_b=outcome.unmatched_b,
+        note=outcome.note,
+    )
+    # 书架页没有对话容器：发消息按钮点了不会有反应，链接也没必要
+    card["sends"] = []
+    card["href"] = ""
+    return card
+
+
 @router.get("/{book_id}", response_model=BookDetailResponse)
 def get_book(
     book_id: str,

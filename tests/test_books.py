@@ -812,3 +812,24 @@ def test_reading_log_page_served(client):
     resp = client.get("/reading_log.html")
     assert resp.status_code == 200
     assert "rl-list" in resp.text
+
+def test_compare_endpoint_returns_card_shape(client):
+    """书架对比接口：返回与对话卡片同构的 dict，且不带对话专用动作。
+
+    顺带钉住**路由顺序**：`/compare` 必须注册在 `/{book_id}` 之前，
+    否则 POST 会被当成「给某本书 POST」，直接 405。
+    """
+    from tests.helpers import sign_in
+
+    user = sign_in(client, "shelf_compare")
+    resp = client.post(
+        "/api/v1/books/compare",
+        json={"book_a_id": "no-such-a", "book_b_id": "no-such-b"},
+        headers=user.headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+    assert body["kind"] == "book_compare"
+    assert body["state"] == "not_found"
+    assert body["sends"] == [], "书架页没有对话容器，不该带发消息按钮"
+    assert body["href"] == ""
