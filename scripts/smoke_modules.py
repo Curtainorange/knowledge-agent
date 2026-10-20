@@ -63,6 +63,40 @@ def _hash_embedding():
 # ---- 各链路 ----------------------------------------------------------------
 
 
+def check_retrieval(session) -> tuple[bool, str]:
+    """真实嵌入模型下，相关内容能不能被召回。
+
+    **这一条专门防「Mock 掩盖参数错」**：HashEmbedding 的分数分布与真实 ONNX 模型
+    完全不同。阈值 0.55 在 Mock 下毫无问题，在真机上会把相关度 0.51 的条目滤掉，
+    表现为 B 模块永远说"依据不足"——功能看着做了，其实用不了。
+    """
+    from app.agent import grounding
+    from app.ingestion.service import IngestionService
+    from app.retrieval.embedding import build_embedding
+
+    embedding = build_embedding()
+    IngestionService(session, embedding).add_knowledge(
+        user_id="smoke",
+        title="原则 · 第三章",
+        content=(
+            "极度透明意味着组织里没有不能说的话。它讲的是信息在组织内部的可见性，"
+            "不是决策权的分配。要让极度透明真正起作用，团队需要先建立说真话的安全感。"
+        ),
+    )
+    evidence = grounding.build_evidence(
+        session, user_id="smoke", query="怎么把极度透明用到周会上", embedding=embedding,
+    )
+    if not evidence:
+        return False, (
+            f"真实嵌入下召回为空（阈值 {grounding.DEFAULT_MIN_RELEVANCE}，"
+            f"模型 {type(embedding).__name__}）——阈值与模型的分数分布不匹配"
+        )
+    top = evidence[0]
+    print(f"      召回：{top.title}  relevance={top.relevance:.3f}  通道={top.retrieval}")
+    print(f"      阈值={grounding.DEFAULT_MIN_RELEVANCE}（模型 {type(embedding).__name__}）")
+    return True, f"{len(evidence)} 条证据，最高 {top.relevance:.3f}"
+
+
 def check_suggestion(session) -> tuple[bool, str]:
     from app.agent import intake, suggestion
     from app.ingestion.service import IngestionService
@@ -269,12 +303,15 @@ def main() -> int:
         return 2
     print(f"模型链：deepseek（key 已配置，长度 {len(settings.deepseek_api_key)}）")
     print(f"临时库：{DB_PATH.name}\n")
+    # 建条目会触发 L2 实时扫描入队；冒烟里没有 worker 消费它，关掉免得噪音
+    settings.l2_realtime_trigger_enabled = False
 
     if DB_PATH.exists():
         DB_PATH.unlink()
     session = _fresh_session()
 
     checks = [
+        ("A 依据召回（真实嵌入 + 阈值）", check_retrieval),
         ("B 阅读建议（reading_suggestion）", check_suggestion),
         ("D 冲突归因（conflict_attribution）", check_attribution),
         ("E 出判断题（probe_question）", check_probe),
@@ -311,9 +348,9 @@ def main() -> int:
 
     print("=" * 60)
     if failed:
-        print(f"✗ {failed} 条链路未通过")
+        print(f"✗ {failed}/{len(checks)} 条链路未通过")
         return 1
-    print("✓ 四条链路全部通过")
+    print(f"✓ {len(checks)} 条链路全部通过")
     return 0
 
 

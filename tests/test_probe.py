@@ -280,15 +280,17 @@ def test_diagnosis_is_blocked_until_probe_finished(client, session, monkeypatch)
     assert card["kind"] == "comprehension_probe"
     assert card["step"] == "level"
 
-    # 第 1 步：接触史（自称读过 → 需要继续答判断题）
+    # 第 1 步：接触史。**参数要与前端一致**：选项值走 target_id、value 留空。
+    # 这条用例曾经传反（target_id="", value="once"），把后端的读写错位掩盖了——
+    # 测试模拟错误的契约，等于没测。
     resp = client.post(
         "/api/v1/agent/actions",
         json={
             "conversation_id": first["conversation_id"],
             "card_key": card["key"],
             "action": "probe.level",
-            "target_id": "",
-            "value": "once",
+            "target_id": "once",
+            "value": "",
         },
         headers=headers,
     )

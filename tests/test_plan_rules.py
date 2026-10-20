@@ -24,10 +24,37 @@ PARAMS = PlanParams(weekly_minutes=120, new_ratio=0.5, review_weeks=(2,))
 
 
 def test_each_week_fits_capacity():
+    """任何一周（含被顺延的周、含复习任务）都不许超容量。"""
     tasks, _ = plan_rules.normalize(_tasks(1, 2, 3), params=PARAMS)
-    for week in (1, 2, 3):
-        total = sum(t.minutes for t in tasks if t.week_index == week and t.task_type == "new")
-        assert total <= PARAMS.weekly_minutes
+    for week in {t.week_index for t in tasks}:
+        total = sum(t.minutes for t in tasks if t.week_index == week)
+        assert total <= PARAMS.weekly_minutes, f"第 {week} 周排了 {total} 分钟"
+
+
+def test_deferred_tasks_do_not_overflow_target_week():
+    """顺延不能简单地 +1：被推到的下一周可能也满了，必须继续往后找。
+
+    回归：原实现把溢出的任务统统塞进 `week + 1`，那一周本来就满，
+    于是"周容量"这条规则在最后一步被自己破坏。
+    """
+    many = [{"week_index": 1, "subject": f"任务 {i}"} for i in range(20)]
+    tasks, snapshot = plan_rules.normalize(many, params=PARAMS)
+    assert snapshot["deferred"] > 0
+    for week in {t.week_index for t in tasks}:
+        total = sum(t.minutes for t in tasks if t.week_index == week)
+        assert total <= PARAMS.weekly_minutes, f"第 {week} 周被顺延后超了：{total}"
+
+
+def test_review_does_not_overflow_week():
+    """复习任务也要占容量：目标周满了就不加，而不是凭空多出一条。
+
+    回归：原实现按 new_ratio 给新学留了预算，但复习插入时不看目标周余量，
+    两者相加会突破周容量。
+    """
+    tasks, _ = plan_rules.normalize(_tasks(1, 2, 3, 4), params=PARAMS)
+    for week in {t.week_index for t in tasks}:
+        total = sum(t.minutes for t in tasks if t.week_index == week)
+        assert total <= PARAMS.weekly_minutes, f"第 {week} 周（含复习）超了：{total}"
 
 
 def test_minutes_split_evenly():

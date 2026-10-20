@@ -1057,9 +1057,12 @@ def apply_action(
         return reply, new_card
 
     if kind == "comprehension_probe" and action == "probe.level":
+        # level 走 target_id（与 probe.answer 传 option_key 一致）。
+        # 曾经误写成 value：前端把选项值放在 data-target、value 传空，
+        # 于是接触史按钮点了必定 422——「按钮存在但点不动」的又一次。
         return _probe_set_level(
             session, user_id=user_id, conversation_id=conversation_id,
-            card=card, level=value,
+            card=card, level=target_id,
         )
     if kind == "comprehension_probe" and action == "probe.answer":
         return _probe_answer(

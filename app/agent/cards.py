@@ -669,6 +669,14 @@ def comprehension_probe_card(
       复用对话输入框更自然，也让"说错了再补一句"成为可能）。
     - `verdict`：结论 + 依据（覆盖了哪几条、漏了哪几条）。
     """
+    verdict_value = str((verdict or {}).get("verdict") or "")
+    # 结论卡要给下一步：否则用户看到"读的时候漏了关键内容"之后无事可做，
+    # 只能说一句"诊断我的学习状态"——那本该是一个按钮。
+    # guide（先读，别诊断）不给按钮：点了也只会被告知"先读"。
+    sends = []
+    if step == "verdict" and verdict_value and verdict_value != "guide":
+        sends = [_send("继续诊断", "诊断我的学习状态")]
+
     return {
         "kind": "comprehension_probe",
         "key": key,
@@ -688,6 +696,7 @@ def comprehension_probe_card(
         ],
         "verdict": dict(verdict or {}),
         "note": str(note or ""),
+        "sends": sends,
     }
 
 

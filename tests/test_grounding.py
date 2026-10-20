@@ -255,6 +255,19 @@ def test_dedupe_does_not_limit_manual_items():
     assert len(grounding.dedupe_by_book(ev, max_per_book=2)) == 4
 
 
+def test_relevance_threshold_matches_real_embedding_scale():
+    """召回阈值必须低于真实模型对相关文本的打分。
+
+    回归：默认值曾是 0.55，而本机 ONNX 模型对"直接相关"只给 0.509、
+    "同书相关" 0.490——B 模块在真实数据上永远报"依据不足"，功能看着做了其实用不了。
+    Mock 用的 HashEmbedding 分数分布完全不同，所以这条只能靠常量边界钉住。
+    """
+    from app.agent.grounding import DEFAULT_MIN_RELEVANCE
+
+    assert DEFAULT_MIN_RELEVANCE <= 0.5, "再高就会滤掉真实模型判为相关的内容"
+    assert DEFAULT_MIN_RELEVANCE >= 0.3, "再低会把无关内容（实测 0.27）也放进来"
+
+
 def test_keyword_zero_overlap_filtered_out(session):
     """完全没有词面重叠的条目不能进证据池。
 

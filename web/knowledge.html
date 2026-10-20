@@ -55,6 +55,10 @@
           <div class="stat-num warn" id="st-embed-failed">0</div>
           <div class="stat-label">向量失败</div>
         </div>
+        <div class="stat-card">
+          <div class="stat-num warn" id="st-not-ready">0</div>
+          <div class="stat-label" title="已入库但没有可用向量，所以检索不到、不能作为建议的依据">检索不到</div>
+        </div>
       </div>
       <div class="src-row" id="st-sources"></div>
       <div class="chip-cloud" id="st-tags"></div>
@@ -205,6 +209,9 @@
     var pending = stats.by_embed_status.pending || 0;
     $('#st-embedded').textContent = embedded;
     $('#st-embed-failed').textContent = failed + pending;
+    /* 「库里有、但检索不到」——这一格是 A 模块的核心：它把用户看不见的中间态
+       摆到台面上。数字不为 0 时，建议功能会少用这些条目当依据，用户该知道。 */
+    $('#st-not-ready').textContent = stats.not_ready || 0;
     var order = ['manual', 'weread', 'book'];
     var parts = [];
     order.concat(Object.keys(stats.by_source).filter(function (s) { return order.indexOf(s) < 0; }))

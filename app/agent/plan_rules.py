@@ -186,6 +186,13 @@ def insert_reviews(
             params.min_task_minutes,
             int(params.weekly_minutes * (1 - params.new_ratio) / max(1, len(sources))),
         )
+        # 复习也要占这周的容量：目标周已经排满时不能再加，否则"周不超载"这条规则
+        # 会在最后一步被自己破坏（新学按预算排、复习凭空加一条）。
+        used = sum(t.minutes for t in by_week.get(week, []))
+        room = params.weekly_minutes - used
+        if room < params.min_task_minutes:
+            continue
+        minutes = min(minutes, room)
         added.append(NormalizedTask(
             week_index=week,
             subject=f"回看：{subjects}",
@@ -230,7 +237,20 @@ def normalize(
         notes.append(progress_note["why"])
 
     normalized: list[NormalizedTask] = []
+    # 每周已排分钟。顺延与复习都要看它——只判断"这周装不装得下"，
+    # 不管"推到的那周还有没有空位"，等于把超载往后挪了一格。
+    week_load: dict[int, int] = {}
     deferred = 0
+
+    def _week_with_room(start: int, need: int) -> int:
+        """从 start+1 起找第一个还有空位的周。"""
+        week = start + 1
+        for _ in range(52):  # 一年都排不下说明参数离谱，别再自增下去
+            if week_load.get(week, 0) + need <= params.weekly_minutes:
+                return week
+            week += 1
+        return week
+
     for week in sorted(by_week):
         items = by_week[week]
         # 复习留出固定比例的时间；本周没东西可复习时（第 1 周）全部给新学
@@ -238,54 +258,41 @@ def normalize(
         budget = int(params.weekly_minutes * (params.new_ratio if has_review_week else 1.0))
         per = _split_minutes(budget, len(items), params=params)
 
-        # 装不下的顺延到下一周：不压碎任务，也不偷偷丢掉
-        capacity = params.weekly_minutes
-        used = 0
-        overflow: list[dict] = []
-        for index, (task, minutes) in enumerate(zip(items, per)):
-            if used + minutes > capacity:
-                overflow.append(task)
-                continue
-            used += minutes
+        for task, minutes in zip(items, per):
+            target = week
+            if week_load.get(target, 0) + minutes > params.weekly_minutes:
+                target = _week_with_room(week, minutes)
+                deferred += 1
+            week_load[target] = week_load.get(target, 0) + minutes
+            subject = str(task.get("subject") or "").strip()[:256]
+            if target == week:
+                why = (
+                    f"本周排了 {week_load[target]} 分钟，"
+                    f"没超过你每周 {params.weekly_minutes} 分钟的可用时间。"
+                )
+                extra: dict = {}
+            else:
+                why = (
+                    f"第 {week} 周已经排满 {params.weekly_minutes} 分钟，"
+                    f"这条顺延到第 {target} 周——比强行塞进来更现实。"
+                )
+                extra = {"deferred_from": week}
             normalized.append(NormalizedTask(
-                week_index=week,
-                subject=str(task.get("subject") or "").strip()[:256],
+                week_index=target,
+                subject=subject,
                 focus=str(task.get("focus") or "").strip()[:300],
                 task_type=TYPE_NEW,
                 minutes=minutes,
                 related_item_ids=[str(i) for i in (task.get("related_item_ids") or [])][:10],
                 basis=_merge_basis(task.get("basis"), _basis(
-                    "weekly_capacity",
-                    (
-                        f"本周排了 {len(items) - len(overflow)} 个任务、共 {used} 分钟，"
-                        f"没超过你每周 {params.weekly_minutes} 分钟的可用时间。"
-                    ),
-                    week=week, weekly_minutes=params.weekly_minutes, minutes=minutes,
+                    "weekly_capacity", why,
+                    week=target, weekly_minutes=params.weekly_minutes,
+                    minutes=minutes, **extra,
                 )),
             ))
-        if overflow:
-            deferred += len(overflow)
-            next_week = week + 1
-            for task in overflow:
-                normalized.append(NormalizedTask(
-                    week_index=next_week,
-                    subject=str(task.get("subject") or "").strip()[:256],
-                    focus=str(task.get("focus") or "").strip()[:300],
-                    task_type=TYPE_NEW,
-                    minutes=params.min_task_minutes,
-                    related_item_ids=[str(i) for i in (task.get("related_item_ids") or [])][:10],
-                    basis=_merge_basis(task.get("basis"), _basis(
-                        "weekly_capacity",
-                        (
-                            f"这周已经排满 {params.weekly_minutes} 分钟，"
-                            f"所以顺延到第 {next_week} 周——比强行塞进来更现实。"
-                        ),
-                        week=next_week, deferred_from=week, weekly_minutes=params.weekly_minutes,
-                    )),
-                ))
-            notes.append(
-                f"第 {week} 周任务超出周容量，{len(overflow)} 个任务顺延到第 {next_week} 周。"
-            )
+
+    if deferred:
+        notes.append(f"{deferred} 个任务因为周容量排不进来，顺延到了后面的周。")
 
     normalized = insert_reviews(normalized, params=params)
     normalized.sort(key=lambda t: (t.week_index, 0 if t.task_type == TYPE_NEW else 1))
