@@ -866,3 +866,15 @@ main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px
 .task-basis{margin:2px 0 10px;padding-left:8px}
 .task-basis summary{cursor:pointer;color:var(--accent);font-size:12.5px;list-style:none}
 .task-basis summary::-webkit-details-marker{display:none}
+
+/* 书籍对比（C 模块）：一行一个主题，两列并排 */
+.cmp-table{display:flex;flex-direction:column;gap:12px;margin-top:8px}
+.cmp-row{border:1px solid var(--border);border-radius:var(--radius-sm);padding:12px 14px;background:var(--card)}
+.cmp-head{display:flex;align-items:center;gap:8px;margin-bottom:8px}
+.cmp-cols{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.cmp-col{font-size:13px;color:var(--text-2);line-height:1.6}
+.cmp-col a{color:var(--accent);text-decoration:none;white-space:nowrap}
+.cmp-col a:hover{text-decoration:underline}
+@media (max-width:720px){
+  .cmp-cols{grid-template-columns:1fr}
+}

@@ -258,6 +258,7 @@ class Copilot:
             # 单独一个 handler（execute_capability 的 args 契约装不下它）
             "book_digest": self._execute,
             "book_recommend": self._execute,
+            "book_compare": self._execute,
             "book_discuss": self._book_discuss,
             "suggestion": self._execute,
             "chat": self._chat,

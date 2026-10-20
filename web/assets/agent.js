@@ -839,6 +839,69 @@ window.CCA = (function () {
     return parts.join('');
   }
 
+  /* ---- 书籍对比（C 模块）---------------------------------------------------
+
+     三块分开摆：对齐上的主题（对比主体）、只有一本讲到的（比较的边界）、
+     状态说明。分块的理由是——「这本讲了、那本没讲」本身就是结论，
+     混进对比行里会被当成"没话说"。 */
+  function compareHtml(card) {
+    var a = card.book_a || {};
+    var b = card.book_b || {};
+    var parts = [];
+    if (a.title && b.title) {
+      parts.push('<div class="plan-head"><strong>《' + esc(a.title) + '》 ↔ 《' + esc(b.title) +
+        '》</strong></div>');
+    }
+    if (card.overview) {
+      parts.push('<div class="meta">' + esc(card.overview) + '</div>');
+    }
+
+    var rows = card.rows || [];
+    if (rows.length) {
+      parts.push('<div class="cmp-table">' + rows.map(function (r) {
+        var relClass = r.relation === '冲突' ? 'danger' : (r.relation === '一致' ? 'ok' : '');
+        var body = '<div class="cmp-row">' +
+          '<div class="cmp-head"><strong>' + esc(r.topic) + '</strong>' +
+          '<span class="badge ' + relClass + '">' + esc(r.relation) + '</span></div>' +
+          '<div class="cmp-cols">' +
+            '<div class="cmp-col"><div class="meta">' + esc(a.title || 'A') + '</div>' +
+              '<div>' + esc(r.a_says) + '</div>' + readerLink(a, r.a_char) + '</div>' +
+            '<div class="cmp-col"><div class="meta">' + esc(b.title || 'B') + '</div>' +
+              '<div>' + esc(r.b_says) + '</div>' + readerLink(b, r.b_char) + '</div>' +
+          '</div>' +
+          '<div class="cf-block"><b>差异：</b>' + esc(r.difference) + '</div>' +
+        '</div>';
+        return body;
+      }).join('') + '</div>');
+    }
+
+    if ((card.only_a || []).length || (card.only_b || []).length) {
+      parts.push('<div class="sg-refs">' +
+        '<div class="sg-refs-title">只有一本书讲到的</div>' +
+        (card.only_a || []).map(function (t) {
+          return '<div class="meta">· ' + esc(a.title || 'A') + '：' + esc(t) + '</div>';
+        }).join('') +
+        (card.only_b || []).map(function (t) {
+          return '<div class="meta">· ' + esc(b.title || 'B') + '：' + esc(t) + '</div>';
+        }).join('') +
+      '</div>');
+    }
+
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    parts.push(actionsRow(card));
+    return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
+  /* 跳回内置阅读器的定位链接：char < 0 表示这本没有章节偏移（外部来源），不渲染 */
+  function readerLink(book, charPos) {
+    if (!book.book_id || typeof charPos !== 'number' || charPos < 0) {
+      return '';
+    }
+    return ' <a href="/reader.html?book=' + esc(book.book_id) + '&char=' + charPos + '">看原文</a>';
+  }
+
   function guideHtml(card) {
     return '<div class="guide">' +
       '<div class="g-head">' + esc(card.label) + '</div>' +
@@ -869,7 +932,8 @@ window.CCA = (function () {
     guide: guideHtml,
     reading_intake: intakeHtml,
     suggestion: suggestionHtml,
-    comprehension_probe: probeHtml
+    comprehension_probe: probeHtml,
+    book_compare: compareHtml
   };
 
   /* 未知 kind 一律不渲染（而不是把原始对象塞进页面）：

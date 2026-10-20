@@ -29,6 +29,7 @@ from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
 from app.agent.book_orchestrator import BookRecommendList, ChunkDigest, SummaryDigest
 from app.agent.attribution import AttributionDraft
+from app.agent.book_compare import CompareDraft
 from app.agent.probe import ProbeDraft
 from app.agent.suggestion import SuggestionDraft
 from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
@@ -100,6 +101,7 @@ def _validator_for(name: str):
         "suggestion": lambda d: SuggestionDraft(**d),
         "conflict_attribute": lambda d: AttributionDraft(**d),
         "probe_question": lambda d: ProbeDraft(**d),
+        "book_compare": lambda d: CompareDraft(**d),
     }[name]
 
 
@@ -170,6 +172,13 @@ def _check(name: str, parsed) -> None:
         assert len([o for o in parsed.options if o.text.strip()]) == 3
         assert sum(1 for o in parsed.options if o.correct) == 1
         assert len([p for p in parsed.key_points if p.strip()]) >= 3
+    elif name == "book_compare":
+        # 对比行的意义在 difference：没有它，两段话只是并排放着
+        assert parsed.rows, "对比结果没有任何一行"
+        for row in parsed.rows:
+            assert row.relation in ("一致", "互补", "冲突", "各有侧重"), row.relation
+            assert row.a_says and row.b_says
+            assert row.difference
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

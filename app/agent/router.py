@@ -31,14 +31,14 @@ Capability = Literal[
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
 ]
 
 KNOWN_CAPABILITIES: tuple[str, ...] = (
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
 )
 
 # 未识别 / 判定不明确时的归宿。**所有兜底都落到这里**。
@@ -49,7 +49,7 @@ FALLBACK_CAPABILITY = "chat"
 WIRED_CAPABILITIES: frozenset[str] = frozenset({
     "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
     "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
 })
 
 
@@ -85,6 +85,8 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("book_digest", "通读一本书", "通读《三体》"),
     CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
     CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
+    # example 命中 _COMPARE_WORDS 的「对比」且含「书」
+    CapabilitySpec("book_compare", "对比两本书", "对比这两本书"),
     # example 必须被本地规则命中（test_agent_router 会逐条验证）：
     # "确认，给我建议" 命中 _SUGGEST_WORDS 里的「给我建议」
     CapabilitySpec("suggestion", "按依据给建议", "确认，给我建议"),
@@ -178,6 +180,9 @@ _RECALL_MARKERS = ("那条", "那本", "那段", "那篇", "记得我存", "记�
 
 _BOOK_WORDS = ("书架", "阅读记录", "阅读日志", "读了什么", "读了哪些")
 _SYNC_WORDS = ("微信读书", "微信阅读", "weread")
+# 两本书对比（C 模块）：只认明确的比较说法，避免把「这本书和那本有什么区别」
+# 这类闲聊式提问也拉进来——那种时候用户往往还没让我读过其中一本。
+_COMPARE_WORDS = ("对比", "比较", "比一比", "差异", "区别")
 
 # 阅读建议（B 模块）。三条规则都刻意写窄：
 # - 只认「明确要建议」的说法。宽泛的「怎么办 / 我该做啥」不在此列——那可能只是闲聊，
@@ -323,8 +328,16 @@ def _match_local(text: str) -> CapabilityRoute | None:
     if _has_any(text, _PLAN_VIEW_WORDS):
         return hit("l4_goal", "识别到查看当前目标与计划", intent="view")
 
-    # 9. 书籍三项 —— 放在 L1 之前：词形更具体，且「聊聊那本书」里的「那本」
+    # 9. 书籍 —— 放在 L1 之前：词形更具体，且「聊聊那本书」里的「那本」
     #    会撞 L1 的澄清标记词；「通读」这类说法没有歧义，直接快路径
+    #
+    #    **两本书对比必须排在最前**：「对比这两本书」含「书」，
+    #    放在通读/讨论/推荐后面会被它们先抢走，用户永远到不了对比。
+    if _has_any(text, _COMPARE_WORDS) and ("书" in text or "《" in text):
+        from app.agent.book_compare import parse_titles
+
+        book_a, book_b = parse_titles(text)
+        return hit("book_compare", "识别到对比两本书", book_a=book_a, book_b=book_b)
     if "通读" in text:
         return hit(
             "book_digest", "识别到通读一本书",

@@ -55,6 +55,7 @@ from app.agent.cards import (
     l5_diagnosis_card,
     book_digest_card,
     book_recommend_card,
+    book_compare_card,
     comprehension_probe_card,
     insufficient_evidence_card,
     no_goal_card,
@@ -101,6 +102,8 @@ ASYNC_CAPABILITIES: frozenset[str] = frozenset({
     "book_recommend", "book_digest",
     # 阅读建议：要召回 + 一次生成调用，十几秒；门禁（缺项）在 preflight 之前就拦掉了
     "suggestion",
+    # 书籍对比：要读两本书的分章要点 + 一次 reasoning 调用
+    "book_compare",
 })
 
 # 慢的卡片操作：跑模型、要十几秒，走后台，不在请求里等。
@@ -114,6 +117,7 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "l4_plan": ("正在拆解周计划", "要结合你的知识结构排任务，通常十几秒。"),
     "l4_deviation": ("正在检查计划执行", "先做本地统计，确认有偏离才做归因，通常十几秒。"),
     "weread_sync": ("正在同步微信读书", "逐本拉取划线与想法并逐条向量化，通常半分钟以内。"),
+    "book_compare": ("正在对比这两本书", "先对齐主题、再逐条说差异，通常二十秒以内。"),
     "book_digest": ("正在通读这本书", "逐章读完再汇总，一本书要几分钟，读的过程不用你管。"),
     "book_recommend": ("正在挑书", "要结合你的知识库、书架和目标一起看，通常十几秒。"),
     "suggestion": ("正在按你的依据想建议", "只在你同步进来的内容里找，通常十几秒。"),
@@ -296,6 +300,11 @@ def execute_capability(
             conversation_id=conversation_id, args=args or {},
         )
 
+    if capability == "book_compare":
+        return _execute_book_compare(
+            user_id=user_id, session=session, gateway=gateway, key=key, args=args or {},
+        )
+
     raise ValueError(f"不支持执行的能力：{capability}")
 
 
@@ -383,6 +392,72 @@ def _l5_soft_title(state: str) -> str:
         "bias": "方向对，说法有偏差",
         "guide": "先读，不用诊断",
     }.get(state, "诊断")
+
+
+def _resolve_book_id(session: Session, *, user_id: str, title: str) -> str:
+    """按书名找书：先精确匹配，再包含匹配。找不到返回空串。
+
+    不做模糊编辑距离匹配：书架上两本名字相近的书（《原则》与《原则（实践版）》）
+    被张冠李戴做对比，比"没找到"更糟——用户会拿去用。
+    """
+    from app.domain.models.book import Book
+
+    wanted = (title or "").strip()
+    if not wanted:
+        return ""
+    rows = session.scalars(
+        select(Book).where(Book.user_id == user_id, Book.is_deleted.is_(False))
+    ).all()
+    for book in rows:
+        if (book.title or "").strip() == wanted:
+            return book.id
+    for book in rows:
+        current = (book.title or "").strip()
+        if current and (wanted in current or current in wanted):
+            return book.id
+    return ""
+
+
+def _execute_book_compare(
+    *, user_id: str, session: Session, gateway: ModelGateway, key: str, args: dict
+) -> tuple[str, dict]:
+    """两本书逐主题对比。用户没说书名时用最近通读的两本，并在卡里说明用的是哪两本。"""
+    from app.agent import book_compare
+
+    title_a = str(args.get("book_a") or "").strip()
+    title_b = str(args.get("book_b") or "").strip()
+
+    book_a_id = _resolve_book_id(session, user_id=user_id, title=title_a)
+    book_b_id = _resolve_book_id(session, user_id=user_id, title=title_b)
+
+    unresolved = title_a if (title_a and not book_a_id) else (title_b if (title_b and not book_b_id) else "")
+    if unresolved:
+        card = book_compare_card(
+            key=key, state="not_found",
+            note=f"《{unresolved}》没找到——说准确书名，或者先把书加进书架。",
+        )
+        return card["note"], card
+
+    if not book_a_id or not book_b_id:
+        book_a_id, book_b_id = book_compare.pick_default_pair(session, user_id=user_id)
+        if not book_a_id:
+            card = book_compare_card(
+                key=key, state="not_read",
+                note="还没有两本通读过的书。先把书加进书架、让我读一遍，再来对比。",
+            )
+            return card["note"], card
+
+    outcome = book_compare.compare(
+        session, user_id=user_id, book_a_id=book_a_id, book_b_id=book_b_id, gateway=gateway,
+    )
+    card = book_compare_card(
+        key=key, state=outcome.state,
+        book_a=outcome.book_a, book_b=outcome.book_b,
+        overview=outcome.overview, rows=outcome.rows,
+        only_a=outcome.unmatched_a, only_b=outcome.unmatched_b,
+        note=outcome.note,
+    )
+    return book_compare.reply_text(outcome), card
 
 
 def _execute_book_digest(

@@ -691,6 +691,56 @@ def comprehension_probe_card(
     }
 
 
+# ---- 书籍对比（C 模块）-----------------------------------------------------
+
+
+def book_compare_card(
+    *, key: str, state: str, book_a: dict | None = None, book_b: dict | None = None,
+    overview: str = "", rows: list[dict] | None = None,
+    only_a: list[dict] | None = None, only_b: list[dict] | None = None,
+    note: str = "",
+) -> dict:
+    """两本书的逐主题对比。
+
+    三块信息分开摆：
+
+    1. `rows`：对齐上的主题——两边怎么说、差异在哪（对比的主体）
+    2. `only_a` / `only_b`：只有一本讲到的主题
+    3. `note`：状态说明（没通读 / 没有共同主题 / 用的缓存）
+
+    第 2 块不是凑数：**"这本讲了、那本没讲"本身就是结论**，
+    而且它把这次比较的边界摊开了——用户能看出对比覆盖了哪些、漏了哪些。
+    """
+    return {
+        "kind": "book_compare",
+        "key": key,
+        "state": state,  # ok | cached | not_read | no_overlap | degraded | not_found
+        "book_a": dict(book_a or {}),
+        "book_b": dict(book_b or {}),
+        "overview": str(overview or ""),
+        "rows": [
+            {
+                "topic": str(r.get("topic") or ""),
+                "relation": str(r.get("relation") or ""),
+                "a_says": str(r.get("a_says") or ""),
+                "b_says": str(r.get("b_says") or ""),
+                "difference": str(r.get("difference") or ""),
+                "a_index": int(r.get("a_index") or -1),
+                "b_index": int(r.get("b_index") or -1),
+                # 全文偏移（-1 = 跳不了，前端不渲染链接）
+                "a_char": int(r.get("a_char") or -1),
+                "b_char": int(r.get("b_char") or -1),
+            }
+            for r in (rows or [])
+        ],
+        "only_a": [str(x.get("title") or "") for x in (only_a or [])][:6],
+        "only_b": [str(x.get("title") or "") for x in (only_b or [])][:6],
+        "note": str(note or ""),
+        "href": "/books.html",
+        "sends": [_send("重新对比", "重新对比这两本书")] if state in ("ok", "cached") else [],
+    }
+
+
 # ---- L3 认知助产 -----------------------------------------------------------
 
 

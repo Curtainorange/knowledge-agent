@@ -410,6 +410,33 @@ PROBE_QUESTION = PromptSpec(
 )
 
 
+# ---- 书籍对比（C 模块）-----------------------------------------------------
+#
+# 对比的前提是**对齐**：先由代码算出"这两章讲的是同一件事"，再让模型说差异。
+# 反过来（把两本书的要点整段丢给模型找对应）会让它硬凑主题——
+# 两本书没有共同章节时，它也会编出三组"对比"。
+BOOK_COMPARE = PromptSpec(
+    name="book_compare",
+    version="v1",
+    text=(
+        "你要对比两本已通读的书。已给你对齐好的主题对（每对含两本书各自对该主题的说法），"
+        "以及只有一方涉及的主题。"
+        "输出严格 JSON：{"
+        '"overview":"",'
+        '"rows":[{"topic":"","relation":"一致|互补|冲突|各有侧重",'
+        '"a_says":"","b_says":"","difference":"","a_index":0,"b_index":0}]}。'
+        "要求："
+        "1) **只针对给定的主题对**，不要引入没有给出的内容，也不要自己新增主题；"
+        "2) relation 四选一：一致=说同一件事且结论相同；互补=同一件事的不同侧面，合起来更完整；"
+        "冲突=结论相反；各有侧重=关注点不同、不是同一件事；"
+        "3) a_says / b_says 各一句话，忠实于给定要点，不要改写成你自己的说法；"
+        "4) difference 要指出差异究竟在哪（前提 / 边界 / 关注点），不许写「各有千秋」「都很有价值」；"
+        "5) a_index / b_index 用给定的章节序号；只有一方涉及的主题，缺失那侧填 -1；"
+        "6) 最多 8 行，按重要性排序；两本书记载完全一致时也要如实写「一致」，不要为了凑差异而编。"
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增结构化提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     AGENT_ROUTE,
@@ -429,6 +456,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     SUGGESTION,
     CONFLICT_ATTRIBUTE,
     PROBE_QUESTION,
+    BOOK_COMPARE,
 ]
 
 
@@ -465,4 +493,6 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "conflict_attribution": CONFLICT_ATTRIBUTE.version,
     # 理解度探查：出一道判断题，reasoning=off（出题不需要深推理）
     "probe_question": PROBE_QUESTION.version,
+    # 书籍对比：要对齐后的主题做差异判断，reasoning=on（与冲突归因同档）
+    "book_compare": BOOK_COMPARE.version,
 }

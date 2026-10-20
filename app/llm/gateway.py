@@ -66,6 +66,8 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     "conflict_attribution": Strategy("conflict_attribution", True, ""),
     # 理解度探查（E 模块）：出一道判断题，属于标准结构化任务，reasoning=off
     "probe_question": Strategy("probe_question", False, ""),
+    # 书籍对比（C 模块）：要对齐后的主题判断"一致/互补/冲突/各有侧重"，reasoning=on
+    "book_compare": Strategy("book_compare", True, ""),
 }
 
 
@@ -97,6 +99,8 @@ JSON_TASK_TYPES: frozenset[str] = frozenset({
     "conflict_attribution",
     # 理解度探查（E 模块）：出题也是严格 JSON
     "probe_question",
+    # 书籍对比（C 模块）：逐主题对比行，形状固定
+    "book_compare",
 })
 
 
