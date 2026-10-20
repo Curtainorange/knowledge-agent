@@ -318,6 +318,35 @@ COPILOT_PERSONA = PromptSpec(
 )
 
 
+# ---- 阅读建议（B 模块）-----------------------------------------------------
+#
+# 这条提示词的全部难度在「不许说依据里没有的东西」。模型天然想补充它记得的书里
+# 的观点，而本项目的第一条硬规则是：未入库内容不得作为建议依据。
+# 所以约束写成可判定的话（"不许编造 id""依据里没有的一个字都不要写"），
+# 再由 `grounding.verify_citations` 在代码侧兜底——提示词管不住的部分必须由代码管。
+SUGGESTION = PromptSpec(
+    name="suggestion",
+    version="v1",
+    text=(
+        "你是「认知副驾」的阅读助手。用户已经确认了阅读目标、当前进度、理解程度和想解决的问题，"
+        "下面给你他知识库里能用的依据片段（每条带 id）。"
+        "只基于给出的依据，产出 1-2 条建议。硬规则："
+        "1) 每条建议的 basis_item_ids 至少包含 1 个给出的 id，不许编造 id；"
+        "2) 依据里没有的内容一个字都不要写，不许引用你记得的其他书或常识；"
+        "3) 不用「你应该」「必须」，用「可以试试」「如果…则…」；"
+        "4) 理解程度是 first 时最多 1 个专业术语并给生活类比；是 once 时给反例或边界；"
+        "是 teach 时给争议点与失效条件；"
+        "5) 帮助类型是 answer_only 时只出 1 条且不追问不扩展；是 path 时给 1-4 步可执行步骤；"
+        "是 evidence 时只摆依据不做评价；是 critique 时指出理解缺口、不夸奖；"
+        "是 explain 时给类比 + 定义 + 一个反例；"
+        "6) how_to_verify 要具体到用户自己能判断「这条有没有用」。"
+        '输出严格 JSON：{"items":[{"action":"","why":"","steps":[],'
+        '"how_to_verify":"","basis_item_ids":["id"]}],"reason":""}。'
+        '依据不足时返回 {"items":[],"reason":"缺什么"}。'
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增结构化提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     AGENT_ROUTE,
@@ -334,6 +363,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     BOOK_DIGEST_CHUNK,
     BOOK_DIGEST_SUMMARY,
     BOOK_RECOMMEND,
+    SUGGESTION,
 ]
 
 
@@ -364,4 +394,6 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "book_digest": BOOK_DIGEST_CHUNK.version,
     "book_recommend": BOOK_RECOMMEND.version,
     "book_chat": BOOK_CHAT.version,
+    # 阅读建议：结构化 JSON 输出，走 JSON 模式（见 gateway 的 JSON_TASK_TYPES）
+    "reading_suggestion": SUGGESTION.version,
 }

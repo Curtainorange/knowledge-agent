@@ -601,6 +601,156 @@ window.CCA = (function () {
     return '<div class="brief">' + parts.join('') + '</div>';
   }
 
+  /* ---- 需求确认卡（B 模块）-------------------------------------------------
+
+     一次最多两题，全部是按钮（自由文本题直接让用户在下面输入框说）。
+     系统已经推断出来的东西（正在读哪本、读到哪）放在最上面一行，
+     用户看着不对可以直接说——**能推断的不要问出口**，这是「最多 3 轮」的前提。 */
+  function intakeHtml(card) {
+    var parts = ['<div class="intake">'];
+    var inf = card.inferred || {};
+    var book = inf.book || {};
+    if (book.title) {
+      var where = book.chapter ? ('，读到' + book.chapter) : '';
+      parts.push('<div class="meta">我猜你在读《' + esc(book.title) + '》' + esc(where) + '。不对就直接说。</div>');
+    }
+    (card.questions || []).forEach(function (q) {
+      parts.push('<div class="intake-q">');
+      parts.push('<div class="q-label">' + esc(q.label) + '</div>');
+      if (q.hint) {
+        parts.push('<div class="meta">' + esc(q.hint) + '</div>');
+      }
+      var opts = q.options || [];
+      if (q.kind === 'single' && opts.length) {
+        parts.push('<div class="cf-actions">' + opts.map(function (o) {
+          return actionButton(card.key, 'intake.answer', q.slot, o.value, o.label);
+        }).join('') + '</div>');
+      } else {
+        parts.push('<div class="meta">直接在下面输入框说就行。</div>');
+      }
+      parts.push('</div>');
+    });
+    if (card.note) {
+      parts.push('<div class="meta">' + esc(card.note) + '</div>');
+    }
+    /* 没有题了就不给「跳过」——那时该点的是「生成建议」 */
+    if ((card.questions || []).length) {
+      parts.push('<div class="cf-actions">' +
+        actionButton(card.key, 'intake.skip', '', '', '跳过这轮') +
+        '</div>');
+    }
+    parts.push('</div>');
+    parts.push(actionsRow(card));
+    return parts.join('');
+  }
+
+  /* 依据来源标签：用户的笔记与智能体的通读笔记必须看得出差别 */
+  function basisBadge(basis) {
+    return basis === 'agent_summary'
+      ? '<span class="badge">通读笔记</span>'
+      : '<span class="badge">你的笔记</span>';
+  }
+
+  function evidenceJump(e) {
+    if (!e.jumpable) {
+      return '';
+    }
+    var loc = e.locator || {};
+    if (e.source === 'weread' && loc.deep_link) {
+      return '<a href="' + esc(loc.deep_link) + '" target="_blank" rel="noopener">看原文</a>';
+    }
+    if (e.source === 'book' && loc.book_id && loc.char_start !== undefined && loc.char_start !== null) {
+      return '<a href="/reader.html?book=' + esc(loc.book_id) + '&char=' + esc(loc.char_start) + '">看原文</a>';
+    }
+    if (e.item_id) {
+      return '<a href="/knowledge.html?item=' + esc(e.item_id) + '">看这条</a>';
+    }
+    return '';
+  }
+
+  /* ---- 建议卡（B 模块）----------------------------------------------------
+
+     三层信息：建议正文（做什么 / 为什么 / 怎么验）、依据（可展开、可跳转）、
+     延伸参考（外部、未入库，独立分区）。**依据与外部参考不许混排**——
+     外部内容看起来像"你的知识库说的"，是这个功能最容易失信的地方。 */
+  function suggestionHtml(card) {
+    var parts = ['<div class="suggestion">'];
+
+    if (card.state === 'insufficient_evidence') {
+      parts.push('<div class="notice"><div class="n-title">依据不足，先不给建议</div>' +
+        esc(card.note || '') + '</div>');
+      (card.hints || []).forEach(function (h) {
+        parts.push('<div class="meta">· ' + esc(h) + '</div>');
+      });
+      parts.push('</div>');
+      return parts.join('');
+    }
+
+    if (card.state === 'degraded') {
+      parts.push('<div class="notice"><div class="n-title">这次没生成成功</div>' +
+        esc(card.note || '再试一次？') + '</div>');
+      parts.push('</div>');
+      return parts.join('');
+    }
+
+    var g = card.digest || {};
+    if (g.question) {
+      parts.push('<div class="meta">按你确认的：「' + esc(g.question) + '」</div>');
+    }
+
+    var evidenceById = {};
+    (card.evidence || []).forEach(function (e) { evidenceById[e.evidence_id] = e; });
+
+    (card.items || []).forEach(function (it) {
+      parts.push('<div class="sg-item">');
+      parts.push('<div class="sg-action">' + esc(it.action) + '</div>');
+      if (it.why) {
+        parts.push('<div class="meta">为什么：' + esc(it.why) + '</div>');
+      }
+      if (it.steps && it.steps.length) {
+        parts.push('<ol class="sg-steps">' + it.steps.map(function (s) {
+          return '<li>' + esc(s) + '</li>';
+        }).join('') + '</ol>');
+      }
+      if (it.how_to_verify) {
+        parts.push('<div class="meta">怎么判断有用：' + esc(it.how_to_verify) + '</div>');
+      }
+      var refs = (it.basis_item_ids || []).map(function (id) { return evidenceById[id]; })
+        .filter(function (e) { return !!e; });
+      if (refs.length) {
+        parts.push('<details class="sg-evidence"><summary>依据 ' + refs.length + ' 条</summary>' +
+          refs.map(function (e) {
+            return '<div class="ev-row">' + basisBadge(e.basis) +
+              '<strong>' + esc(e.title) + '</strong>' +
+              '<span>' + esc(e.quote) + '</span>' + evidenceJump(e) + '</div>';
+          }).join('') + '</details>');
+      }
+      parts.push('<div class="cf-actions">' +
+        actionButton(card.key, 'suggestion.reject', it.id, '', '这条不对') + '</div>');
+      parts.push('</div>');
+    });
+
+    if (card.note) {
+      parts.push('<div class="meta">' + esc(card.note) + '</div>');
+    }
+
+    var refs = card.references || [];
+    if (refs.length) {
+      parts.push('<div class="sg-refs">' +
+        '<div class="sg-refs-title">延伸参考（非你的知识库，未入库，仅作线索）</div>' +
+        refs.map(function (r) {
+          return '<div class="ev-row"><span class="badge">外部</span>' +
+            '<strong>' + esc(r.title || '') + '</strong>' +
+            '<span>' + esc(r.reason || '') + '</span>' +
+            '<span class="meta">' + esc(r.external_source || '') + '</span></div>';
+        }).join('') + '</div>');
+    }
+
+    parts.push('</div>');
+    parts.push(actionsRow(card));
+    return parts.join('');
+  }
+
   function guideHtml(card) {
     return '<div class="guide">' +
       '<div class="g-head">' + esc(card.label) + '</div>' +
@@ -628,7 +778,9 @@ window.CCA = (function () {
     note_empty: noteEmptyHtml,
     notice: noticeHtml,
     weread_sync: wereadSyncHtml,
-    guide: guideHtml
+    guide: guideHtml,
+    reading_intake: intakeHtml,
+    suggestion: suggestionHtml
   };
 
   /* 未知 kind 一律不渲染（而不是把原始对象塞进页面）：

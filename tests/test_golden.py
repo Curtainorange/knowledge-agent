@@ -28,6 +28,7 @@ from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
 from app.agent.book_orchestrator import BookRecommendList, ChunkDigest, SummaryDigest
+from app.agent.suggestion import SuggestionDraft
 from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
 from app.llm.structure import parse_structured
@@ -94,6 +95,7 @@ def _validator_for(name: str):
         "book_digest_chunk": lambda d: ChunkDigest(**d),
         "book_digest_summary": lambda d: SummaryDigest(**d),
         "book_recommend": lambda d: BookRecommendList(**d),
+        "suggestion": lambda d: SuggestionDraft(**d),
     }[name]
 
 
@@ -140,6 +142,13 @@ def _check(name: str, parsed) -> None:
         assert parsed.items, "推荐书单为空"
         for item in parsed.items:
             assert item.title and item.reason, "推荐条目缺书名或理由"
+    elif name == "suggestion":
+        # 建议要么给出条目（每条必须带引用，否则代码侧会整条丢弃），
+        # 要么明确说明依据不足——不许两者都空。
+        assert parsed.items or parsed.reason, "既没有建议也没有说明缺什么"
+        for item in parsed.items:
+            assert item.action and item.how_to_verify, "建议缺动作或验证方式"
+            assert item.basis_item_ids, "建议没带依据 id（会被引用校验丢弃）"
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

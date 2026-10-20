@@ -95,7 +95,11 @@ class Evidence:
         return _jumpable(self.source, self.locator, self.item_id)
 
     def as_card(self) -> dict:
-        """卡片载荷。字段名与 B 模块 4.3 一致，前端直接渲染。"""
+        """卡片载荷。字段名与 B 模块 4.3 一致，前端直接渲染。
+
+        `item_id` 必须带出去：没有它，`manual` 来源的证据在卡片上点不开
+        （条文只有 locator，manual 的 locator 是空的）。
+        """
         return {
             "evidence_id": self.evidence_id,
             "kind": self.kind,
@@ -108,6 +112,7 @@ class Evidence:
             "relevance": round(float(self.relevance), 4),
             "jumpable": self.jumpable,
             "level": self.level,
+            "item_id": self.item_id,
         }
 
 
@@ -220,8 +225,10 @@ def cosine(a: list[float], b: list[float]) -> float:
 
 def _locator_of(item: KnowledgeItem) -> dict:
     loc = dict(item.source_locator or {})
-    # weread 的 locator 自带 provider/book_id 等；book 的只有章节与字符区间。
-    # 统一补上 item_id 之外的跳转所需信息由前端按 source 分派，这里不加料。
+    # 内置书的 locator 只有章节与字符区间，没有 book_id（book_id 存在 source_item_id 里）。
+    # 前端要用它拼 `reader.html?book=…&char=…`，这里补上——两处各取一次迟早会忘。
+    if (item.source or "") == "book" and item.source_item_id and "book_id" not in loc:
+        loc["book_id"] = str(item.source_item_id)
     return loc
 
 

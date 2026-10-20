@@ -66,7 +66,7 @@ def agent_turn(payload: dict, session: Session) -> None:
             raise ValueError("agent_turn 缺少 capability")
         reply, card = turns.execute_capability(
             capability, user_id=user_id, session=session, gateway=ModelGateway(),
-            key=turn_id, args=payload.get("args") or {},
+            key=turn_id, args=payload.get("args") or {}, conversation_id=conversation_id,
         )
 
     written = turns.finish_turn(

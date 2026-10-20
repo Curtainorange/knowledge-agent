@@ -48,6 +48,11 @@ L4_ADJUSTMENT_DECIDED = "l4.adjustment.decided"
 # L5 归因诊断
 L5_DIAGNOSIS_CREATED = "l5.diagnosis.created"
 L5_DIAGNOSIS_DECIDED = "l5.diagnosis.decided"
+# 阅读建议（B 模块）：需求确认完成度与建议产出
+AGENT_INTAKE_ANSWERED = "agent.intake.answered"   # 一次确认作答（含跳过的槽位）
+AGENT_INTAKE_SKIPPED = "agent.intake.skipped"
+SUGGESTION_CREATED = "suggestion.created"
+SUGGESTION_REJECTED = "suggestion.rejected"        # 用户否掉建议（同类收敛的依据）
 # 推送（ADR-14）
 PUSH_SUPPRESSED = "push.suppressed"
 PUSH_SENT = "push.sent"

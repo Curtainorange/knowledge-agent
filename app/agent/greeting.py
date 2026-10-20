@@ -4,16 +4,25 @@
 这里是「用户还没说话 → 副驾先说」。认知副驾要是学习搭档，就不能摆一个空白输入框
 等人下指令——**先开口、把话题接起来**，才是它该有的样子。
 
-**为什么不调模型**，两条理由：
+## 本轮改造（B 模块）：从「推动作」改成「问方向」
 
-1. 开场是每次新会话都要跑的一步，调模型等于给「打开对话框」这个动作绑上成本和延迟；
-2. 它要说的事（存了多少条、有没有目标、有没有没处理的冲突）本来就是可枚举的状态。
-   拼出来的话比模型自由发挥更准、更可控，也才能被测试钉住——
-   换成模型生成，「开场里必须包含待处理冲突数」这种断言就写不出来了。
+原实现按状态分五支，每支都直接给下一步动作：有冲突就问"要不要现在过一遍"、
+有目标没计划就问"要我现在拆成周任务吗"、有积累就问"想让我扫一遍吗"。
+问题不在文案，在**顺序**——用户还没说清这次要什么，系统已经替他决定了做什么。
 
-文案只守一条规矩：**每条开场都以一个具体问题收尾**。
-主动提问才有引导力；「你可以做 A、B、C」只是把功能清单换个说法，
-用户仍要自己做选择——那恰恰是这次要改掉的东西。
+现在开场只做两件事：
+
+1. 把系统已经知道的摆出来（你最近在读《X》，读到第 3 章——这是推断，可以改）；
+2. 问一句方向（今天接着读，还是先解决一个具体问题）。
+
+未处理的冲突保留，但**降级成一句待办提示**：它是"事情在等你"，不是"我建议你做"。
+区别在于用户可以说"先不管"而不觉得被推销。
+
+## 为什么开场仍然不调模型
+
+两条理由没变：开场是每次新会话的第一步，调模型等于给"打开对话框"绑成本与延迟；
+它要说的事（读哪本、读到哪、有几处冲突）本来就可枚举，拼出来比模型自由发挥更准，
+也才能被测试钉住。
 """
 from __future__ import annotations
 
@@ -22,6 +31,8 @@ from dataclasses import dataclass
 
 from sqlalchemy.orm import Session
 
+from app.agent import intake
+from app.agent.cards import reading_intake_card
 from app.agent.conflict_view import ConflictBrief, top_unresolved
 from app.domain.repositories.conflict_repository import ConflictRepository
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
@@ -32,21 +43,13 @@ from app.domain.repositories.learning_plan_repository import (
 
 logger = logging.getLogger(__name__)
 
-# 目标描述写进开场时截断：一句话里塞进一个 200 字的书面目标，开场就变成了朗读
-_GOAL_SNIPPET = 24
-# 冲突要点同理：开场要能把双方说法并排摆出来，句子不能长到变成朗读
-_TITLE_SNIPPET = 14
-_CLAIM_SNIPPET = 28
-
 
 @dataclass(frozen=True)
 class UserState:
     """开场说什么，取决于这几个事实。
 
-    `top_conflict` 是「最该处理的那一处」的要点（未解冲突里置信度最高的一条）。
-    有它在，开场就不必停在「有 3 处冲突」这种数量上——直接摆出双方说法、
-    并问用户更认同哪个。它是**可选增强**：读不到具体内容时退回只报数量的形态，
-    所以纯粹用计数构造的 `UserState` 仍然产出可用的开场。
+    `top_conflict` 保留下来供**别处**使用（冲突卡片、诊断归因都要"最该处理的那一处"），
+    但开场不再摆出双方主张——那是"给出议题"，属于建议行为，要等用户确认方向之后。
     """
 
     knowledge_count: int = 0
@@ -87,8 +90,6 @@ def collect_state(session: Session, *, user_id: str) -> UserState:
         counted = ConflictRepository(session, user_id=user_id).count_by_state(user_id)
         unseen = int((counted or {}).get("unseen", 0) or 0)
         if unseen:
-            # 顺带取「最该处理的那一处」——开场直接说要点，而不是只报一个数字。
-            # 同一次读取里完成：多读一次的收益（更近的开场）抵不上多一次查询的成本。
             briefs = top_unresolved(session, user_id=user_id, limit=1)
             top_conflict = briefs[0] if briefs else None
     except Exception as exc:  # pragma: no cover - 防御性兜底
@@ -103,70 +104,67 @@ def collect_state(session: Session, *, user_id: str) -> UserState:
     )
 
 
-def build_opening(state: UserState) -> str:
-    """按状态拼一句开场。
+def opening_text(state: UserState, ctx: intake.IntakeContext | None = None) -> str:
+    """开场文本。**只有两个分支**：
 
-    分支顺序 = **话题的时效性**，不是能力清单的顺序：
-    「有东西等着你处理」永远排在「你可以做点什么」前面。
+    - 库空：说明现状 + 给两个入口（记一条 / 同步），仍以问句收尾；
+    - 有内容：交给 `intake.opening_text` 做上下文确认。
+
+    分支从五个降到两个，是因为开场不再承担"推荐下一步"的职责——
+    推荐要基于确认过的诉求，那是建议卡的事。
     """
-    goal = _short(state.goal)
-
-    # 1. 有没处理的冲突 —— 唯一一种「事情已经发生了、在等你」的状态。
-    #    能拿到具体要点就直接摆出双方说法并问用户更认同哪个：这一步是本功能从
-    #    「报数量」升级为「逼你表态」的地方——只报「3 处冲突」，用户仍要自己
-    #    去翻是哪三处、哪一点对不上，开场等于只做了通知。
-    if state.unseen_conflicts:
-        top = state.top_conflict
-        if top is not None and (top.claim_a or top.claim_b):
-            return (
-                f"我是你的认知副驾。上次扫出来的 {state.unseen_conflicts} 处冲突还没处理，"
-                f"最要紧的一处是：《{_short(top.title_a, _TITLE_SNIPPET)}》认为"
-                f"「{_short(top.claim_a, _CLAIM_SNIPPET)}」，"
-                f"《{_short(top.title_b, _TITLE_SNIPPET)}》认为"
-                f"「{_short(top.claim_b, _CLAIM_SNIPPET)}」——你更认同哪个？"
-            )
+    if state.knowledge_count == 0:
         return (
-            f"我是你的认知副驾。上次扫出来的 {state.unseen_conflicts} 处冲突还没处理——"
-            "要现在过一遍吗？还是先做别的？"
+            "我是你的认知副驾。库里还是空的：你可以先说一句想记的东西，"
+            "或者连上微信读书把划线和想法同步进来。想从哪儿开始？"
         )
-
-    # 2. 有目标但没计划 —— 中间状态，最该主动补上的断点
-    if goal and not state.has_plan:
-        return (
-            f"我是你的认知副驾。你的目标「{goal}」还没有周计划——"
-            "要我现在拆成一周的任务吗？"
-        )
-
-    # 3. 目标与计划都在 —— 问「接着走」还是「回头看」
-    if goal:
-        return (
-            f"我是你的认知副驾。目标「{goal}」在推进中。"
-            "今天想接着往下走，还是先看看执行有没有偏离？"
-        )
-
-    # 4. 有积累但没目标 —— 库里有内容可聊，先给一个能立刻做的
-    if state.knowledge_count:
-        return (
-            f"我是你的认知副驾。你知识库里已经存了 {state.knowledge_count} 条——"
-            "想让我扫一遍看有没有互相矛盾的说法吗？"
-        )
-
-    # 5. 全空 —— 第一句话，说清现状并给出可以立刻开始的方向
-    return (
-        "我是你的认知副驾——你学习时的搭档。"
-        "这里现在还是空的：你可以直接把想记的东西说给我听，"
-        "也可以告诉我你最近在学什么，我们先立一个目标。想从哪儿开始？"
+    return intake.opening_text(
+        ctx or intake.IntakeContext(),
+        unseen_conflicts=state.unseen_conflicts,
     )
 
 
-def opening_for(session: Session, *, user_id: str) -> str:
-    """读状态 + 拼开场（调用方只需这一个函数）。"""
-    return build_opening(collect_state(session, user_id=user_id))
+def opening_for(
+    session: Session, *, user_id: str, conversation=None
+) -> tuple[str, dict | None]:
+    """读状态 + 生成开场（调用方只需这一个函数）。
 
+    返回 `(文本, 卡片或 None)`：有内容可聊时带一张需求确认卡；库空时不发卡
+    （没有内容可确认，问五件事也没用）。
 
-def _short(text: str, limit: int = _GOAL_SNIPPET) -> str:
-    """把目标描述 / 主张压成能塞进一句话的长度。"""
-    cleaned = (text or "").strip().replace("\n", " ")
-    if len(cleaned) <= limit:
-        return cleaned
-    return cleaned[:limit] + "…"
+    顺带把推断出的阅读上下文写回会话——用户刷新页面回来，不必重新说一遍在读什么。
+    """
+    state = collect_state(session, user_id=user_id)
+
+    ctx = intake.IntakeContext()
+    inferred: dict = {"book": None, "basis": "none"}
+    if state.knowledge_count:
+        try:
+            inferred = intake.infer_reading_target(session, user_id=user_id)
+        except Exception as exc:  # pragma: no cover - 推断失败不发卡也不阻断开场
+            logger.warning("opening: 推断阅读目标失败: %s", exc)
+        if inferred.get("book"):
+            ctx.book = inferred["book"]
+        ctx.refresh_missing()
+
+    text = opening_text(state, ctx)
+
+    card: dict | None = None
+    if state.knowledge_count and ctx.missing:
+        card = reading_intake_card(
+            key="intake",
+            round=ctx.round,
+            inferred={"book": ctx.book, "basis": inferred.get("basis")},
+            questions=intake.next_questions(ctx),
+            digest_payload=intake.digest(ctx),
+        )
+        # 标记「确认卡已发出」：之后用户说的话会被当成回答，而不是闲聊
+        intake.mark_card_sent(ctx)
+
+    if conversation is not None:
+        try:
+            intake.save(session, conversation=conversation, ctx=ctx)
+        except Exception as exc:  # pragma: no cover - 写上下文失败不该让开场挂掉
+            logger.warning("opening: 写阅读上下文失败: %s", exc)
+
+    return text, card

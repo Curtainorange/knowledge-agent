@@ -513,6 +513,127 @@ def scan_reply(summary: dict) -> str:
     return "，".join(parts) + "。"
 
 
+# ---- 需求确认与建议（B 模块）----------------------------------------------
+
+
+def reading_intake_card(
+    *, key: str, round: int, inferred: dict, questions: list[dict],
+    digest_payload: dict | None = None, note: str = "",
+) -> dict:
+    """需求确认卡：一次最多两题，全部可点选，且都能跳过。
+
+    `inferred` 是系统已经知道的（正在读哪本、读到哪），用户只需要确认或改——
+    **能推断的不要问出口**。这是「最多 3 轮确认」能做到的前提：5 个确认项里，
+    有 2 项是"我猜的，你确认下"，真正要用户打字/点选的只有 3 项。
+    """
+    return {
+        "kind": "reading_intake",
+        "key": key,
+        "round": int(round),
+        "inferred": dict(inferred or {}),
+        "digest": dict(digest_payload or {}),
+        "questions": [
+            {
+                "id": str(q.get("id") or ""),
+                "slot": str(q.get("slot") or ""),
+                "label": str(q.get("label") or ""),
+                "hint": str(q.get("hint") or ""),
+                "kind": str(q.get("kind") or "single"),
+                "options": [
+                    {
+                        "value": str(o.get("value") or ""),
+                        "label": str(o.get("label") or ""),
+                        "hint": str(o.get("hint") or ""),
+                    }
+                    for o in (q.get("options") or [])
+                ],
+                "allow_other": bool(q.get("allow_other", True)),
+                "skippable": bool(q.get("skippable", True)),
+            }
+            for q in (questions or [])
+        ],
+        "note": note,
+        # 跳过按钮走快操作（不调模型）
+        "actions": [{"action": "intake.skip", "label": "跳过这轮", "target_id": "", "value": ""}],
+    }
+
+
+def suggestion_card(
+    *, key: str, state: str, digest_payload: dict, items: list[dict],
+    evidence: list[dict], references: list[dict] | None = None,
+    confidence: float = 0.0, note: str = "",
+) -> dict:
+    """建议卡。
+
+    `items[].basis_item_ids` 必须能在 `evidence[]` 里找到——这是 B 模块的硬规则，
+    校验发生在 `grounding.verify_citations`，卡片只负责把结果呈现出来。
+
+    `references[]` 是**外部推荐**：与 `items[]` 平级、严格隔离，永不参与引用校验。
+    前端必须分组渲染（外部来源不能看起来像"你的知识库说的"）。
+    """
+    spec = capability_spec("suggestion")
+    return {
+        "kind": "suggestion",
+        "key": key,
+        "state": state,  # ok | insufficient_evidence | degraded | unconfirmed
+        "digest": dict(digest_payload or {}),
+        "items": [
+            {
+                "id": str(it.get("id") or ""),
+                "action": str(it.get("action") or ""),
+                "why": str(it.get("why") or ""),
+                "steps": [str(s) for s in (it.get("steps") or [])][:4],
+                "how_to_verify": str(it.get("how_to_verify") or ""),
+                "basis_item_ids": [str(b) for b in (it.get("basis_item_ids") or [])],
+                "confidence": float(it.get("confidence") or 0.0),
+            }
+            for it in (items or [])
+        ],
+        "evidence": [dict(e) for e in (evidence or [])],
+        # 外部推荐：固定标识，前端独立分区
+        "references": [
+            {
+                "title": str(r.get("title") or ""),
+                "author": str(r.get("author") or ""),
+                "reason": str(r.get("reason") or ""),
+                "external": True,
+                "unverified": True,
+                "external_source": str(r.get("external_source") or "模型推荐"),
+            }
+            for r in (references or [])
+        ],
+        "confidence": round(float(confidence or 0.0), 3),
+        "note": note,
+        "href": spec.href if spec else "",
+        # 「这条不对」走快操作：记偏好并收敛同类建议，不追问原因
+        "actions": [
+            {"action": "suggestion.reject", "label": "这条不对", "target_id": "", "value": ""}
+        ] if state == "ok" else [],
+    }
+
+
+def insufficient_evidence_card(*, key: str, reason: str, hints: list[str] | None = None) -> dict:
+    """依据不足：**不出建议**，给三条可走的路。
+
+    这不是失败态，是"没有依据就不说话"的正常结果。做成失败卡会让用户以为功能坏了，
+    于是反复重试——而他真正该做的是补内容或换个问法。
+    """
+    return {
+        "kind": "suggestion",
+        "key": key,
+        "state": "insufficient_evidence",
+        "digest": {},
+        "items": [],
+        "evidence": [],
+        "references": [],
+        "confidence": 0.0,
+        "note": reason,
+        "hints": [str(h) for h in (hints or [])],
+        "href": "",
+        "actions": [],
+    }
+
+
 # ---- L3 认知助产 -----------------------------------------------------------
 
 

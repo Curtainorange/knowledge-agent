@@ -21,3 +21,7 @@ class Conversation(Base, TimestampMixin):
     title: Mapped[str] = mapped_column(String(128), default="")
     # 会话消息历史：[{"role": ..., "content": ...}, ...]，驱动多轮上下文
     messages: Mapped[list | None] = mapped_column(JSON, default=list)
+    # 阅读上下文槽位（B 模块）：进对话后的「需求确认」把 5 个确认项落在这里。
+    # 存 JSON 而不是拆 8 个列：这些字段只在确认期使用，不参与查询与索引，
+    # 且取值域会随交互迭代——拆成列每改一次就要一次迁移。
+    reading_context: Mapped[dict | None] = mapped_column(JSON, default=dict)

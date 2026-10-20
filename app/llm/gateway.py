@@ -58,6 +58,9 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     # 讨论复用 multi_turn_dialogue 策略（自然语言、off），不单开一行
     "book_digest": Strategy("book_digest", False, ""),
     "book_recommend": Strategy("book_recommend", False, ""),
+    # 阅读建议（B 模块）：要按给定依据组织 1-2 条建议，reasoning=off——
+    # 这一层不靠模型"想得深"，靠的是代码侧的依据装配与引用校验。
+    "reading_suggestion": Strategy("reading_suggestion", False, ""),
 }
 
 
@@ -83,6 +86,8 @@ JSON_TASK_TYPES: frozenset[str] = frozenset({
     "deep_reasoning",
     "book_digest",
     "book_recommend",
+    # 阅读建议（B 模块）：输出必须带 basis_item_ids，靠 JSON 模式才稳
+    "reading_suggestion",
 })
 
 

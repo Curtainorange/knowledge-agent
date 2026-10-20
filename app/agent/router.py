@@ -31,14 +31,14 @@ Capability = Literal[
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "chat",
+    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
 ]
 
 KNOWN_CAPABILITIES: tuple[str, ...] = (
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "chat",
+    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
 )
 
 # 未识别 / 判定不明确时的归宿。**所有兜底都落到这里**。
@@ -49,7 +49,7 @@ FALLBACK_CAPABILITY = "chat"
 WIRED_CAPABILITIES: frozenset[str] = frozenset({
     "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
     "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "chat",
+    "book_digest", "book_discuss", "book_recommend", "suggestion", "chat",
 })
 
 
@@ -85,6 +85,9 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("book_digest", "通读一本书", "通读《三体》"),
     CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
     CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
+    # example 必须被本地规则命中（test_agent_router 会逐条验证）：
+    # "确认，给我建议" 命中 _SUGGEST_WORDS 里的「给我建议」
+    CapabilitySpec("suggestion", "按依据给建议", "确认，给我建议"),
 )
 
 
@@ -138,8 +141,7 @@ class CapabilityRoute(BaseModel):
 # 只认「下达式」说法，不做语义理解——语义交给模型。刻意写窄：宁可漏判（落到模型），
 # 也不要误判（把闲聊当成「扫描冲突」执行）。
 
-# 「记一条内容」的引导词。命中后会剥掉，剩下的部分才是正文。
-# 按长度倒序匹配：否则「帮我记录一下」会被更短的「帮我记」截走，正文里剩个「录一下」。
+# 「记一条内容」的引导词。命中后会剥掉，剩下的部分才是正文。# 按长度倒序匹配：否则「帮我记录一下」会被更短的「帮我记」截走，正文里剩个「录一下」。
 _NOTE_VERBS = tuple(sorted((
     "帮我记录一下", "帮我记一下", "帮我记一条", "帮我记录", "帮我记",
     "记录下来", "记录一下", "记录一条",
@@ -177,6 +179,17 @@ _RECALL_MARKERS = ("那条", "那本", "那段", "那篇", "记得我存", "记�
 _BOOK_WORDS = ("书架", "阅读记录", "阅读日志", "读了什么", "读了哪些")
 _SYNC_WORDS = ("微信读书", "微信阅读", "weread")
 
+# 阅读建议（B 模块）。三条规则都刻意写窄：
+# - 只认「明确要建议」的说法。宽泛的「怎么办 / 我该做啥」不在此列——那可能只是闲聊，
+#   误判会白花一次模型调用，而且会绕过"先确认"的门禁。
+# - 「确认」只在短句里认（≤12 字）：长句里的"确认"多半是在确认别的事。
+_SUGGEST_WORDS = ("给我建议", "给点建议", "给个建议", "出个建议", "帮我建议", "按这些给建议")
+_SUGGEST_CONFIRM = ("确认", "就这样", "可以了", "开始吧", "没问题")
+# 跳过确认：允许，但结果必须挂「未确认」标识（置信度上限 0.6，见 grounding）
+_SKIP_CONFIRM_WORDS = ("别问了", "不用问了", "直接给", "跳过确认")
+# 纠正上一轮的理解：只认明确短语。「不对」单独出现不认——它可能是对任何事的否定。
+_CORRECTION_WORDS = ("我说的是", "不是这个意思", "你理解错", "不是这样")
+
 _TAG_PATTERN = re.compile(r"#([^\s#]{1,16})")
 # 书名只认《》形式：自然语言里的裸书名没法可靠切出来，宁缺毋滥
 _BOOK_TITLE_PATTERN = re.compile(r"《([^《》]{1,80})》")
@@ -186,6 +199,21 @@ _GOAL_MAX = 256
 
 def _has_any(text: str, words: tuple[str, ...]) -> bool:
     return any(word in text for word in words)
+
+
+def is_suggestion_command(text: str) -> bool:
+    """这句话是「要建议 / 确认 / 跳过」的指令，而不是他的问题本身。
+
+    为什么要在 `copilot` 里判断：确认阶段用户会说"确认，给我建议"，
+    如果把这句当内容去抽「想解决的问题」，槽位里就会躺着一句"确认，给我建议"，
+    后续建议全会围着这句空话打转。**指令不是内容**，必须分开。
+    """
+    t = (text or "").strip()
+    if not t:
+        return False
+    if _has_any(t, _SUGGEST_WORDS) or _has_any(t, _SKIP_CONFIRM_WORDS):
+        return True
+    return len(t) <= 12 and _has_any(t, _SUGGEST_CONFIRM)
 
 
 def parse_note(text: str) -> dict:
@@ -246,6 +274,20 @@ def _match_local(text: str) -> CapabilityRoute | None:
     # 1. 记一条内容 —— 优先级最高：它带副作用，且开头词就是强信号
     if text.startswith(_NOTE_VERBS):
         return hit("knowledge_add", "以「记一条」类引导词开头")
+
+    # 1.5 阅读建议（B 模块）—— 排在其它能力之前：用户明确要建议 / 确认 / 纠正时，
+    #     若被"计划""冲突"之类的词抢走，系统就会去做一件他没要求的事。
+    if _has_any(text, _CORRECTION_WORDS):
+        return hit("suggestion", "识别到纠正上一轮的理解", correct=True)
+    if _has_any(text, _SUGGEST_WORDS):
+        return hit(
+            "suggestion", "识别到请求阅读建议",
+            skipped=_has_any(text, _SKIP_CONFIRM_WORDS),
+        )
+    if _has_any(text, _SKIP_CONFIRM_WORDS) and "建议" in text:
+        return hit("suggestion", "识别到跳过确认直接要建议", skipped=True)
+    if len(text) <= 12 and _has_any(text, _SUGGEST_CONFIRM):
+        return hit("suggestion", "识别到确认并请求建议")
 
     # 2. 同步微信读书
     if _has_any(text, _SYNC_WORDS) and ("同步" in text or "拉取" in text):

@@ -1,19 +1,22 @@
 """主动开场测试（全 Mock，不触网）。
 
-开场是「对话即入口」的第一屏——用户还没说话，副驾先开口。这里钉住三件事：
+开场是「对话即入口」的第一屏——用户还没说话，副驾先开口。这里钉住四件事：
 
-1. **说什么取决于状态**：有冲突先说冲突、有目标没计划先问要不要拆，
-   而不是一段千篇一律的自我介绍。开场套模板，就等于承认它没读用户的数据。
-2. **以问句收尾**：主动提问才有引导力；「你可以做 A、B、C」只是把功能清单换个说法。
+1. **开场只问候 + 确认，不推动作**（B 模块的核心改造）。原实现按「冲突 / 目标 /
+   计划 / 积累」分五支，每支都直接问"要不要拆计划""要不要扫冲突"——那是在用户
+   还没说要什么时替他决定下一步。现在这些分支全删了，改为一张需求确认卡。
+   所以本文件里有几条**反断言**：开场不许出现"周计划""偏离""扫一遍"。
+2. **以问句收尾**：陈述句读起来像通知，问句才把人带进对话。
 3. **一个会话只开场一次**：刷新页面就多一句问候，是最容易被一眼看穿的「假智能」。
+4. **开场零模型调用**：不给"打开对话框"这个动作绑成本。
 """
 from __future__ import annotations
 
 import pytest
 from fastapi.testclient import TestClient
 
-from app.agent.conflict_view import ConflictBrief
-from app.agent.greeting import UserState, build_opening, collect_state
+from app.agent.greeting import UserState, collect_state, opening_text
+from app.agent.intake import IntakeContext
 from app.api import deps
 from app.domain.models.conversation import Conversation
 from app.domain.models.learning_goal import LearningGoal
@@ -60,60 +63,64 @@ def gateway_calls():
 
 
 def test_every_opening_ends_with_a_question():
-    """每条开场都必须以问句收尾。
-
-    这是「主动引导」的硬约束：陈述句读起来像通知，问句才把人带进对话。
-    以后新增分支若写成陈述句，这条会红。
-    """
+    """每条开场都必须以问句收尾——主动引导的硬约束。"""
     for state in ALL_STATES:
-        text = build_opening(state).strip()
+        text = opening_text(state).strip()
         assert text.endswith("？"), f"{state} → {text!r}"
 
 
 def test_opening_always_says_who_is_talking():
     for state in ALL_STATES:
-        assert "认知副驾" in build_opening(state)
+        assert "认知副驾" in opening_text(state)
 
 
-def test_conflicts_outrank_everything_else():
-    """有没处理的冲突时先说这件事——它是唯一「事情已经发生、在等你」的状态。"""
-    text = build_opening(
-        UserState(knowledge_count=9, goal="学英语", has_plan=True, unseen_conflicts=3)
+@pytest.mark.parametrize(
+    "state",
+    [
+        UserState(goal="三个月掌握数据分析"),
+        UserState(goal="三个月掌握数据分析", has_plan=True),
+        UserState(knowledge_count=7),
+    ],
+)
+def test_opening_does_not_push_actions(state):
+    """有目标 / 有积累时**不许**直接推动作。
+
+    这三条以前是「要不要拆周计划」「接着走还是看偏离」「要不要扫一遍」，
+    正是会议纪要批评的「未确认就给建议」。现在必须全部消失。
+    """
+    text = opening_text(state)
+    for banned in ("周计划", "拆成", "偏离", "扫一遍", "扫出来"):
+        assert banned not in text, f"{state} → {text!r} 仍含 {banned}"
+
+
+def test_conflicts_are_a_todo_not_a_suggestion():
+    """冲突保留，但只能以「待办提示」出现：它是事情在等你，不是我建议你做。"""
+    text = opening_text(UserState(knowledge_count=9, unseen_conflicts=3))
+    assert "3 处观点冲突" in text
+    assert text.endswith("？")
+
+
+def test_opening_does_not_recite_goal_text():
+    """目标是确认项，不该被开场朗读一遍。"""
+    text = opening_text(UserState(goal="非常长的目标" * 20))
+    assert "非常长的目标" not in text
+
+
+def test_opening_mentions_inferred_book():
+    """有推断出在读哪本时，开场把推断摆出来（用户只需确认）。"""
+    ctx = IntakeContext(
+        book={"book_id": "b1", "title": "原则", "source": "reader", "progress": 0.4, "chapter": "第3章"}
     )
-    assert "3 处冲突" in text
-    assert "周计划" not in text
-
-
-def test_goal_without_plan_asks_to_split_it():
-    text = build_opening(UserState(goal="三个月掌握数据分析"))
-    assert "三个月掌握数据分析" in text
-    assert "周计划" in text
-
-
-def test_goal_with_plan_offers_two_directions():
-    text = build_opening(UserState(goal="三个月掌握数据分析", has_plan=True))
-    assert "推进" in text
-    assert "偏离" in text
-
-
-def test_knowledge_without_goal_offers_a_scan():
-    text = build_opening(UserState(knowledge_count=7))
-    assert "7 条" in text
-    assert "矛盾" in text
+    text = opening_text(UserState(knowledge_count=5), ctx)
+    assert "《原则》" in text and "第3章" in text
 
 
 def test_empty_state_teaches_and_asks():
-    """全空时既给「怎么用」也给「先做哪件」——它同时是引导与首次教学。"""
-    text = build_opening(UserState())
+    """全空时给两个入口（记一条 / 同步）——它同时是引导与首次教学。"""
+    text = opening_text(UserState())
     assert "记" in text
-    assert "目标" in text
-
-
-def test_long_goal_is_truncated():
-    """目标描述过长要截断，否则开场就变成了朗读一份书面目标。"""
-    text = build_opening(UserState(goal="学" * 200))
-    assert "…" in text
-    assert len(text) < 120
+    assert "同步" in text
+    assert text.endswith("？")
 
 
 # ---- 状态读取（真实库）-----------------------------------------------------
@@ -192,7 +199,7 @@ def test_start_costs_nothing(client, session, gateway_calls):
 
 
 def test_start_does_not_repeat_greeting(client, session, gateway_calls):
-    """同一会话再调一次，不会多出第二句问候——刷新页面不该看到两句开场。"""
+    """同一会话再调一次，不会多出第二句问候。"""
     user = sign_in(client, "greet_twice")
     first = _start(client, user.headers)
     cid = first["conversation_id"]
@@ -229,9 +236,20 @@ def test_start_never_leaks_another_users_conversation(client, session, gateway_c
     assert "认知副驾" in body["messages"][0]["content"]
 
 
-def test_greeting_reflects_real_knowledge_count(client, session, gateway_calls):
-    """开场读的是真实数据：存过内容之后，不该还问「这里还是空的」。"""
-    user = sign_in(client, "greet_kn")
+# ---- 确认卡随开场一起发 -----------------------------------------------------
+
+
+def _first_card(body: dict) -> dict | None:
+    for m in body["messages"]:
+        card = m.get("card") or {}
+        if card.get("kind"):
+            return card
+    return None
+
+
+def test_start_attaches_intake_card_when_library_has_content(client, session, gateway_calls):
+    """库里有内容时，开场带一张需求确认卡（≤2 题，全部可点选）。"""
+    user = sign_in(client, "greet_card")
     saved = client.post(
         "/api/v1/knowledge/items",
         json={"title": "B+树", "content": "B+树更适合范围查询"},
@@ -240,10 +258,38 @@ def test_greeting_reflects_real_knowledge_count(client, session, gateway_calls):
     assert saved.status_code == 200, saved.text
 
     body = _start(client, user.headers)
-    assert "1 条" in body["messages"][0]["content"]
+    card = _first_card(body)
+    assert card is not None and card["kind"] == "reading_intake"
+    assert 1 <= len(card["questions"]) <= 2
+    assert gateway_calls == []
 
 
-# ---- D：开场直击「最该处理的那一处」 ----------------------------------------
+def test_start_skips_intake_card_when_library_is_empty(client, session, gateway_calls):
+    """库空时不发确认卡：没有内容可确认，问五件事也没用。"""
+    user = sign_in(client, "greet_empty_card")
+    body = _start(client, user.headers)
+    assert _first_card(body) is None
+    assert "库" in body["messages"][0]["content"]
+
+
+def test_start_persists_reading_context(client, session, gateway_calls):
+    """开场的推断要落进会话上下文，刷新回来不必重说在读什么。"""
+    user = sign_in(client, "greet_ctx")
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则", "content": "极度透明意味着什么"},
+        headers=user.headers,
+    )
+    body = _start(client, user.headers)
+
+    session.expire_all()
+    conv = session.get(Conversation, body["conversation_id"])
+    ctx = conv.reading_context or {}
+    assert ctx.get("status") == "collecting"
+    assert "question" in (ctx.get("missing") or [])
+
+
+# ---- 冲突：仍在开场里，但只报数量 -------------------------------------------
 
 
 def _seed_conflict(session, user_id: str) -> None:
@@ -254,72 +300,21 @@ def _seed_conflict(session, user_id: str) -> None:
     )
 
 
-def test_conflict_opening_names_the_conflict_when_details_known():
-    """拿到具体要点时要说清是哪两条、哪两个说法——只报数字等于只做了通知。
+def test_start_uses_conflict_count_not_claims(client, session, gateway_calls):
+    """端到端：有未解冲突时只报数量，**不摆双方主张**。
 
-    看到「3 处冲突」用户仍要自己回去翻是哪三处、哪一点对不上；把双方说法摆出来
-    并把问题问出去，才是本项目说的「逼你修正」。
+    摆主张等于替用户把议题定了——那是建议行为，要等确认之后。
     """
-    text = build_opening(UserState(
-        unseen_conflicts=3,
-        top_conflict=ConflictBrief(
-            conflict_id="c1",
-            title_a="索引笔记",
-            title_b="数据库选型",
-            claim_a="B+树更适合范围查询",
-            claim_b="哈希索引更适合范围查询",
-            conflict_type="立场对立",
-            confidence=0.9,
-        ),
-    ))
-
-    assert "3 处冲突" in text
-    assert "索引笔记" in text and "数据库选型" in text
-    assert "B+树更适合范围查询" in text
-    assert text.endswith("？")
-    assert "周计划" not in text
-
-
-def test_conflict_opening_falls_back_to_count_without_details():
-    """没有具体要点时退回只报数量的形态——纯计数构造也必须产出可用开场。"""
-    text = build_opening(UserState(unseen_conflicts=3))
-    assert "3 处冲突" in text
-    assert text.endswith("？")
-
-
-def test_conflict_opening_truncates_long_text():
-    """书名与主张都要截断，否则开场会退化成朗读两句长文。"""
-    text = build_opening(UserState(
-        unseen_conflicts=1,
-        top_conflict=ConflictBrief(
-            conflict_id="c1", title_a="甲" * 40, title_b="乙" * 40,
-            claim_a="观" * 200, claim_b="点" * 200,
-        ),
-    ))
-    assert "…" in text
-    assert text.endswith("？")
-
-
-def test_collect_state_reads_top_conflict(client, session):
-    """collect_state 顺带取「最该处理的那一处」——开场才有东西可直击。"""
-    user = sign_in(client, "greet_conflict")
-    _seed_conflict(session, user.user_id)
-
-    state = collect_state(session, user_id=user.user_id)
-
-    assert state.unseen_conflicts == 1
-    assert state.top_conflict is not None
-    assert state.top_conflict.claim_a == "B+树更适合范围查询"
-
-
-def test_start_uses_conflict_details_in_greeting(client, session, gateway_calls):
-    """端到端：有未解冲突时开场直接摆出双方说法，且依然不调模型。"""
     user = sign_in(client, "greet_conflict_detail")
     _seed_conflict(session, user.user_id)
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "索引", "content": "B+树更适合范围查询"},
+        headers=user.headers,
+    )
 
     text = _start(client, user.headers)["messages"][0]["content"]
 
-    assert "1 处冲突" in text
-    assert "索引·甲" in text
-    assert "B+树更适合范围查询" in text
+    assert "1 处观点冲突" in text
+    assert "哈希索引更适合范围查询" not in text
     assert gateway_calls == []

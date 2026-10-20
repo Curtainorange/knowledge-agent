@@ -50,11 +50,12 @@ from app.agent.cards import (
     l1_located_card,
     located_reply,
     note_empty_card,
+    reading_intake_card,
 )
 from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
 from app.agent.orchestrator import Orchestrator
-from app.agent.router import CapabilityRoute, CapabilityRouter, parse_note
+from app.agent.router import CapabilityRoute, CapabilityRouter, is_suggestion_command, parse_note
 from app.agent.turns import SOURCE
 from app.core.config import settings
 from app.domain.repositories.conversation_repository import ConversationRepository
@@ -71,6 +72,27 @@ def _with_channel_tag(tags: list[str] | None) -> list[str]:
     if CHANNEL_TAG_CHAT not in out:
         out.append(CHANNEL_TAG_CHAT)
     return out
+
+
+# 纠正上一轮理解的说法。与 router 的 `_CORRECTION_WORDS` 同一套判断，
+# 这里只负责把标记词后面的内容剥出来当新的 question。
+_CORRECTION_MARKERS = ("我说的是", "不是这个意思", "你理解错", "不是这样")
+
+
+def _strip_correction(text: str) -> str:
+    """从「不对，我说的是 Y」里剥出 Y。
+
+    找不到标记词就返回整句——用户可能只说了「不是这个意思」，
+    那没有可用的新内容，调用方会按空串处理（保留旧槽位）。
+    """
+    body = (text or "").strip()
+    for marker in _CORRECTION_MARKERS:
+        if marker in body:
+            body = body.split(marker, 1)[1]
+            break
+    else:
+        return ""
+    return body.lstrip("：:，,。. 、了").strip()
 
 logger = logging.getLogger(__name__)
 
@@ -131,12 +153,12 @@ class Copilot:
         repo = ConversationRepository(self._session, user_id=user_id)
         conversation = self._load_or_create(repo, user_id, conversation_id)
         if not (conversation.messages or []):
-            repo.append_message(
-                conversation,
-                "assistant",
-                opening_for(self._session, user_id=user_id),
-                source=SOURCE,
+            # 开场带一张「需求确认卡」：问候之后先确认，不直接推下一步动作。
+            # 卡片随开场一起落库，刷新页面还在（与消息同一事务）。
+            text, card = opening_for(
+                self._session, user_id=user_id, conversation=conversation
             )
+            repo.append_message(conversation, "assistant", text, source=SOURCE, card=card)
             self._session.commit()
         return conversation.id
 
@@ -149,7 +171,26 @@ class Copilot:
         clarifying = (conversation.state or "") == "clarifying"
         route = self._router.route(message, user_id=user_id, allow_model=not clarifying)
 
-        if self._runs_async(route.capability):
+        # 阅读建议的**确认门禁**：缺项 / 用户在纠正 → 直接回一张确认卡，不开回合。
+        # 放在这里而不是 preflight，是因为它不是「前提不满足」（那是失败），
+        # 而是流程的下一步——用户答完这几项，自然就往下走了。
+        early = None
+        if route.capability == "suggestion":
+            early = self._suggestion_gate(
+                conversation, user_id=user_id, message=message, route=route
+            )
+        elif route.capability == "chat" and self._intake_wants(message, conversation):
+            # 确认期接管：用户大概率是在回答「想解决什么 / 目标 / 水平」，而不是闲聊。
+            # 判据见 `_intake_wants`——必须是"抽到了具体项"或"正缺那一项"，
+            # 否则「今天天气不错」也会被当成答案塞进槽位，聊天就断了。
+            early = self._suggestion_gate(
+                conversation, user_id=user_id, message=message, route=route
+            )
+
+        if early is not None:
+            reply, card = early
+            self._append_exchange(repo, conversation, message, reply, card)
+        elif self._runs_async(route.capability):
             # 开跑前先确认这事现在做得成：前提不满足就同步回提示卡，
             # 别先发 pending 卡、让后台跑一趟才发现做不了（用户会白等一个轮询周期）
             ready = turns.preflight(route.capability, user_id=user_id, session=self._session)
@@ -214,6 +255,7 @@ class Copilot:
             "book_digest": self._execute,
             "book_recommend": self._execute,
             "book_discuss": self._book_discuss,
+            "suggestion": self._execute,
             "chat": self._chat,
         }
 
@@ -257,9 +299,96 @@ class Copilot:
             gateway=self._gateway,
             key=str(uuid4()),
             args=route.args,
+            # suggestion 要读会话里的确认结果；其它能力忽略这个参数
+            conversation_id=conversation.id,
         )
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
+
+    # ---- 阅读建议的确认门禁 ----------------------------------------------
+
+    def _suggestion_gate(self, conversation, *, user_id, message, route):
+        """确认门禁。返回 `(文案, 卡)` 表示还没到生成的时候；返回 `None` 表示可以生成。
+
+        三种情况：
+
+        1. **用户在纠正**（"不对，我说的是 X"）→ 覆盖 question，重出确认卡；
+        2. 用户在这句话里顺带说清了某几项 → 补进槽位；
+        3. 还缺项 → 重出确认卡。
+
+        第 2 条有个坑必须挡住：**指令不是内容**。"确认，给我建议"如果被当成
+        "想解决的问题"抽进槽位，后面所有建议都会围着这句空话打转。
+        """
+        from app.agent import intake
+
+        ctx = intake.load(self._session, conversation=conversation, user_id=user_id)
+        args = route.args or {}
+
+        if args.get("correct"):
+            corrected = _strip_correction(message)
+            if corrected:
+                intake.apply_answer(ctx, "question", corrected)
+                intake.save(self._session, conversation=conversation, ctx=ctx)
+                return self._intake_reply(ctx, prefix=f"好，改过来：{corrected}。")
+            return None
+
+        if args.get("skipped"):
+            # 允许跳过：门禁放行，但置信度会在 grounding 侧被封顶（槽位不齐）
+            ctx.skipped = True
+
+        slots = intake.extract_slots(message)
+        if is_suggestion_command(message):
+            slots.pop("question", None)
+        if slots:
+            intake.merge_slots(ctx, slots)
+
+        if ctx.is_ready:
+            intake.save(self._session, conversation=conversation, ctx=ctx)
+            return None
+        reply, card = self._intake_reply(ctx)
+        intake.save(self._session, conversation=conversation, ctx=ctx)
+        return reply, card
+
+    def _intake_wants(self, message: str, conversation) -> bool:
+        """这句话该不该当成「确认回答」而不是闲聊。
+
+        两个条件同时满足才接管：
+
+        1. 会话确实处在等作答状态（`awaiting`，只由"发过确认卡"置 True）；
+        2. 这句话**要么抽到了具体确认项**（目标 / 水平 / 帮助类型 / 书名进度），
+           **要么恰好缺「想解决的问题」**（自由文本，只能靠用户说）。
+
+        只满足 1 不满足 2 的，就是闲聊——不能因为"正在确认"就把每句话都当答案。
+        """
+        try:
+            from app.agent import intake
+
+            ctx = intake.IntakeContext.from_dict(getattr(conversation, "reading_context", None))
+            if not ctx.awaiting:
+                return False
+            if is_suggestion_command(message):
+                return False  # 指令交给 suggestion 分支处理
+            slots = intake.extract_slots(message)
+            explicit = {k for k in slots if k != "question"}
+            return bool(explicit) or "question" in ctx.missing
+        except Exception:  # pragma: no cover - 读不出来就当没有进行中的确认
+            return False
+
+    def _intake_reply(self, ctx, *, prefix: str = ""):
+        """构造确认卡与一句引导。**不调模型**——确认阶段不该花钱。"""
+        from app.agent import intake
+
+        intake.mark_card_sent(ctx)
+        card = reading_intake_card(
+            key="intake",
+            round=ctx.round,
+            inferred={"book": ctx.book, "basis": "system"},
+            questions=intake.next_questions(ctx),
+            digest_payload=intake.digest(ctx),
+        )
+        labels = "、".join(intake.SLOT_LABELS.get(m, m) for m in ctx.missing)
+        tail = f"还差{labels}——选一下就好。"
+        return (f"{prefix}{tail}" if prefix else tail), card
 
     def _book_discuss(self, repo, conversation, *, user_id, message, route):
         """就通读过的书讨论一轮。消息由本层追加（执行体不写消息，与 `_execute` 同一分工）。"""

@@ -823,3 +823,34 @@ main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px
   .history-panel.open{transform:translateX(0)}
   .history-actions{opacity:1}
 }
+
+/* ============ 需求确认卡与建议卡（B 模块） ============
+ * 只加新 class，不改既有结构。两类卡片共用 .meta / .badge / .cf-actions，
+ * 保持与 l2/l5 卡片同一套视觉语言。 */
+
+.intake{display:flex;flex-direction:column;gap:12px}
+.intake-q{border-left:2px solid var(--accent-weak);padding-left:10px}
+.intake .q-label{font-weight:600;color:var(--text)}
+.intake .cf-actions{margin-top:8px}
+
+.suggestion{display:flex;flex-direction:column;gap:12px}
+.sg-item{
+  border:1px solid var(--border);border-radius:var(--radius-sm);
+  padding:12px 14px;background:var(--card);box-shadow:var(--shadow-xs);
+}
+.sg-action{font-weight:600;color:var(--text);line-height:1.55}
+.sg-steps{margin:8px 0 0;padding-left:20px;color:var(--text-2)}
+.sg-steps li{margin:3px 0}
+.sg-evidence{margin-top:10px;border-top:1px dashed var(--border);padding-top:8px}
+.sg-evidence summary{cursor:pointer;color:var(--accent);font-size:13px;list-style:none}
+.sg-evidence summary::-webkit-details-marker{display:none}
+.ev-row{
+  display:flex;flex-wrap:wrap;align-items:baseline;gap:6px;
+  margin-top:8px;font-size:13px;color:var(--text-2);
+}
+.ev-row strong{color:var(--text)}
+.ev-row a{color:var(--accent);text-decoration:none;white-space:nowrap}
+.ev-row a:hover{text-decoration:underline}
+
+.sg-refs{margin-top:6px;border-top:1px dashed var(--border);padding-top:10px}
+.sg-refs-title{font-size:12.5px;color:var(--muted);margin-bottom:2px}

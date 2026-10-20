@@ -105,6 +105,14 @@ class ConversationRepository(BaseRepository[Conversation]):
     def set_state(self, conversation: Conversation, state: str) -> None:
         conversation.state = state
 
+    def set_reading_context(self, conversation: Conversation, context: dict) -> None:
+        """写阅读上下文槽位（B 模块）。
+
+        整体重新赋值而不是改内部字段：`messages` / `reading_context` 都是 JSON 列，
+        SQLAlchemy 不追踪容器原地修改，只有重新赋值才会落库。
+        """
+        conversation.reading_context = dict(context or {})
+
     def list_by_user(self, user_id: str, kind: str | None = None) -> list[Conversation]:
         """用户全部会话（最近活跃在前），可按派生归类过滤（`kind=None` 不过滤）。
 

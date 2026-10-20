@@ -55,12 +55,15 @@ from app.agent.cards import (
     l5_diagnosis_card,
     book_digest_card,
     book_recommend_card,
+    insufficient_evidence_card,
     no_goal_card,
     notice_card,
     pending_card,
     plan_reply,
+    reading_intake_card,
     recommend_reply,
     scan_reply,
+    suggestion_card,
     sync_reply,
     weread_not_configured_card,
     weread_sync_card,
@@ -95,6 +98,8 @@ ASYNC_CAPABILITIES: frozenset[str] = frozenset({
     # 书籍两项：推荐一次模型调用（十几秒），通读是「逐块读完全书」（分钟级）——
     # 都压不进一次 HTTP 请求，与 l2/l3 同一批
     "book_recommend", "book_digest",
+    # 阅读建议：要召回 + 一次生成调用，十几秒；门禁（缺项）在 preflight 之前就拦掉了
+    "suggestion",
 })
 
 # 慢的卡片操作：跑模型、要十几秒，走后台，不在请求里等。
@@ -110,6 +115,7 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "weread_sync": ("正在同步微信读书", "逐本拉取划线与想法并逐条向量化，通常半分钟以内。"),
     "book_digest": ("正在通读这本书", "逐章读完再汇总，一本书要几分钟，读的过程不用你管。"),
     "book_recommend": ("正在挑书", "要结合你的知识库、书架和目标一起看，通常十几秒。"),
+    "suggestion": ("正在按你的依据想建议", "只在你同步进来的内容里找，通常十几秒。"),
 }
 
 _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
@@ -152,7 +158,7 @@ def task_key(turn_id: str) -> str:
 
 def execute_capability(
     capability: str, *, user_id: str, session: Session, gateway: ModelGateway, key: str,
-    args: dict | None = None,
+    args: dict | None = None, conversation_id: str = "",
 ) -> tuple[str, dict]:
     """跑一次能力，返回 (回复文案, 卡片)。
 
@@ -162,6 +168,9 @@ def execute_capability(
     `args` 只有 `l4_goal` 用得到（定目标 / 查看，二选一）。默认取**只读分支**：
     分流模型若漏给了 intent，宁可给用户看现状，也不要凭猜建一个错的目标——
     这与「分流失败回落通用对话」是同一条保守原则。
+
+    `conversation_id` 给需要读会话状态的能力用（目前只有 `suggestion`：
+    它要读 `reading_context` 里的确认结果）。其余能力忽略它。
     """
     if capability == "l2":
         result = L2Orchestrator(gateway, session).scan(user_id=user_id)
@@ -210,7 +219,89 @@ def execute_capability(
         result = book_orchestrator.recommend(session, gateway, user_id=user_id)
         return recommend_reply(result), book_recommend_card(key=key, result=result)
 
+    if capability == "suggestion":
+        return _execute_suggestion(
+            user_id=user_id, session=session, gateway=gateway, key=key,
+            conversation_id=conversation_id, args=args or {},
+        )
+
     raise ValueError(f"不支持执行的能力：{capability}")
+
+
+def _execute_suggestion(
+    *, user_id: str, session: Session, gateway: ModelGateway, key: str,
+    conversation_id: str, args: dict,
+) -> tuple[str, dict]:
+    """生成阅读建议。
+
+    三层判定，任何一层不过都不出建议：
+    1. 读不到会话 → 提示重来（没有确认结果，生成了也是猜）；
+    2. 确认项没齐 → **退回确认卡**（这是门禁，不是失败）；
+    3. 依据不够 → 说明缺什么并给三条出路（`grounding` 侧的判定）。
+
+    只有三层都过，才真的调模型。**先判定后花钱**是这段代码的全部要点。
+    """
+    from app.agent import intake
+    from app.agent import suggestion as sugg
+
+    conversation = None
+    if conversation_id:
+        try:
+            conversation = ConversationRepository(session, user_id=user_id).get(conversation_id)
+        except PermissionError:
+            conversation = None
+
+    if conversation is None:
+        card = insufficient_evidence_card(
+            key=key, reason="这次没读到你的确认信息，重新开一个对话就好。",
+        )
+        return card["note"], card
+
+    ctx = intake.load(session, conversation=conversation, user_id=user_id)
+
+    if not ctx.is_ready:
+        card = reading_intake_card(
+            key="intake",
+            round=ctx.round,
+            inferred={"book": ctx.book, "basis": "system"},
+            questions=intake.next_questions(ctx),
+            digest_payload=intake.digest(ctx),
+            note="先把这几项确认一下，我才能给到对你有用的建议。",
+        )
+        intake.mark_card_sent(ctx)
+        intake.save(session, conversation=conversation, ctx=ctx)
+        return intake.confirm_text(ctx), card
+
+    outcome = sugg.generate(session, user_id=user_id, ctx=ctx, gateway=gateway)
+
+    if outcome.state == "insufficient_evidence":
+        card = insufficient_evidence_card(key=key, reason=outcome.note, hints=outcome.hints)
+        intake.save(session, conversation=conversation, ctx=ctx)
+        return outcome.note, card
+
+    if outcome.state == "degraded":
+        card = suggestion_card(
+            key=key, state="degraded", digest_payload=outcome.digest,
+            items=[], evidence=[ev.as_card() for ev in outcome.evidence],
+            note=outcome.note,
+        )
+        intake.save(session, conversation=conversation, ctx=ctx)
+        return outcome.note, card
+
+    card = suggestion_card(
+        key=key,
+        state=outcome.state,
+        digest_payload=outcome.digest,
+        items=outcome.items,
+        evidence=[ev.as_card() for ev in outcome.evidence],
+        references=outcome.references,
+        confidence=outcome.confidence,
+        note=outcome.note,
+    )
+    # 记「已出过建议」：下次进页面不再从头问一遍（但槽位保留，用户改口仍可覆盖）
+    intake.mark_ready_for_suggestion(ctx)
+    intake.save(session, conversation=conversation, ctx=ctx)
+    return sugg.reply_text(outcome), card
 
 
 def _execute_book_digest(
@@ -779,6 +870,34 @@ def apply_action(
         )
 
     kind = card.get("kind")
+    # 确认卡与建议卡的「答一题 / 否一条」会产出一张**新卡**（不是按数据库刷新旧卡）。
+    # 新卡必须写回会话：否则前端内存里换掉了、刷新页面又变回旧的那张——
+    # 用户会以为自己的选择没生效。其它卡片的状态变化由 `refresh_card` 在读时校正。
+    if kind in ("reading_intake", "suggestion"):
+        if kind == "reading_intake" and action == "intake.answer":
+            reply, new_card = _apply_intake_answer(
+                session, user_id=user_id, conversation_id=conversation_id,
+                card=card, slot=target_id, value=value,
+            )
+        elif kind == "reading_intake" and action == "intake.skip":
+            reply, new_card = _apply_intake_skip(
+                session, user_id=user_id, conversation_id=conversation_id, card=card
+            )
+        elif kind == "suggestion" and action == "suggestion.reject":
+            reply, new_card = _reject_suggestion(
+                session, user_id=user_id, card=card, item_id=target_id
+            )
+        else:
+            raise ActionError(f"这张卡片不支持该操作（{kind} / {action}）")
+        # 新卡写回会话（复用 start_action_turn 用的那个 `_replace_card`）：
+        # 不写回的话，前端内存里换掉了、刷新页面又变回旧的那张，用户以为选择没生效。
+        _replace_card(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card_key=card.get("key") or card_key, card=new_card,
+        )
+        session.commit()
+        return reply, new_card
+
     if kind == "l2_conflicts" and action == "l2.conflict.state":
         reply = _set_conflict_state(session, user_id=user_id, conflict_id=target_id, state=value)
     elif kind == "l5_diagnosis" and action == "l5.diagnosis.decide":
@@ -809,6 +928,142 @@ def _find_card(session: Session, *, user_id: str, conversation_id: str, card_key
         if card.get("key") and card.get("key") == card_key:
             return card
     return None
+
+
+# ---- 需求确认与建议的卡片操作（B 模块）-------------------------------------
+#
+# 这些操作都是**秒级**的：改槽位、记偏好。要跑模型的（生成建议）一律走
+# `sends` 按钮发一句话，复用整条异步回合链路——卡片操作不该等十几秒。
+
+
+def _load_ctx(session: Session, *, user_id: str, conversation_id: str):
+    from app.agent import intake
+
+    conversation = ConversationRepository(session, user_id=user_id).get(conversation_id)
+    if conversation is None:
+        raise ActionError("会话已不存在，刷新页面看看")
+    ctx = intake.load(session, conversation=conversation, user_id=user_id)
+    return conversation, ctx
+
+
+def _intake_card(ctx, *, note: str = "", with_generate: bool = False) -> dict:
+    from app.agent import intake
+
+    # 发卡即进入"等作答"状态（调用方负责随后 save）
+    intake.mark_card_sent(ctx)
+    card = reading_intake_card(
+        key="intake",
+        round=ctx.round,
+        inferred={"book": ctx.book, "basis": "system"},
+        questions=intake.next_questions(ctx),
+        digest_payload=intake.digest(ctx),
+        note=note,
+    )
+    if with_generate:
+        card["sends"] = [{"label": "按这些给建议", "message": intake_generate_phrase()}]
+    return card
+
+
+def intake_generate_phrase() -> str:
+    """「生成建议」按钮发出去的那句话。
+
+    必须被 router 的本地规则命中（`_SUGGEST_WORDS` 含「给我建议」），
+    否则点一下会退化成一次模型分流，结果还不确定——这是本项目对
+    `CAPABILITY_CATALOG.example` 的同一条要求。
+    """
+    return "确认，给我建议"
+
+
+def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value):
+    from app.agent import intake
+
+    conversation, ctx = _load_ctx(session, user_id=user_id, conversation_id=conversation_id)
+    try:
+        intake.apply_answer(ctx, slot, value)
+    except ValueError as exc:
+        raise ActionError(str(exc)) from exc
+    _record_intake(session, user_id=user_id, slot=slot, skipped=False)
+
+    if ctx.is_ready:
+        card = _intake_card(
+            ctx, note="确认没问题就生成；有不对的继续说。", with_generate=True
+        )
+        intake.save(session, conversation=conversation, ctx=ctx)
+        session.commit()
+        return "信息齐了，点下面生成建议。", card
+
+    card = _intake_card(ctx)
+    intake.save(session, conversation=conversation, ctx=ctx)
+    session.commit()
+    return intake.confirm_text(ctx), card
+
+
+def _apply_intake_skip(session, *, user_id, conversation_id, card):
+    from app.agent import intake
+
+    conversation, ctx = _load_ctx(session, user_id=user_id, conversation_id=conversation_id)
+    intake.mark_skip(ctx)
+    _record_intake(session, user_id=user_id, slot="", skipped=True)
+
+    if ctx.is_ready:
+        card = _intake_card(ctx, note="确认没问题就生成。", with_generate=True)
+        intake.save(session, conversation=conversation, ctx=ctx)
+        session.commit()
+        return "行，那就先这样。", card
+
+    note = (
+        "一直跳过也没关系，我只问最关键的那一句。"
+        if ctx.reduced_mode
+        else "不想答就跳过，按已知信息来。"
+    )
+    card = _intake_card(ctx, note=note)
+    intake.save(session, conversation=conversation, ctx=ctx)
+    session.commit()
+    return "跳过这轮。", card
+
+
+def _record_intake(session, *, user_id, slot, skipped):
+    try:
+        from app.feedback import events
+
+        events.record(
+            session, user_id=user_id,
+            event_type=events.AGENT_INTAKE_SKIPPED if skipped else events.AGENT_INTAKE_ANSWERED,
+            payload={"slot": slot},
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning("intake 埋点失败: %s", exc)
+
+
+def _reject_suggestion(session, *, user_id, card, item_id):
+    """用户否掉一条建议。
+
+    **不追问原因**——「这条不对」已经表达了足够信息；弹一个「为什么不对」的输入框，
+    是把系统的困惑变成用户的负担。只记下组合（帮助类型 + 目标），供收敛用。
+    """
+    items = [it for it in (card.get("items") or []) if it.get("id") != item_id]
+    digest = card.get("digest") or {}
+    try:
+        from app.feedback import events
+
+        events.record(
+            session, user_id=user_id, event_type=events.SUGGESTION_REJECTED,
+            payload={
+                "item_id": item_id,
+                "help_type": digest.get("help_type") or [],
+                "goal": digest.get("goal") or "",
+            },
+        )
+    except Exception as exc:  # pragma: no cover
+        logger.warning("建议拒绝埋点失败: %s", exc)
+
+    new_card = dict(card)
+    new_card["items"] = items
+    if items:
+        return "记下了，这条不再推。", new_card
+    new_card["state"] = "insufficient_evidence"
+    new_card["note"] = "这条不推了。要不要换个方向问？"
+    return "记下了。", new_card
 
 
 def _set_conflict_state(session: Session, *, user_id: str, conflict_id: str, state: str) -> str:
