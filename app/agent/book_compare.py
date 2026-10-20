@@ -42,7 +42,7 @@ from app.llm.structure import JsonParseError, parse_structured
 
 logger = logging.getLogger(__name__)
 
-RELATIONS = ("一致", "互补", "冲突", "各有侧重")
+RELATIONS = ("一致", "互补", "冲突", "各有侧重", "一方独有")
 # 对齐阈值：低于它就不算"讲同一件事"。0.25 是实测下来比较保守的一个值——
 # 中文两字词的 Jaccard 本来就低，设高了会把真正相关的章节对漏掉。
 ALIGN_THRESHOLD = 0.25

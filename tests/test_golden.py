@@ -173,10 +173,14 @@ def _check(name: str, parsed) -> None:
         assert sum(1 for o in parsed.options if o.correct) == 1
         assert len([p for p in parsed.key_points if p.strip()]) >= 3
     elif name == "book_compare":
-        # 对比行的意义在 difference：没有它，两段话只是并排放着
+        # 对比行的意义在 difference：没有它，两段话只是并排放着。
+        # 枚举引用 `book_compare.RELATIONS`，不在测试里另抄一份——
+        # 抄一份的下场是加了一类关系后测试报"未知关系"（已踩过）。
+        from app.agent.book_compare import RELATIONS
+
         assert parsed.rows, "对比结果没有任何一行"
         for row in parsed.rows:
-            assert row.relation in ("一致", "互补", "冲突", "各有侧重"), row.relation
+            assert row.relation in RELATIONS, row.relation
             assert row.a_says and row.b_says
             assert row.difference
     else:  # pragma: no cover - 新提示词未登记校验
