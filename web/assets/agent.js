@@ -574,15 +574,22 @@ window.CCA = (function () {
     return '<div class="l4-card">' + parts.join('') + '</div>';
   }
 
-  /* 书籍推荐：每本一张问题卡形状的条目（书名/作者 + 与你学习的关系 + 为什么值得读）。 */
+  /* 书籍推荐：每本一张问题卡形状的条目（书名/作者 + 与你学习的关系 + 为什么值得读）。
+
+     这些书**不在你的知识库里**，所以顶部固定一条说明——外部推荐与「你的笔记怎么说」
+     是两种依据，混在一起用户会以为系统读过这些书。 */
   function bookRecommendHtml(card) {
     var parts = [];
     if (card.overview) {
       parts.push('<div class="meta">' + esc(card.overview) + '</div>');
     }
+    if ((card.items || []).some(function (i) { return i.external; })) {
+      parts.push('<div class="sg-refs-title">延伸参考（非你的知识库，未入库，仅作线索）</div>');
+    }
     parts.push((card.items || []).map(function (item) {
       var body = '<div class="question-card"><div class="q-head">' + esc(item.title) +
-        (item.author ? ' <span class="badge">' + esc(item.author) + '</span>' : '') + '</div>';
+        (item.author ? ' <span class="badge">' + esc(item.author) + '</span>' : '') +
+        (item.external ? ' <span class="badge">外部</span>' : '') + '</div>';
       if (item.fit) {
         body += '<div class="cf-block"><b>和你现在的关系：</b>' + esc(item.fit) + '</div>';
       }
@@ -751,6 +758,61 @@ window.CCA = (function () {
     return parts.join('');
   }
 
+  /* ---- 理解度探查卡（E 模块）----------------------------------------------
+
+     四个步骤：接触史 → 判断题 → 复述 → 结论。
+     复述那一步没有按钮——直接让用户在下面输入框说，卡片只做提示。
+     理由：文本框提交要另开一套交互，而对话本来就有一个输入框；
+     用说话的方式还能"说错了再补一句"。 */
+  var LEVEL_OPTIONS = [
+    { value: 'first', label: '第一次接触' },
+    { value: 'once', label: '读过一遍' },
+    { value: 'teach', label: '能讲给别人听' }
+  ];
+
+  function probeHtml(card) {
+    var parts = ['<div class="probe">'];
+    if (card.topic) {
+      parts.push('<div class="meta">内容：' + esc(card.topic) + '</div>');
+    }
+
+    if (card.step === 'level') {
+      parts.push('<div class="q-label">这块内容你之前接触过吗？</div>');
+      parts.push('<div class="meta">先说明基础，我才知道答错是"没学"还是"没读懂"。</div>');
+      parts.push('<div class="cf-actions">' + LEVEL_OPTIONS.map(function (o) {
+        return actionButton(card.key, 'probe.level', o.value, '', o.label);
+      }).join('') + '</div>');
+    } else if (card.step === 'judge') {
+      parts.push('<div class="q-label">' + esc(card.question) + '</div>');
+      parts.push('<div class="cf-actions">' + (card.options || []).map(function (o) {
+        return actionButton(card.key, 'probe.answer', o.key, '', o.key.toUpperCase() + '. ' + o.text);
+      }).join('') + '</div>');
+    } else if (card.step === 'recall') {
+      parts.push('<div class="q-label">用一句话说说它是什么</div>');
+      parts.push('<div class="meta">直接在下面输入框说就行——说错没关系，我看的是你抓住了哪几点。</div>');
+    } else if (card.step === 'verdict') {
+      var v = card.verdict || {};
+      parts.push('<div class="q-label">' + esc(v.verdict_label || card.note || '记下了') + '</div>');
+      if ((v.covered || []).length) {
+        parts.push('<div class="meta">你说到的：</div>');
+        parts.push(v.covered.map(function (p) { return '<div class="meta">· ' + esc(p) + '</div>'; }).join(''));
+      }
+      if ((v.missed || []).length) {
+        parts.push('<div class="meta">漏掉的：</div>');
+        parts.push(v.missed.map(function (p) { return '<div class="meta">· ' + esc(p) + '</div>'; }).join(''));
+      }
+      if (typeof v.coverage === 'number' && v.coverage > 0) {
+        parts.push('<div class="meta">覆盖要点 ' + Math.round(v.coverage * 100) + '%</div>');
+      }
+    }
+
+    if (card.note && card.step !== 'verdict') {
+      parts.push('<div class="meta">' + esc(card.note) + '</div>');
+    }
+    parts.push('</div>');
+    return parts.join('');
+  }
+
   function guideHtml(card) {
     return '<div class="guide">' +
       '<div class="g-head">' + esc(card.label) + '</div>' +
@@ -780,7 +842,8 @@ window.CCA = (function () {
     weread_sync: wereadSyncHtml,
     guide: guideHtml,
     reading_intake: intakeHtml,
-    suggestion: suggestionHtml
+    suggestion: suggestionHtml,
+    comprehension_probe: probeHtml
   };
 
   /* 未知 kind 一律不渲染（而不是把原始对象塞进页面）：

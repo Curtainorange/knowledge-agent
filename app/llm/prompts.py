@@ -380,6 +380,36 @@ CONFLICT_ATTRIBUTE = PromptSpec(
 )
 
 
+# ---- 理解度探查（E 模块）---------------------------------------------------
+#
+# 为什么是判断题而不是「你懂了吗」：自评永远说懂。一道有对错的题才能区分
+# 「读过但没读懂」与「读懂了只是没记」——这正是 L5 误伤老读者的根源。
+#
+# 关键设计：**出题时顺带产出 key_points**。第 2 轮的复述由代码按要点覆盖率判分，
+# 不再多调一次模型——省一次调用，而且判分可复现、可解释（能说清"漏了哪一点"）。
+PROBE_QUESTION = PromptSpec(
+    name="probe_question",
+    version="v1",
+    text=(
+        "你要出一道判断题，用来验证用户是否真的读懂了给出的内容。"
+        "输出严格 JSON：{"
+        '"topic":"","question":"",'
+        '"options":[{"key":"a","text":"","correct":false,"why":""},'
+        '{"key":"b","text":"","correct":false,"why":""},'
+        '{"key":"c","text":"","correct":false,"why":""}],'
+        '"key_points":["","",""]}。'
+        "要求："
+        "1) question 问「下面哪个说法更接近这段内容的意思」，不要考记忆细节、不要问作者生平；"
+        "2) 三个选项里恰好一个 correct=true，另外两个是**看起来合理的常见误解**，"
+        "不要用明显荒谬的干扰项；key 依次为 a / b / c；"
+        "3) 每个 why 用一句话说明这个选项对在哪 / 错在哪，不要复述题干；"
+        "4) key_points 给 3 条该内容的核心要点，用来判断用户复述覆盖了多少，"
+        "每条一句完整的话，不要关键词堆砌；"
+        "5) 不许出「以上都对 / 以上都不对」这类选项，也不许把正确答案写进 question。"
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增结构化提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     AGENT_ROUTE,
@@ -398,6 +428,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     BOOK_RECOMMEND,
     SUGGESTION,
     CONFLICT_ATTRIBUTE,
+    PROBE_QUESTION,
 ]
 
 
@@ -432,4 +463,6 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "reading_suggestion": SUGGESTION.version,
     # 冲突归因：要解释因果与边界，reasoning=on（与 conflict_detection 同级）
     "conflict_attribution": CONFLICT_ATTRIBUTE.version,
+    # 理解度探查：出一道判断题，reasoning=off（出题不需要深推理）
+    "probe_question": PROBE_QUESTION.version,
 }

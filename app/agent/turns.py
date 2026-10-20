@@ -55,6 +55,7 @@ from app.agent.cards import (
     l5_diagnosis_card,
     book_digest_card,
     book_recommend_card,
+    comprehension_probe_card,
     insufficient_evidence_card,
     no_goal_card,
     notice_card,
@@ -143,6 +144,65 @@ def preflight(capability: str, *, user_id: str, session: Session) -> tuple[str, 
             card = no_goal_card()
             return card["note"], card
 
+    if capability == "l5":
+        # E 模块：诊断前先做理解度探查。
+        # 这不是"附加功能"，是诊断的前置条件——没有它，L5 只能拿行为计数推断
+        # 「你没读懂」，而对已经懂了、只是懒得摘录的读者是彻底的误伤。
+        return _l5_probe_preflight(session, user_id=user_id)
+
+    return None
+
+
+def _l5_probe_preflight(session: Session, *, user_id: str) -> tuple[str, dict] | None:
+    """L5 的探查门禁。返回卡片表示"先别诊断"，返回 None 表示放行。"""
+    from app.agent import probe
+
+    state = probe.current_state(session, user_id=user_id)
+    record = state.record
+
+    if state.state == probe.STATE_NEED_QUESTION:
+        # 有没答完的题：原样再摆一次，不换题（换题等于把上面的作答作废）
+        if record is not None and record.question and not record.judge_key:
+            step = "judge" if record.self_level else "level"
+            card = comprehension_probe_card(
+                key="probe", probe_id=record.id, step=step,
+                topic=record.topic, question=record.question,
+                options=record.options or [],
+                note="先把这两步做完，我再判断该不该给你出诊断。",
+            )
+            return card["note"], card
+
+        draft = probe.build_probe(session, user_id=user_id)
+        if draft is None:
+            # 出题失败就放行：辅助步骤不该把主功能卡死（降级方向与全项目一致）
+            return None
+        created = probe.save_question(session, user_id=user_id, draft=draft)
+        card = comprehension_probe_card(
+            key="probe", probe_id=created.id, step="level",
+            topic=created.topic, question=created.question,
+            options=created.options or [],
+            note="先确认一下你的基础，再看一道小题。",
+        )
+        return "先做两道小题，我才知道该不该给你出诊断。", card
+
+    if state.state == probe.STATE_NEED_RECALL and record is not None:
+        card = comprehension_probe_card(
+            key="probe", probe_id=record.id, step="recall",
+            topic=record.topic, question=record.question,
+            note="你选的是「读过 / 能讲」，但那道题答错了——用一句话说说它是什么，我再看。",
+        )
+        return "再用一句话说说它是什么，我就知道该不该出诊断了。", card
+
+    if state.verdict == probe.VERDICT_GUIDE:
+        card = notice_card(
+            title="先读，不用诊断",
+            note=(
+                "这块你说是第一次接触——先把内容读一遍，把卡住的地方记下来，"
+                "比现在做诊断有用。读完之后再来，我会问你另一道题。"
+            ),
+        )
+        return card["note"], card
+
     return None
 
 
@@ -192,7 +252,18 @@ def execute_capability(
         return brief_reply(result), l3_brief_card(result)
 
     if capability == "l5":
+        # 探查门禁在这里再判一次：`preflight` 只在异步路径（有 worker）上跑，
+        # 无 worker 的降级路径直接进本函数——门禁若只写在 preflight，
+        # 就会因为"部署方式不同"而失效。幂等（已出过题不会重复出），所以两边都判是安全的。
+        gate = _l5_probe_preflight(session, user_id=user_id)
+        if gate is not None:
+            return gate
         result = L5Orchestrator(gateway, session).diagnose(user_id=user_id)
+        if result.state in ("mastered", "bias", "guide"):
+            # 这三类是"探查已经说明不必出缺陷"。用提示卡而不是诊断卡：
+            # 套一张诊断卡却写着"没问题"，用户会以为诊断没跑成功。
+            card = notice_card(title=_l5_soft_title(result.state), note=result.note)
+            return result.note, card
         return diagnosis_reply(result), l5_diagnosis_card(key=key, result=result)
 
     if capability == "l4_goal":
@@ -304,6 +375,14 @@ def _execute_suggestion(
     intake.mark_ready_for_suggestion(ctx)
     intake.save(session, conversation=conversation, ctx=ctx)
     return sugg.reply_text(outcome), card
+
+
+def _l5_soft_title(state: str) -> str:
+    return {
+        "mastered": "这块你已经掌握了",
+        "bias": "方向对，说法有偏差",
+        "guide": "先读，不用诊断",
+    }.get(state, "诊断")
 
 
 def _execute_book_digest(
@@ -900,6 +979,17 @@ def apply_action(
         session.commit()
         return reply, new_card
 
+    if kind == "comprehension_probe" and action == "probe.level":
+        return _probe_set_level(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card=card, level=value,
+        )
+    if kind == "comprehension_probe" and action == "probe.answer":
+        return _probe_answer(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card=card, option_key=target_id,
+        )
+
     if kind == "l2_conflicts" and action == "l2.conflict.state":
         reply = _set_conflict_state(session, user_id=user_id, conflict_id=target_id, state=value)
     elif kind == "l5_diagnosis" and action == "l5.diagnosis.decide":
@@ -936,6 +1026,105 @@ def _find_card(session: Session, *, user_id: str, conversation_id: str, card_key
 #
 # 这些操作都是**秒级**的：改槽位、记偏好。要跑模型的（生成建议）一律走
 # `sends` 按钮发一句话，复用整条异步回合链路——卡片操作不该等十几秒。
+
+
+# ---- 理解度探查的卡片操作（E 模块）-----------------------------------------
+
+
+def _probe_card_from(record, *, step: str, note: str = "", verdict: dict | None = None) -> dict:
+    """按记录重建探查卡。
+
+    题干与选项都从库里取：用户答到一半关掉页面再回来，看到的是**同一道题**，
+    而不是换一道新的、把他上面的作答作废。
+    """
+    return comprehension_probe_card(
+        key="probe", probe_id=record.id, step=step,
+        topic=record.topic, question=record.question,
+        options=record.options or [], verdict=verdict, note=note,
+    )
+
+
+def _set_conversation_state(session, *, user_id: str, conversation_id: str, state: str) -> None:
+    try:
+        conversation = ConversationRepository(session, user_id=user_id).get(conversation_id)
+    except PermissionError:
+        return
+    if conversation is not None:
+        conversation.state = state
+        session.commit()
+
+
+def _swap_probe_card(session, *, user_id, conversation_id, card, new_card) -> None:
+    _replace_card(
+        session, user_id=user_id, conversation_id=conversation_id,
+        card_key=str(card.get("key") or "probe"), card=new_card,
+    )
+    session.commit()
+
+
+def _probe_set_level(session, *, user_id, conversation_id, card, level):
+    """第 1 步：记下接触史。自评"第一次接触"当场定结论（guide），不问复述。"""
+    from app.agent import probe
+
+    try:
+        record = probe.set_self_level(
+            session, user_id=user_id,
+            probe_id=str(card.get("probe_id") or ""), self_level=level,
+        )
+    except ValueError as exc:
+        raise ActionError(str(exc)) from exc
+    if record is None:
+        raise ActionError("这道题已经不在了，重新点一次诊断")
+
+    if record.verdict:
+        new_card = _probe_card_from(
+            record, step="verdict", verdict=probe.verdict_summary(record)
+        )
+        _swap_probe_card(session, user_id=user_id, conversation_id=conversation_id, card=card, new_card=new_card)
+        return "好，那先读，不用诊断。", new_card
+
+    new_card = _probe_card_from(record, step="judge", note="选一个最接近原文意思的说法。")
+    _swap_probe_card(session, user_id=user_id, conversation_id=conversation_id, card=card, new_card=new_card)
+    return "再看一道小题。", new_card
+
+
+def _probe_answer(session, *, user_id, conversation_id, card, option_key):
+    """第 2 步：判断题。答错且自称读过/能讲时，转入复述。"""
+    from app.agent import probe
+
+    try:
+        record = probe.answer_judge(
+            session, user_id=user_id,
+            probe_id=str(card.get("probe_id") or ""), option_key=option_key,
+        )
+    except ValueError as exc:
+        raise ActionError(str(exc)) from exc
+    if record is None:
+        raise ActionError("这道题已经不在了，重新点一次诊断")
+
+    if probe.needs_recall(record.self_level, record.judge_correct):
+        new_card = _probe_card_from(
+            record, step="recall",
+            note="用一句话说说它是什么——说错也没关系，我要看的是你抓住了哪几点。",
+        )
+        # 标记"等复述"：接下来用户说的话会被当成复述，而不是普通聊天
+        _set_conversation_state(
+            session, user_id=user_id, conversation_id=conversation_id, state="probing"
+        )
+        _swap_probe_card(session, user_id=user_id, conversation_id=conversation_id, card=card, new_card=new_card)
+        return "再用一句话说说它是什么。", new_card
+
+    new_card = _probe_card_from(record, step="verdict", verdict=probe.verdict_summary(record))
+    _swap_probe_card(session, user_id=user_id, conversation_id=conversation_id, card=card, new_card=new_card)
+    return probe.VERDICT_LABELS.get(record.verdict, "记下了。"), new_card
+
+
+def probe_verdict_card(record) -> dict:
+    """探查结论卡。给 copilot 在"复述作答之后"用——复述靠用户说话，
+    这条路走的是对话入口，不是卡片操作。"""
+    from app.agent import probe
+
+    return _probe_card_from(record, step="verdict", verdict=probe.verdict_summary(record))
 
 
 def _load_ctx(session: Session, *, user_id: str, conversation_id: str):

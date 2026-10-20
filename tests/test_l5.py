@@ -10,6 +10,7 @@ from __future__ import annotations
 import json
 from datetime import datetime, timedelta, timezone
 
+import pytest
 from sqlalchemy import select
 
 from app.agent.l5_orchestrator import L5Orchestrator, calibrate_confidence
@@ -21,6 +22,16 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from tests.helpers import auth_headers
+
+
+@pytest.fixture(autouse=True)
+def _probe_ready(probe_done):
+    """E 模块：诊断前需要理解度探查记录。
+
+    既有用例默认视为"已完成探查"，否则它们全都会停在"先做确认"这一步，
+    测不到归因本身。探查的独立行为在 tests/test_probe.py 里单测。
+    """
+    return probe_done
 
 
 class FakeProvider(LLMProvider):

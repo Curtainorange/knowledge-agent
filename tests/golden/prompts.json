@@ -62,5 +62,9 @@
   "conflict_attribute": {
     "version": "v1",
     "sha256": "440ddaa5d4830f6299833037a842f5d1098d272c6b8dcc26677c36ed360696b6"
+  },
+  "probe_question": {
+    "version": "v1",
+    "sha256": "59ce58da962ff70a3b6f38bf0ba803ff8b7dc735b8d60e04ef53730be1c74622"
   }
 }

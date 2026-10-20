@@ -12,6 +12,8 @@ from __future__ import annotations
 
 import json
 
+import pytest
+
 from app.agent.l3_orchestrator import L3Orchestrator
 from app.agent.l4_orchestrator import L4Orchestrator
 from app.agent.l5_orchestrator import L5Orchestrator
@@ -20,6 +22,12 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.retrieval.embedding import EmbeddingModel
+
+
+@pytest.fixture(autouse=True)
+def _probe_ready(probe_done):
+    """E 模块：L5 诊断需要探查记录，这里默认视为已完成（只测冲突内容是否流入）。"""
+    return probe_done
 from tests.conflict_fixtures import make_conflict
 
 USER = "u1"

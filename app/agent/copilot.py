@@ -178,6 +178,11 @@ class Copilot:
             early = self._suggestion_gate(
                 conversation, user_id=user_id, message=message, route=route
             )
+        elif (conversation.state or "") == "probing":
+            # 等复述态：用户这句话就是对"用一句话说说它是什么"的回答。
+            # 复述只能靠说话（卡片里的文本框要另开一套提交交互），
+            # 所以这条路必须由对话入口接住，否则用户说完会被当成普通聊天。
+            early = self._probe_recall(conversation, user_id=user_id, message=message)
         elif route.capability == "chat" and self._intake_wants(message, conversation):
             # 确认期接管：用户大概率是在回答「想解决什么 / 目标 / 水平」，而不是闲聊。
             # 判据见 `_intake_wants`——必须是"抽到了具体项"或"正缺那一项"，
@@ -376,6 +381,31 @@ class Copilot:
             return bool(explicit) or "question" in ctx.missing
         except Exception:  # pragma: no cover - 读不出来就当没有进行中的确认
             return False
+
+    def _probe_recall(self, conversation, *, user_id: str, message: str):
+        """接住复述。返回 (文案, 卡)；返回 None 表示这句话不该当复述处理。"""
+        from app.agent import probe
+
+        record = probe.latest(self._session, user_id=user_id)
+        if record is None or record.verdict:
+            # 状态残留（比如记录已过期）：清掉标记，交回普通对话
+            conversation.state = "idle"
+            self._session.commit()
+            return None
+
+        answered = probe.answer_recall(
+            self._session, user_id=user_id, probe_id=record.id, recall_text=message
+        )
+        if answered is None:
+            conversation.state = "idle"
+            self._session.commit()
+            return None
+
+        conversation.state = "idle"
+        self._session.commit()
+        card = turns.probe_verdict_card(answered)
+        label = probe.VERDICT_LABELS.get(answered.verdict, "记下了。")
+        return label, card
 
     def _intake_reply(self, ctx, *, prefix: str = ""):
         """构造确认卡与一句引导。**不调模型**——确认阶段不该花钱。

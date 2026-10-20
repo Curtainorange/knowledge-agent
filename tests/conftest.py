@@ -107,6 +107,34 @@ def session():
         s.close()
 
 
+@pytest.fixture()
+def probe_done(monkeypatch):
+    """把「理解度探查已完成」写成默认前提（E 模块）。
+
+    引入探查后，`L5Orchestrator.diagnose` 在**没有探查记录**时会返回 empty
+    （提示先做确认）——这是正确的产品行为，但会让大量既有的 L5 用例
+    变成在测"空状态"。这个 fixture 只替换**探查记录**这一层（`probe.latest`），
+    行为计数、模型调用、卡片都还是真的，所以原断言依然有效。
+
+    需要测"没有探查会怎样"的用例不要引用它（见 tests/test_probe.py）。
+    """
+    from types import SimpleNamespace
+
+    from app.agent import probe
+
+    fake = SimpleNamespace(
+        id="probe-fixture",
+        verdict=probe.VERDICT_GAP,
+        self_level="once",
+        judge_correct=False,
+        coverage=0.1,
+        covered=[],
+        missed=["核心要点"],
+    )
+    monkeypatch.setattr(probe, "latest", lambda session, *, user_id, days=7: fake)
+    return fake
+
+
 @pytest.fixture(scope="session")
 def client():
     def override_session():

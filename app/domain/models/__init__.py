@@ -20,6 +20,7 @@ from app.domain.models.cost_log import CostLog
 from app.domain.models.push_job import PushJob
 from app.domain.models.push_log import PushLog
 from app.domain.models.cognitive_diagnosis import CognitiveDiagnosis
+from app.domain.models.comprehension_probe import ComprehensionProbe  # 显式 import：同 Conflict，不导入则 metadata 不注册
 
 __all__ = [
     "Base",
@@ -40,4 +41,5 @@ __all__ = [
     "PushJob",
     "PushLog",
     "CognitiveDiagnosis",
+    "ComprehensionProbe",
 ]

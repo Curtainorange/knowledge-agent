@@ -81,7 +81,13 @@ class BehaviorMetrics:
 
 @dataclass
 class L5Result:
-    state: Literal["ok", "empty", "degraded"]
+    """诊断结果。
+
+    `mastered` / `bias` / `guide` 是 E 模块引入的三类"不出缺陷"结论：
+    探查已经说明这块会/该先读/只是说法偏差，再拿行为计数归因就是冤枉人。
+    """
+
+    state: Literal["ok", "empty", "degraded", "mastered", "bias", "guide"]
     diagnosis_id: str = ""
     pattern: str = ""
     root_cause: str = ""
@@ -90,6 +96,8 @@ class L5Result:
     reasoning_chain: list[str] = field(default_factory=list)
     metrics: BehaviorMetrics | None = None
     note: str = ""
+    # 探查结论（verdict / 覆盖了哪几条要点 / 漏了哪几条）
+    probe_summary: dict = field(default_factory=dict)
 
 
 def calibrate_confidence(model_confidence: float, *, event_count: int, signal_count: int) -> float:
@@ -122,13 +130,46 @@ class L5Orchestrator:
 
     def diagnose(self, *, user_id: str) -> L5Result:
         metrics = self._compute_metrics(user_id)
-        if metrics.total_items == 0 and metrics.study_events_week == 0:
-            return L5Result(state="empty", metrics=metrics, note="还没有足够的学习行为，先积累一些再来诊断吧。")
 
-        draft = self._attribute(metrics, user_id=user_id)
+        # E 模块前置：先看理解度探查的结论。
+        # 没有这一步，L5 只能拿"摘录多少"推断"读没读懂"——
+        # 对已经懂了、只是懒得记的读者是彻底的误伤。
+        from app.agent import probe as probe_mod
+
+        record = probe_mod.latest(self._session, user_id=user_id)
+        summary = probe_mod.verdict_summary(record)
+        verdict = str(summary.get("verdict") or "")
+
+        if verdict == probe_mod.VERDICT_GUIDE:
+            return L5Result(
+                state="guide", metrics=metrics, probe_summary=summary,
+                note="这块你说是第一次接触——先把内容读一遍，现在做诊断没有依据。",
+            )
+        if verdict == probe_mod.VERDICT_MASTERED:
+            return L5Result(
+                state="mastered", metrics=metrics, probe_summary=summary,
+                note=(
+                    "判断题你答对了，说明这块确实读懂了。"
+                    "真正缺的可能不是理解，而是有没有把它整理下来——需要的话我可以帮你排一个整理任务。"
+                ),
+            )
+        if not verdict:
+            return L5Result(
+                state="empty", metrics=metrics, probe_summary=summary,
+                note="先做一次理解度确认，我再给诊断——否则只能按摘录多少猜，容易冤枉人。",
+            )
+
+        if metrics.total_items == 0 and metrics.study_events_week == 0:
+            return L5Result(
+                state="empty", metrics=metrics, probe_summary=summary,
+                note="还没有足够的学习行为，先积累一些再来诊断吧。",
+            )
+
+        draft = self._attribute(metrics, user_id=user_id, probe_summary=summary)
         if draft is None:
             return L5Result(
-                state="degraded", metrics=metrics, note="归因分析失败（模型输出无法解析），请稍后重试。"
+                state="degraded", metrics=metrics, probe_summary=summary,
+                note="归因分析失败（模型输出无法解析），请稍后重试。",
             )
 
         confidence = calibrate_confidence(
@@ -159,6 +200,7 @@ class L5Orchestrator:
             suggested_action=diagnosis.suggested_action,
             reasoning_chain=list(diagnosis.reasoning_chain or []),
             metrics=metrics,
+            probe_summary=summary,
         )
 
     def decide(self, *, user_id: str, diagnosis_id: str, accepted: bool) -> tuple[bool, str]:
@@ -250,7 +292,9 @@ class L5Orchestrator:
             unseen_conflicts=unseen,
         )
 
-    def _attribute(self, metrics: BehaviorMetrics, *, user_id: str) -> DiagnosisDraft | None:
+    def _attribute(
+        self, metrics: BehaviorMetrics, *, user_id: str, probe_summary: dict | None = None
+    ) -> DiagnosisDraft | None:
         prompt = (
             f"行为统计（本地计算，事实）：\n"
             f"- 知识库共 {metrics.total_items} 条，已读完 {metrics.completed_items} 条"
@@ -260,6 +304,19 @@ class L5Orchestrator:
             f"{'窗口内无记录' if metrics.idle_days is None else str(metrics.idle_days) + ' 天'}\n"
             f"- 未处理观点冲突 {metrics.unseen_conflicts} 处\n"
         )
+        # 理解度探查的结论是**反证信号**：用户自称读过/能讲，判断题却答错，
+        # 复述又漏掉关键要点——这才是"读的时候没抓住"，而不是"没读"。
+        # 不把这段喂进去，模型只会按行为计数往"你不努力"的方向归因。
+        summary = probe_summary or {}
+        if summary.get("verdict"):
+            coverage = float(summary.get("coverage") or 0.0)
+            missed = "；".join(summary.get("missed") or [])[:200] or "（无）"
+            prompt += (
+                f"\n理解度探查（用户亲自作答，事实）：\n"
+                f"- 自评：{summary.get('self_level') or '未说明'}\n"
+                f"- 判断题：{'答对' if summary.get('judge_correct') else '答错'}\n"
+                f"- 复述覆盖要点 {coverage:.0%}；漏掉：{missed}\n"
+            )
         # 冲突**内容**而不只是数量：计数只能让诊断说「有 3 处冲突」，
         # 内容才能让它把矛盾纳入归因（如「停滞可能与这处未解矛盾有关」）。
         unresolved = unresolved_section(self._session, user_id=user_id)

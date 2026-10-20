@@ -29,6 +29,7 @@ from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
 from app.agent.book_orchestrator import BookRecommendList, ChunkDigest, SummaryDigest
 from app.agent.attribution import AttributionDraft
+from app.agent.probe import ProbeDraft
 from app.agent.suggestion import SuggestionDraft
 from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
@@ -98,6 +99,7 @@ def _validator_for(name: str):
         "book_recommend": lambda d: BookRecommendList(**d),
         "suggestion": lambda d: SuggestionDraft(**d),
         "conflict_attribute": lambda d: AttributionDraft(**d),
+        "probe_question": lambda d: ProbeDraft(**d),
     }[name]
 
 
@@ -162,6 +164,12 @@ def _check(name: str, parsed) -> None:
             assert guide.follow in ("a", "b", "both")
             assert guide.scene and guide.reason
         assert parsed.probe.question and parsed.probe.how_to_check, "缺可验证判据"
+    elif name == "probe_question":
+        # 出题的三条硬约束：题干、恰好一个正确项、三条要点（复述判分要用）
+        assert parsed.question
+        assert len([o for o in parsed.options if o.text.strip()]) == 3
+        assert sum(1 for o in parsed.options if o.correct) == 1
+        assert len([p for p in parsed.key_points if p.strip()]) >= 3
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

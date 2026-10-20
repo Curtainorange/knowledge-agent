@@ -268,6 +268,12 @@ def digest_reply(outcome) -> str:
 
 
 def book_recommend_card(*, key: str, result) -> dict:
+    """书籍推荐卡。
+
+    每条都标 `external`：推荐的书**不在用户知识库里**，它和「你的笔记怎么说」
+    是两种不同的依据。不标出来的话，用户会以为这些书是自己库里的内容，
+    甚至以为系统读过——这正是"外部推荐必须明确标注"要防的事。
+    """
     return {
         "kind": "book_recommend",
         "key": key,
@@ -279,6 +285,10 @@ def book_recommend_card(*, key: str, result) -> dict:
                 "author": item.author,
                 "fit": item.fit,
                 "reason": item.reason,
+                "basis": "external",
+                "external": True,
+                "unverified": True,
+                "external_source": "模型推荐（未入库，建议自行判断）",
             }
             for item in result.items
         ],
@@ -631,6 +641,44 @@ def insufficient_evidence_card(*, key: str, reason: str, hints: list[str] | None
         "hints": [str(h) for h in (hints or [])],
         "href": "",
         "actions": [],
+    }
+
+
+# ---- 理解度探查（E 模块）---------------------------------------------------
+
+
+def comprehension_probe_card(
+    *, key: str, probe_id: str, step: str, topic: str = "",
+    question: str = "", options: list[dict] | None = None,
+    verdict: dict | None = None, note: str = "",
+) -> dict:
+    """理解度探查卡。`step` 决定这一屏问什么：
+
+    - `level`：先问接触史（三个按钮）。不先问这个，就没法解释"答错是因为不会还是因为没学"。
+    - `judge`：判断题（三个选项按钮）。
+    - `recall`：复述（**靠用户直接说话**，卡片只做提示——文本框提交要另开一套交互，
+      复用对话输入框更自然，也让"说错了再补一句"成为可能）。
+    - `verdict`：结论 + 依据（覆盖了哪几条、漏了哪几条）。
+    """
+    return {
+        "kind": "comprehension_probe",
+        "key": key,
+        "probe_id": probe_id,
+        "step": step,
+        "topic": str(topic or ""),
+        "question": str(question or ""),
+        "options": [
+            {
+                "key": str(o.get("key") or ""),
+                "text": str(o.get("text") or ""),
+                "why": str(o.get("why") or ""),
+                # 结论页要展示"你选的对不对"，判断题页不能泄露答案
+                **({"correct": bool(o.get("correct"))} if step == "verdict" else {}),
+            }
+            for o in (options or [])
+        ],
+        "verdict": dict(verdict or {}),
+        "note": str(note or ""),
     }
 
 
