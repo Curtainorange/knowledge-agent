@@ -15,9 +15,14 @@ from dataclasses import dataclass
 from typing import Callable, Sequence
 
 from app.core.config import settings
+from app.retrieval.bm25 import BM25Index
 from app.retrieval.keyword import score_keyword
 
 logger = logging.getLogger(__name__)
+
+# lexical 通道的两种打分实现（见 settings.lexical_backend）
+LEXICAL_BM25 = "bm25"
+LEXICAL_OVERLAP = "overlap"
 
 
 def cos_sim(a: Sequence[float], b: Sequence[float]) -> float:
@@ -93,6 +98,16 @@ class VectorStore(ABC):
         """索引内记录总数（doctor 一致性检查用）。后端不支持时返回 None。"""
         return None
 
+    @property
+    def lexical_backend(self) -> str:
+        """lexical 通道当前用的打分实现标识（bm25 / overlap）。
+
+        **后端能力本来就不同**，所以把这个差异显式暴露出来，而不是让调用方以为
+        两后端语义一致：内存后端有完整语料统计，可以算 IDF；pgvector 后端库内没有
+        中文分词，只能粗筛 + 重叠率。排查「换个后端召回变差」时先看这个字段。
+        """
+        return "unknown"
+
 
 def _default_backfill_loader() -> list[VectorRecord]:
     """冷启动回填：从关系库读出已持久化的条目向量（未删除且已向量化）。
@@ -146,10 +161,25 @@ def set_backfill_loader(loader: Callable[[], list[VectorRecord]] | None) -> None
 class InMemoryVectorStore(VectorStore):
     """进程内暴力余弦索引（P0 默认，单用户数百~低千条可接受，免外部向量库）。"""
 
-    def __init__(self, loader: Callable[[], list[VectorRecord]] | None = None) -> None:
+    def __init__(
+        self,
+        loader: Callable[[], list[VectorRecord]] | None = None,
+        lexical_backend: str | None = None,
+    ) -> None:
         self._records: dict[str, VectorRecord] = {}
         self._loaded = False
         self._loader = loader
+        # lexical 通道：bm25（默认）为倒排统计索引，overlap 为旧的二字窗口重叠率
+        self._lexical = lexical_backend or settings.lexical_backend
+        if self._lexical not in (LEXICAL_BM25, LEXICAL_OVERLAP):
+            raise ValueError(
+                f"未知 lexical_backend: {self._lexical!r}（可选 {LEXICAL_BM25} / {LEXICAL_OVERLAP}）"
+            )
+        self._bm25 = BM25Index()
+
+    @property
+    def lexical_backend(self) -> str:
+        return self._lexical
 
     @staticmethod
     def _key(item_id: str, user_id: str) -> str:
@@ -164,7 +194,11 @@ class InMemoryVectorStore(VectorStore):
             return
         try:
             for record in self._loader():
-                self._records[self._key(record.item_id, record.user_id)] = record
+                key = self._key(record.item_id, record.user_id)
+                self._records[key] = record
+                # 回填要同时补 lexical 统计，否则重启后 BM25 的 df/avgdl 是空的，
+                # 第一条检索的关键词通道会直接召空（与「回填只补一半」是同一类漏项）
+                self._bm25.add(key, record.title, record.content)
         except Exception as exc:  # noqa: BLE001 - 回填失败降级为空索引，检索仍可用
             logger.warning("vector store backfill failed: %s", exc)
 
@@ -179,17 +213,21 @@ class InMemoryVectorStore(VectorStore):
     ) -> None:
         # 先回填再写入：进程重启后「第一条操作是录入」也能先补上历史条目
         self._ensure_loaded()
-        self._records[self._key(item_id, user_id)] = VectorRecord(
+        key = self._key(item_id, user_id)
+        self._records[key] = VectorRecord(
             item_id=item_id,
             vector=list(vector) if vector is not None else None,
             user_id=user_id,
             title=title,
             content=content,
         )
+        self._bm25.add(key, title, content)
 
     def delete(self, *, item_id: str, user_id: str) -> None:
         # 未加载时无需回填：软删条目本就不会被 loader 读回（loader 过滤 is_deleted）
-        self._records.pop(self._key(item_id, user_id), None)
+        key = self._key(item_id, user_id)
+        self._records.pop(key, None)
+        self._bm25.remove(key)
 
     def search(
         self,
@@ -219,16 +257,35 @@ class InMemoryVectorStore(VectorStore):
         user_id: str | None = None,
         top_k: int = 5,
     ) -> list[tuple[str, float]]:
+        """lexical 通道召回。
+
+        两种实现的**分数量纲不同**（BM25 是带 IDF 的累加分，overlap 是 0..1 的命中率），
+        但这不影响融合：默认的 RRF 只吃**排名**，不吃绝对值。只有 `fusion="weighted"`
+        会用到归一化后的分数——那是历史对照路径，不参与生产排序。
+        """
         self._ensure_loaded()
-        scored: list[tuple[str, float]] = []
-        for record in self._records.values():
+        if self._lexical != LEXICAL_BM25:
+            scored: list[tuple[str, float]] = []
+            for record in self._records.values():
+                if user_id is not None and record.user_id != user_id:
+                    continue
+                s = score_keyword(query, record.title, record.content)
+                if s > 0:
+                    scored.append((record.item_id, s))
+            scored.sort(key=lambda x: x[1], reverse=True)
+            return scored[:top_k]
+
+        # BM25：倒排表只给出候选集，再按归属过滤（跨用户不可见）
+        hits: list[tuple[str, float]] = []
+        for key, score in self._bm25.score(query).items():
+            record = self._records.get(key)
+            if record is None:  # 索引与记录不同步的残留，宁可漏召回也不返回幽灵条目
+                continue
             if user_id is not None and record.user_id != user_id:
                 continue
-            s = score_keyword(query, record.title, record.content)
-            if s > 0:
-                scored.append((record.item_id, s))
-        scored.sort(key=lambda x: x[1], reverse=True)
-        return scored[:top_k]
+            hits.append((record.item_id, score))
+        hits.sort(key=lambda x: x[1], reverse=True)
+        return hits[:top_k]
 
     def count(self) -> int:
         self._ensure_loaded()

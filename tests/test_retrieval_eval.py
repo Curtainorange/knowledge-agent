@@ -5,6 +5,11 @@
 - 全程用 HashEmbedding + 内存索引，确定性、不触网；哈希向量语义弱但确定，
   作为**回归基线**足够：融合策略改动后指标不应低于护栏值，也不应低于旧策略。
 - 换真语义模型后此文件不变——指标只会更好，护栏依然有效。
+
+**这套集子测不出 lexical 打分的高下**：16 条查询都是词面高度重叠的短句，
+`overlap`（二字重叠率）与 `bm25` 的 recall@1 都是 0.812、recall@5 都是 1.000
+（2026-10-20 实测）。它只负责「不许回退」，区分度由 `tests/test_bm25.py` 的
+构造语料用例负责（IDF / 长度归一化 / tf 饱和）。别指望在这里看到 BM25 的收益。
 """
 from __future__ import annotations
 
@@ -13,9 +18,10 @@ from pathlib import Path
 
 import pytest
 
+from app.core.config import settings
 from app.retrieval.embedding import HashEmbedding
 from app.retrieval.retriever import FUSION_RRF, FUSION_WEIGHTED, Retriever
-from app.retrieval.vector_store import InMemoryVectorStore
+from app.retrieval.vector_store import LEXICAL_BM25, LEXICAL_OVERLAP, InMemoryVectorStore
 
 EVAL_PATH = Path(__file__).resolve().parent / "data" / "retrieval_eval.json"
 TOP_K = 5
@@ -31,9 +37,9 @@ def _load_eval() -> tuple[list[dict], list[dict]]:
     return data["corpus"], data["queries"]
 
 
-def _build_retriever(fusion: str) -> Retriever:
+def _build_retriever(fusion: str, lexical: str | None = None) -> Retriever:
     corpus, _ = _load_eval()
-    store = InMemoryVectorStore()
+    store = InMemoryVectorStore(lexical_backend=lexical)
     emb = HashEmbedding()
     for doc in corpus:
         vec = emb.embed([doc["title"] + "\n" + doc["content"]])[0]
@@ -71,3 +77,15 @@ def test_rrf_is_no_worse_than_weighted_on_eval_set(eval_queries):
     weighted = _recall(_build_retriever(FUSION_WEIGHTED), eval_queries, TOP_K)
     rrf = _recall(_build_retriever(FUSION_RRF), eval_queries, TOP_K)
     assert rrf >= weighted
+
+
+def test_bm25_is_the_default_lexical_backend():
+    """混合检索的 lexical 通道默认必须是 BM25，别在配置里悄悄退回重叠率。"""
+    assert settings.lexical_backend == LEXICAL_BM25
+
+
+def test_bm25_is_no_worse_than_overlap_on_eval_set(eval_queries):
+    """换 lexical 实现的门槛：评估集上不许退步（持平可接受，见模块头注释）。"""
+    bm25 = _recall(_build_retriever(FUSION_RRF, LEXICAL_BM25), eval_queries, TOP_K)
+    overlap = _recall(_build_retriever(FUSION_RRF, LEXICAL_OVERLAP), eval_queries, TOP_K)
+    assert bm25 >= overlap

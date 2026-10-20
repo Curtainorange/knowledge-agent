@@ -1,6 +1,9 @@
-"""检索编排（D2）：向量语义 + 关键词双通道召回 + 融合排序。
+"""检索编排（D2）：混合检索 —— 稠密向量 + 稀疏关键词（BM25）双通道召回 + 融合排序。
 
-- 双通道：向量为主通道；embedding 模型不可用或条目未向量化时，关键词兜底顶替（可靠-4）。
+- 双通道：向量为主通道（dense）；lexical 通道默认走 **BM25**（`bm25.py`，有 IDF /
+  词频饱和 / 长度归一化），embedding 模型不可用或条目未向量化时由它兜底顶替（可靠-4）。
+  打分实现由 `settings.lexical_backend` 决定，`overlap` 为旧重叠率、留作对照与回退；
+  pgvector 后端的 lexical 通道仍是 overlap（库内无中文分词，见其 `lexical_backend`）。
 - 库内检索：`retrieve` 不传全量条目列表，只传过滤条件（user_id），
   由 `VectorStore.search` / `keyword_search` 在库内返回 top-k 命中（id + 分数）。
 - 融合（fusion 参数二选一）：
@@ -10,6 +13,8 @@
     旧实现按「分数归一化加权」融合：向量余弦挤在 0.9+ 高分区而关键词得分
     拉得开，归一化后两路有效权重经常偏离设定值；单通道命中还要再乘 0.1
     的硬编码惩罚。RRF 消掉了这两个任意常数（借鉴 agentic-local-brain）。
+    **这也正是两路分数量纲可以不同的原因**：BM25 分是无上界累加值、
+    余弦是 -1..1，RRF 只吃排名。
   - "weighted"：旧的归一化加权融合，保留作对照 / 回归用。
 """
 from __future__ import annotations

@@ -2,7 +2,8 @@
 
 与 `InMemoryVectorStore` 同一 `VectorStore` 接口，差异只在「库内检索」落在数据库里：
 - `search` 用 pgvector 的余弦距离算子（`<=>`）在库内排序取 top-k；
-- `keyword_search` 用 `ILIKE` 子串**预筛** + 应用层 `score_keyword` 打分（与内存后端同款语义）；
+- `keyword_search` 用 `ILIKE` 子串**预筛** + 应用层 `score_keyword` 打分
+  （内存后端已改用 BM25，见 `lexical_backend` 的说明——这是后端能力差异，不是笔误）；
 - `upsert` / `delete` 直接写删专用表 `vector_store_table`。
 
 惰性：`pgvector` / 数据库连接都在首次真正调用时才触碰——未安装 pgvector 时构造
@@ -62,6 +63,17 @@ def _prefilter_patterns(query: str) -> list[str]:
 
 
 class PgvectorStore(VectorStore):
+    @property
+    def lexical_backend(self) -> str:
+        """lexical 通道落在 overlap（重叠率）上，与内存后端的 BM25 不同。
+
+        PostgreSQL 的 `simple` 文本配置不切中文词，`zhparser` 是额外扩展、本机没有；
+        库内既然算不出中文 tf/df，就只能在 SQL 里粗筛、回应用层用重叠率打分。
+        这是**后端能力差异**，所以显式暴露而不是让它静默分叉：切到 pgvector 后
+        关键词通道的排序质量会退回旧水平，向量通道不受影响。
+        """
+        return "overlap"
+
     def __init__(
         self,
         session_factory=None,
@@ -275,7 +287,7 @@ class PgvectorStore(VectorStore):
             from sqlalchemy import text
 
             rows = session.execute(text(sql), params).fetchall()
-            # SQL 只做「候选预筛」，最终得分仍由与内存后端同一个函数给出
+            # SQL 只做「候选预筛」，最终得分由 overlap 打分给出（见 lexical_backend）
             scored = [(str(r.id), score_keyword(query, r.title, r.content)) for r in rows]
             scored = [(iid, s) for iid, s in scored if s > 0]
             scored.sort(key=lambda x: x[1], reverse=True)

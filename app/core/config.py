@@ -80,6 +80,11 @@ class Settings(BaseSettings):
     vector_backend: str = "memory"
     # pgvector 后端使用的专用表名（与业务表隔离）
     vector_store_table: str = "embeddings"
+    # 混合检索的 lexical 通道打分方式：
+    #   bm25（默认，IDF + 词频饱和 + 长度归一化）| overlap（旧的二字窗口重叠率，留作对照/回退）
+    # 只影响 memory 后端的 keyword_search；pgvector 后端库内没有中文分词能力，
+    # 仍走 ILIKE 粗筛 + overlap 打分（见 PgvectorStore.lexical_backend）。
+    lexical_backend: str = "bm25"
 
     # --- 书籍（阅读器）---
     # 上传的电子书原始文件存放目录（体积大，不入库；已加入 .gitignore）
