@@ -28,6 +28,7 @@ from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
 from app.agent.l5_orchestrator import DiagnosisDraft
 from app.agent.book_orchestrator import BookRecommendList, ChunkDigest, SummaryDigest
+from app.agent.attribution import AttributionDraft
 from app.agent.suggestion import SuggestionDraft
 from app.agent.router import KNOWN_CAPABILITIES, CapabilityRoute
 from app.llm.prompts import ALL_PROMPTS, prompt_by_name
@@ -96,6 +97,7 @@ def _validator_for(name: str):
         "book_digest_summary": lambda d: SummaryDigest(**d),
         "book_recommend": lambda d: BookRecommendList(**d),
         "suggestion": lambda d: SuggestionDraft(**d),
+        "conflict_attribute": lambda d: AttributionDraft(**d),
     }[name]
 
 
@@ -149,6 +151,17 @@ def _check(name: str, parsed) -> None:
         for item in parsed.items:
             assert item.action and item.how_to_verify, "建议缺动作或验证方式"
             assert item.basis_item_ids, "建议没带依据 id（会被引用校验丢弃）"
+    elif name == "conflict_attribute":
+        # 七项结构：缺背景就是「两本书看法不同」，等于没解释
+        assert parsed.cause_type, "缺冲突原因类型"
+        assert parsed.background_a and parsed.background_b, "缺双方背景"
+        assert parsed.premise_a and parsed.premise_b, "缺双方前提"
+        assert parsed.boundary_a and parsed.boundary_b, "缺双方适用边界"
+        assert len(parsed.scene_guidance) >= 2, "场景指引少于 2 条"
+        for guide in parsed.scene_guidance:
+            assert guide.follow in ("a", "b", "both")
+            assert guide.scene and guide.reason
+        assert parsed.probe.question and parsed.probe.how_to_check, "缺可验证判据"
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

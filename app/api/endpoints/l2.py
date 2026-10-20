@@ -54,7 +54,30 @@ class ConflictOut(BaseModel):
     suggestion: str
     confidence: float
     user_state: str
+    # 是否已做归因（D 模块）：列表只给标志，全文走单独接口按需取
+    has_attribution: bool = False
     created_at: datetime
+
+
+class ConflictAttributionOut(BaseModel):
+    """归因结果（D 模块）。
+
+    `background_*` 是必填项：没有它，「为什么对立」只能退化成「看法不同」。
+    """
+
+    conflict_id: str
+    state: str  # ok | already | skipped | degraded
+    cause_type: str = ""
+    background_a: str = ""
+    background_b: str = ""
+    premise_a: str = ""
+    premise_b: str = ""
+    boundary_a: str = ""
+    boundary_b: str = ""
+    scene_guidance: list[dict] = []
+    probe: dict = {}
+    note: str = ""
+    request_id: str
 
 
 class ConflictListResponse(BaseModel):
@@ -174,6 +197,7 @@ def list_conflicts(
                 suggestion=row.suggestion,
                 confidence=row.confidence,
                 user_state=row.user_state,
+                has_attribution=bool(getattr(row, "attributed_at", None)),
                 created_at=row.created_at,
             )
         )
@@ -272,5 +296,47 @@ def rejudge_judgment(
         conflict_id=result.conflict_id,
         conflict_active=result.conflict_active,
         retracted=result.retracted,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+@router.post("/conflicts/{conflict_id}/attribute", response_model=ConflictAttributionOut)
+def attribute_conflict_endpoint(
+    conflict_id: str,
+    force: bool = Query(default=False, description="已归因过时是否强制重跑"),
+    user_id: str = Depends(get_user_id),
+    gateway: ModelGateway = Depends(get_gateway),
+    session: Session = Depends(get_session),
+) -> ConflictAttributionOut:
+    """给一处冲突做归因（D 模块）。
+
+    **惰性触发**：只有用户点开「为什么会冲突」时才走这里。全量回填历史冲突等于把
+    过去所有扫描的钱再花一遍，而绝大多数冲突用户根本不会点开。
+
+    幂等靠 `attributed_at`：分析过就直接返回既有结果，不重复调模型；
+    `force=true` 才重跑（用户觉得上次分析不对时用）。
+    """
+    from app.agent.attribution import attribute_conflict
+
+    result = attribute_conflict(
+        session, user_id=user_id, conflict_id=conflict_id, gateway=gateway, force=force
+    )
+    if result.state == "not_found":
+        raise HTTPException(status_code=404, detail=result.note or "这处冲突已经不在了")
+
+    a = result.attribution or {}
+    return ConflictAttributionOut(
+        conflict_id=result.conflict_id,
+        state=result.state,
+        cause_type=str(a.get("cause_type") or ""),
+        background_a=str(a.get("background_a") or ""),
+        background_b=str(a.get("background_b") or ""),
+        premise_a=str(a.get("premise_a") or ""),
+        premise_b=str(a.get("premise_b") or ""),
+        boundary_a=str(a.get("boundary_a") or ""),
+        boundary_b=str(a.get("boundary_b") or ""),
+        scene_guidance=list(result.scene_guidance or []),
+        probe=dict(result.probe or {}),
+        note=result.note,
         request_id=trace.get_request_id() or "",
     )

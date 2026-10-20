@@ -61,6 +61,9 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     # 阅读建议（B 模块）：要按给定依据组织 1-2 条建议，reasoning=off——
     # 这一层不靠模型"想得深"，靠的是代码侧的依据装配与引用校验。
     "reading_suggestion": Strategy("reading_suggestion", False, ""),
+    # 冲突归因（D 模块）：解释「为什么对立、各自在什么条件下成立」是推理任务，
+    # reasoning=on；与 conflict_detection 同档，但独立 task_type 便于单独审计花费。
+    "conflict_attribution": Strategy("conflict_attribution", True, ""),
 }
 
 
@@ -88,6 +91,8 @@ JSON_TASK_TYPES: frozenset[str] = frozenset({
     "book_recommend",
     # 阅读建议（B 模块）：输出必须带 basis_item_ids，靠 JSON 模式才稳
     "reading_suggestion",
+    # 冲突归因（D 模块）：七项结构，缺一即不合格
+    "conflict_attribution",
 })
 
 

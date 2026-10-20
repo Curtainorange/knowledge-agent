@@ -158,3 +158,19 @@ class ConflictRepository(BaseRepository[Conflict]):
         conflict.user_state = state
         self._session.flush()
         return conflict
+
+    def set_attribution(
+        self,
+        conflict: Conflict,
+        *,
+        attribution: dict,
+        scene_guidance: list,
+        probe: dict,
+    ) -> Conflict:
+        """落归因结果（D 模块）。`attributed_at` 同时充当幂等锚点。"""
+        conflict.attribution = dict(attribution)
+        conflict.scene_guidance = list(scene_guidance)
+        conflict.probe = dict(probe)
+        conflict.attributed_at = datetime.now(timezone.utc)
+        self._session.flush()
+        return conflict

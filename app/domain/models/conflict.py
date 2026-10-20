@@ -12,7 +12,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Float, Index, String, Text
+from sqlalchemy import JSON, DateTime, Float, Index, String, Text
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.base import Base, TimestampMixin
@@ -42,3 +42,19 @@ class Conflict(Base, TimestampMixin):
     user_state: Mapped[str] = mapped_column(String(16), default="unseen")
     # 非空 = 重判/复核推翻后撤回（判断层翻案通道）。所有读路径过滤已撤回
     retracted_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    # ---- 归因（D 模块）--------------------------------------------------
+    # 原实现只有 detail / suggestion 两段自由文本，模型只能写「两本书说法对立，
+    # 建议你对谈一下」——解释了现象，没解释原因。以下四列把「为什么对立」结构化：
+    #
+    # `attribution` = {cause_type, background_a, background_b, premise_a, premise_b,
+    #                  boundary_a, boundary_b}
+    #   background 是**必填**：作者立场、时代、学科前提、写作目的。缺了它，
+    #   「为什么对立」只能退化成一句「他们看法不同」。
+    # `scene_guidance` = [{scene, follow, reason}]：什么场景听谁、为什么
+    # `probe` = {question, how_to_check}：用户自己能验证的一条判据
+    attribution: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    scene_guidance: Mapped[list | None] = mapped_column(JSON, default=list)
+    probe: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    # 非空 = 已归因。幂等锚点：重复点开不再重复花模型的钱
+    attributed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)

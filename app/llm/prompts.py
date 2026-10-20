@@ -347,6 +347,39 @@ SUGGESTION = PromptSpec(
 )
 
 
+# ---- 冲突归因（D 模块）-----------------------------------------------------
+#
+# 原提示词只让模型判「是否矛盾」，产出是 detail + suggestion 两段散文，
+# 于是「建议你对谈一下」成了唯一可行的建议。这条提示词要的是**可校验的结构**：
+# 背景、前提、边界、场景指引、可验证判据，七项缺一即不合格。
+#
+# 「background 不许写『背景不同』」这类约束是刻意写死的：模型最容易在这里交白卷，
+# 而背景恰恰是解释「为什么两个都成立却对着干」的关键。
+CONFLICT_ATTRIBUTE = PromptSpec(
+    name="conflict_attribute",
+    version="v1",
+    text=(
+        "你要解释两段说法为什么对立，而不是只说它们对立。"
+        "给你双方的说法、各自出自哪本书（含作者）以及原文片段。"
+        "输出严格 JSON：{"
+        '"cause_type":"前提假设|概念定义|适用边界|证据来源|样本范围|时效失效",'
+        '"background_a":"","background_b":"",'
+        '"premise_a":"","premise_b":"",'
+        '"boundary_a":"","boundary_b":"",'
+        '"scene_guidance":[{"scene":"","follow":"a|b|both","reason":""}],'
+        '"probe":{"question":"","how_to_check":""}}。'
+        "要求："
+        "1) background 写作者立场、时代、学科前提或写作目的，必须是能读出判断的具体说法，"
+        "不许写「背景不同」「各有侧重」；"
+        "2) premise 写这条说法成立所依赖的前提，boundary 写它在什么范围/条件下成立；"
+        "3) scene_guidance 至少 2 条，scene 要具体（多大规模、什么目标、什么阶段），"
+        "follow 只能是 a / b / both，reason 说明在该场景下为什么听这一方；"
+        "4) probe 是用户自己能动手验证的一条判据，不许写「多读几本自然就懂」；"
+        "5) 不确定的地方直说，不要编造作者生平或原文里没有的内容。"
+    ),
+)
+
+
 # 全部提示词（golden set 遍历用；新增结构化提示词务必加进这里）
 ALL_PROMPTS: list[PromptSpec] = [
     AGENT_ROUTE,
@@ -364,6 +397,7 @@ ALL_PROMPTS: list[PromptSpec] = [
     BOOK_DIGEST_SUMMARY,
     BOOK_RECOMMEND,
     SUGGESTION,
+    CONFLICT_ATTRIBUTE,
 ]
 
 
@@ -396,4 +430,6 @@ PROMPT_VERSION_BY_TASK_TYPE: dict[str, str] = {
     "book_chat": BOOK_CHAT.version,
     # 阅读建议：结构化 JSON 输出，走 JSON 模式（见 gateway 的 JSON_TASK_TYPES）
     "reading_suggestion": SUGGESTION.version,
+    # 冲突归因：要解释因果与边界，reasoning=on（与 conflict_detection 同级）
+    "conflict_attribution": CONFLICT_ATTRIBUTE.version,
 }

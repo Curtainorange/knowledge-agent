@@ -53,6 +53,8 @@ AGENT_INTAKE_ANSWERED = "agent.intake.answered"   # 一次确认作答（含跳�
 AGENT_INTAKE_SKIPPED = "agent.intake.skipped"
 SUGGESTION_CREATED = "suggestion.created"
 SUGGESTION_REJECTED = "suggestion.rejected"        # 用户否掉建议（同类收敛的依据）
+# 冲突归因（D 模块）
+CONFLICT_ATTRIBUTED = "l2.conflict.attributed"     # 一处冲突完成了归因（含成功/失败原因）
 # 推送（ADR-14）
 PUSH_SUPPRESSED = "push.suppressed"
 PUSH_SENT = "push.sent"

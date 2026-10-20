@@ -88,6 +88,74 @@
     '</div>';
   }
 
+  /* ---- 归因（D 模块）-----------------------------------------------------
+
+     默认收起、点开才请求：归因一次要跑 reasoning，全量预计算等于把过去所有
+     扫描的钱再花一遍，而绝大多数冲突用户根本不会点开。
+     已分析过的（has_attribution）服务端直接回既有结果，不重复花钱。 */
+  function attrRow(label, value) {
+    return value ? '<div class="cf-block"><b>' + esc(label) + '：</b>' + esc(value) + '</div>' : '';
+  }
+
+  function attributionBodyHtml(a) {
+    if (a.state === 'degraded' || a.state === 'skipped') {
+      return '<div class="meta">' + esc(a.note || '暂时没法分析这处冲突') + '</div>';
+    }
+    var out = '';
+    out += attrRow('分歧性质', a.cause_type);
+    out += '<div class="cf-block"><b>双方背景</b></div>';
+    out += attrRow('前者', a.background_a);
+    out += attrRow('后者', a.background_b);
+    out += '<div class="cf-block"><b>各自成立的前提</b></div>';
+    out += attrRow('前者', a.premise_a);
+    out += attrRow('后者', a.premise_b);
+    out += '<div class="cf-block"><b>适用范围</b></div>';
+    out += attrRow('前者', a.boundary_a);
+    out += attrRow('后者', a.boundary_b);
+    var guides = a.scene_guidance || [];
+    if (guides.length) {
+      out += '<div class="cf-block"><b>什么场景听谁</b></div>';
+      out += guides.map(function (g) {
+        var who = g.follow === 'a' ? '听前者' : (g.follow === 'b' ? '听后者' : '两者都要看');
+        return '<div class="attr-scene"><b>' + esc(g.scene) + '</b> · ' + esc(who) +
+          '：' + esc(g.reason) + '</div>';
+      }).join('');
+    }
+    if (a.probe && a.probe.question) {
+      out += '<div class="cf-block"><b>你可以自己验：</b>' + esc(a.probe.question) +
+        (a.probe.how_to_check ? '（' + esc(a.probe.how_to_check) + '）' : '') + '</div>';
+    }
+    return out;
+  }
+
+  function attributionHtml(c) {
+    var label = c.has_attribution ? '为什么会冲突（已分析）' : '为什么会冲突';
+    return '<details class="cf-attr" data-attr-id="' + esc(c.conflict_id) + '">' +
+      '<summary>' + label + '</summary>' +
+      '<div class="attr-body"><div class="meta">点开我来分析：为什么对立、各自什么时候成立、你怎么自己验。</div></div>' +
+    '</details>';
+  }
+
+  async function loadAttribution(details, conflictId) {
+    if (details.getAttribute('data-loaded') === '1') {
+      return;
+    }
+    details.setAttribute('data-loaded', '1');
+    var box = details.querySelector('.attr-body');
+    box.innerHTML = '<div class="meta">正在分析…通常十几秒。</div>';
+    try {
+      var a = await CC.api(
+        'POST',
+        '/api/v1/l2/conflicts/' + encodeURIComponent(conflictId) + '/attribute',
+        {}
+      );
+      box.innerHTML = attributionBodyHtml(a);
+    } catch (err) {
+      details.setAttribute('data-loaded', '0');
+      box.innerHTML = '<div class="meta">分析失败：' + esc((err && err.message) || err) + '</div>';
+    }
+  }
+
   function cardHtml(c) {
     var done = c.user_state !== 'unseen';
     var body = '';
@@ -108,6 +176,7 @@
     if (c.suggestion) {
       body += '<div class="cf-block"><b>建议：</b>' + esc(c.suggestion) + '</div>';
     }
+    body += attributionHtml(c);
     body += '<div class="cf-actions" data-id="' + esc(c.conflict_id) + '">';
     if (c.user_state !== 'accepted') {
       body += '<button class="sm" data-act="accepted">采纳</button>';
@@ -199,6 +268,13 @@
   });
 
   $('#cf-list').addEventListener('click', function (event) {
+    /* 归因折叠区：点标题才请求，避免"打开页面就把所有冲突分析一遍" */
+    var summary = event.target.closest('.cf-attr > summary');
+    if (summary) {
+      var details = summary.parentElement;
+      loadAttribution(details, details.getAttribute('data-attr-id'));
+      return;
+    }
     var button = event.target.closest('button[data-act]');
     if (!button) {
       return;

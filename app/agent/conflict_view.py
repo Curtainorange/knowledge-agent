@@ -95,6 +95,9 @@ def conflict_views(
             "suggestion": row.suggestion,
             "confidence": row.confidence,
             "user_state": row.user_state,
+            # 归因（D 模块）：列表只带"是否已分析"，不把七项长文本塞进每张卡；
+            # 用户点开时才走 `/l2/conflicts/{id}/attribute` 取全文或触发分析。
+            "has_attribution": bool(getattr(row, "attributed_at", None)),
         })
     return views
 
