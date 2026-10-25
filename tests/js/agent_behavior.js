@@ -432,6 +432,17 @@ check('relTime 小时', CCA.relTime(new Date(Date.now() - 3 * 60 * 60 * 1000).to
 check('relTime 昨天', CCA.relTime(new Date(Date.now() - 30 * 60 * 60 * 1000).toISOString()) === '昨天');
 check('relTime 更早给日期', /^\d{2}-\d{2}$/.test(CCA.relTime(new Date(Date.now() - 5 * 24 * 60 * 60 * 1000).toISOString())));
 
+console.log('\n软键盘补偿（--kb-gap）：只有两个高度的差值算数');
+check('键盘 300px → 补 300', CCA.keyboardGap(800, 500) === 300);
+check('没有键盘 → 0', CCA.keyboardGap(800, 800) === 0);
+check('可视区比布局视口还高（异常）→ 0，不返回负数', CCA.keyboardGap(500, 800) === 0);
+check('非数字 → 0（不让 NaN 漏进 CSS 变量）', CCA.keyboardGap(undefined, NaN) === 0);
+check('小数取整', CCA.keyboardGap(800, 499.4) === 301);
+/* 形参个数钉死：iOS 弹键盘时常把页面整体上推，`offsetTop` 记的就是那段位移。
+   一旦有人「顺手」把它减进来，补偿会被算成 0（看起来一切正常，输入框却照样被盖），
+   所以这里用 length 拦住第三个参数。 */
+check('只吃 (innerHeight, vvHeight) 两个参数，不许把 offsetTop 减进来', CCA.keyboardGap.length === 2);
+
 console.log('');
 if (failed) {
   console.log('失败 ' + failed + ' 项');

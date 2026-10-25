@@ -339,6 +339,26 @@ window.CC = (function () {
     }
   });
 
+  /* 手机上没有 Ctrl 键：placeholder 里「Ctrl + Enter 发送」那行是纯噪音，还白占一行高度，
+     而窄屏输入框只有几十像素高，多一行就把真正该看的示例挤出可见区。
+     按行过滤而不是整段重写：文案以后改了不用两处同步。放共享层是因为每个页面都引 app.js。 */
+  function dropCtrlEnterHint() {
+    if (!window.matchMedia || !window.matchMedia('(max-width:720px)').matches) {
+      return;
+    }
+    var boxes = document.querySelectorAll('.composer textarea');
+    for (var i = 0; i < boxes.length; i++) {
+      var text = boxes[i].getAttribute('placeholder');
+      if (!text || text.indexOf('Ctrl') === -1) {
+        continue;
+      }
+      boxes[i].setAttribute('placeholder', text.split('\n').filter(function (line) {
+        return line.indexOf('Ctrl') === -1;
+      }).join('\n'));
+    }
+  }
+  dropCtrlEnterHint();
+
   return {
     $: $,
     esc: esc,

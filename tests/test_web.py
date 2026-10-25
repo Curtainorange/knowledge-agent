@@ -279,8 +279,8 @@ def test_mobile_keyboard_inset_from_visual_viewport(client):
     assert "bindKeyboardInset" in js
     assert "--kb-gap" in js
     assert "vv.addEventListener('resize'" in js
-    # 手机上没有 Ctrl 键，placeholder 里的 Ctrl+Enter 提示要按窄屏换掉
-    assert "tuneComposerPlaceholder" in js
+    # 手机上没有 Ctrl 键，placeholder 里那行提示要去掉（共享层统一处理，全站生效）
+    assert "dropCtrlEnterHint" in client.get("/assets/app.js").text
 
 
 def test_touch_devices_have_hover_reset(client):

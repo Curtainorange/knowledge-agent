@@ -23,6 +23,19 @@ window.CCA = (function () {
     return Math.round(n * 100);
   }
 
+  /* 软键盘遮住了多少像素 = 布局视口高 − 可视区域高。
+     刻意**不减** visualViewport.offsetTop：iOS 弹键盘时常把页面整体上推一段，
+     offsetTop 记的就是那段位移。再减一次会把补偿算成 0，输入框照样被键盘盖住
+     （而「算成 0」看起来一切正常，是最难查的那种错）。
+     只依赖两个高度还有一个好处：滚动页面时不会抖动。 */
+  function keyboardGap(innerHeight, vvHeight) {
+    var gap = Number(innerHeight) - Number(vvHeight);
+    if (!isFinite(gap) || gap <= 0) {
+      return 0;
+    }
+    return Math.round(gap);
+  }
+
   function embedBadge(status) {
     if (status === 'embedded') {
       return '<span class="badge ok">已向量化</span>';
@@ -972,7 +985,8 @@ window.CCA = (function () {
     embedBadge: embedBadge,
     pct: pct,
     relTime: relTime,
-    historyRow: historyRow
+    historyRow: historyRow,
+    keyboardGap: keyboardGap
   };
 })();
 
@@ -1372,8 +1386,13 @@ window.CCA = (function () {
     if (window.matchMedia && !window.matchMedia('(max-width:720px)').matches) {
       return;  // 桌面没有软键盘；宽屏下 .agent-wrap 也不读这个变量
     }
+    var lastGap = -1;
     function sync() {
-      var gap = Math.max(0, Math.round(window.innerHeight - vv.height - (vv.offsetTop || 0)));
+      var gap = CCA.keyboardGap(window.innerHeight, vv.height);
+      if (gap === lastGap) {
+        return;  // 值没变就别写：iOS 滚动时 scroll 事件很密，反复写 CSS 变量会抖
+      }
+      lastGap = gap;
       root.style.setProperty('--kb-gap', gap + 'px');
       // 键盘弹起后用户正在打字：把消息流带到底部，别让最后一条回复被键盘挤在看不见的地方
       var input = document.getElementById('agent-input');
@@ -1386,21 +1405,11 @@ window.CCA = (function () {
     sync();
   }
 
-  /* 手机上没有 Ctrl 键：placeholder 里那行「Ctrl + Enter 发送」是纯噪音，还白占一行高度 */
-  function tuneComposerPlaceholder() {
-    var input = document.getElementById('agent-input');
-    if (!input || !window.matchMedia || !window.matchMedia('(max-width:720px)').matches) {
-      return;
-    }
-    input.setAttribute(
-      'placeholder',
-      '直接说你想做什么，例如：\n之前存的那段讲查询优化的内容\n记一下：B+树更适合范围查询 #数据库'
-    );
-  }
+  /* placeholder 的 Ctrl+Enter 提示由 app.js 的 dropCtrlEnterHint() 统一处理（全站共享），
+     这里不再重复一份——两处文案迟早会分叉。 */
 
   function bind() {
     bindKeyboardInset();
-    tuneComposerPlaceholder();
     // 抽屉开着时把窗口拉宽：侧栏变回常驻栏，遮罩与滚动锁必须撤掉，否则页面卡住不能滚
     var drawerMq = window.matchMedia && window.matchMedia('(max-width:720px)');
     if (drawerMq) {
