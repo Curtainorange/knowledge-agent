@@ -186,7 +186,7 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v3",
+    version="v4",
     text=(
         "你是「认知副驾」对话入口的意图分流器。把用户这一句话归到**恰好一个**能力上，"
         "并抽出该能力需要的参数。输出严格 JSON："
@@ -215,6 +215,9 @@ AGENT_ROUTE = PromptSpec(
         "说「聊聊/讨论这本书的内容」用 book_discuss；说「推荐书」用 book_recommend。"
         "注意 l4 的三项区别：说「定目标」用 l4_goal；说「拆成周计划」用 l4_plan；"
         "说「有没有按计划走/偏离了」用 l4_deviation。"
+        "如果消息里带了「最近几轮对话」，那是上下文：用户说「再来一次」「那个呢」"
+        "「还有吗」这类指代时，按上一轮**实际做的那件事**给出同一个能力与同样的 args，"
+        "不要因为这句话本身没有关键词就退成 chat。"
         "判定不明确、或只是提问、闲聊、道谢 → chat，**不要**硬塞进某个能力。"
         "args 只填该能力真正用得到的字段，用不到就给空对象。"
     ),

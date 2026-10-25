@@ -168,7 +168,10 @@ class Copilot:
         # 澄清态下不调模型分流：用户这句话极可能就是对追问的回答，
         # 再花一次调用猜意图既费钱又可能把澄清打断（命令式规则仍然生效）。
         clarifying = (conversation.state or "") == "clarifying"
-        route = self._router.route(message, user_id=user_id, allow_model=not clarifying)
+        route = self._router.route(
+            message, user_id=user_id, allow_model=not clarifying,
+            history=self._recent_dialogue(conversation),
+        )
 
         # 阅读建议的**确认门禁**：缺项 / 用户在纠正 → 直接回一张确认卡，不开回合。
         # 放在这里而不是 preflight，是因为它不是「前提不满足」（那是失败），
@@ -464,6 +467,29 @@ class Copilot:
         return card["note"], card
 
     # ---- 内部 ------------------------------------------------------------
+
+    @staticmethod
+    def _recent_dialogue(conversation, *, turns: int = 3) -> list[dict]:
+        """取最近几轮对话，**只给分流用**。
+
+        为什么只给分流：能力需要的是结构化上下文（槽位、卡片、库里的条目），
+        把原始聊天记录塞给它们，等于让每个能力各自再实现一遍截断与取舍。
+        分流需要的恰恰相反——它只要知道「刚才在说哪件事」，好把
+        「再来一次」「那个呢」接住。
+
+        取 3 轮（6 条）再由 `router._history_block` 按预算裁：这里不做二次裁剪，
+        否则同一件事在两处各有一套口径。
+        """
+        picked: list[dict] = []
+        for raw in reversed(conversation.messages or []):
+            role = raw.get("role")
+            content = str(raw.get("content") or "").strip()
+            if role not in ("user", "assistant") or not content:
+                continue
+            picked.append({"role": role, "content": content})
+            if len(picked) >= turns * 2:
+                break
+        return list(reversed(picked))
 
     @staticmethod
     def _append_exchange(repo: ConversationRepository, conversation, message: str,

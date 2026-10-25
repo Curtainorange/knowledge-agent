@@ -360,6 +360,43 @@ def _match_local(text: str) -> CapabilityRoute | None:
     return None
 
 
+# 分流理解指代用的上下文预算。两个数字都是成本阀：分流是**每次对话都会跑**的链路，
+# 历史直接决定固定成本；给多了既慢又贵，给少了「那个呢」还是看不懂。
+#
+# 没有「总字数上限」这一层：条数（≤4）与单条长度（≤120）相乘已经把上界钉死在
+# 480 字左右，再写一个总预算只会得到一条**永远不会触发**的分支——那种代码看着有保护，
+# 实际没有，还让后来的人以为它在生效。
+HISTORY_MAX_TURNS = 2        # 两轮（4 条）足够认出「再来一次」指什么
+HISTORY_ITEM_CHARS = 120     # 单条截断：指代只需要认得「刚才在说哪件事」
+
+
+def _history_block(history: list[dict] | None) -> str:
+    """把最近几轮对话压成一小段文字，供分流理解指代。
+
+    只保留 user / assistant 且有内容的消息：卡片、系统提示这些对「指什么」没有帮助，
+    塞进去只会稀释信号。条数超了从旧的那头丢——最近一句才是关键的。
+    """
+    if not history:
+        return ""
+
+    kept: list[tuple[str, str]] = []
+    for item in history[-(HISTORY_MAX_TURNS * 2):]:
+        role = str(item.get("role") or "")
+        content = str(item.get("content") or "").strip().replace("\n", " ")
+        if role not in ("user", "assistant") or not content:
+            continue
+        clipped = content[:HISTORY_ITEM_CHARS] + ("…" if len(content) > HISTORY_ITEM_CHARS else "")
+        kept.append(("用户" if role == "user" else "你", clipped))
+
+    if not kept:
+        return ""
+    lines = [f"{speaker}：{text}" for speaker, text in kept]
+    return (
+        "最近几轮对话（从旧到新，用于理解「再来一次 / 那个呢」这类指代）：\n"
+        + "\n".join(lines)
+    )
+
+
 class CapabilityRouter:
     """把一句话变成一条 `CapabilityRoute`。`gateway` 可注入（测试用假件）。"""
 
@@ -368,13 +405,23 @@ class CapabilityRouter:
         self._session = session
 
     def route(
-        self, message: str, *, user_id: str = "anonymous", allow_model: bool = True
+        self,
+        message: str,
+        *,
+        user_id: str = "anonymous",
+        allow_model: bool = True,
+        history: list[dict] | None = None,
     ) -> CapabilityRoute:
         """分流一次。
 
         `allow_model=False` 用于「上一轮 L1 还在等补充」这种状态：此时用户的话极可能
         就是对追问的回答，再花一次模型调用去猜意图是浪费，而且猜错会打断澄清。
         命令式规则仍然生效——用户依然能中途插一条「记一下…」。
+
+        `history` 是最近几轮对话（`[{role, content}]`，从旧到新），只用于**模型分流**
+        理解指代：没有它，「再来一次」「那个呢」这类话必然落到通用对话——分流只看当前句，
+        根本不知道上一轮在干什么。本地规则仍然先跑且不受历史影响：命令式指令
+        （「记一下…」）不该因为上一轮聊过别的而被改写。
         """
         text = (message or "").strip()
         if not text:
@@ -393,13 +440,21 @@ class CapabilityRouter:
                 reason="会话处于澄清态且未命中命令式规则，按补充回答处理", source="local",
             )
 
-        return self._model_route(text, user_id=user_id)
+        return self._model_route(text, user_id=user_id, history=history)
 
-    def _model_route(self, text: str, *, user_id: str) -> CapabilityRoute:
-        messages = [
-            {"role": "system", "content": AGENT_ROUTE.text},
-            {"role": "user", "content": f"用户这句话是：\n{text}\n\n请输出路由 JSON。"},
-        ]
+    def _model_route(
+        self, text: str, *, user_id: str, history: list[dict] | None = None
+    ) -> CapabilityRoute:
+        messages = [{"role": "system", "content": AGENT_ROUTE.text}]
+        context = _history_block(history)
+        if context:
+            # 历史与当前句放进**同一条** user 消息：分成两条时，模型会把前一条
+            # 当成「上一条用户输入」答掉，而不是当成上下文来理解指代。
+            user_content = f"{context}\n用户这句话是：\n{text}\n\n请输出路由 JSON。"
+        else:
+            user_content = f"用户这句话是：\n{text}\n\n请输出路由 JSON。"
+        messages.append({"role": "user", "content": user_content})
+
         completion = self._gateway.chat(
             task_type="capability_routing",
             messages=messages,
