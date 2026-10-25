@@ -64,6 +64,98 @@ class PlanParams:
 
 DEFAULT_PARAMS = PlanParams()
 
+# 用户可改的参数的合法区间。**夹紧而不是报错**：手改偏好（或前端传了个奇怪的数）
+# 不该让整个计划页 500——为一个坏参数放弃排期不值得。区间本身有业务含义：
+# 低于下限排不出任何有意义的任务，高于上限等于没有约束。
+PARAM_BOUNDS: dict[str, tuple[float, float]] = {
+    "weekly_minutes": (30, 3000),
+    "new_ratio": (0.2, 0.9),
+    "min_task_minutes": (5, 60),
+    "max_task_minutes": (15, 240),
+}
+DEFAULT_REVIEW_WEEKS = (2, 4)
+MAX_REVIEW_WEEKS = 3
+
+
+def _clamp(value, bounds: tuple[float, float], *, default, cast=float):
+    try:
+        number = cast(value)
+    except (TypeError, ValueError):
+        return default
+    low, high = bounds
+    return max(low, min(high, number))
+
+
+def from_prefs(raw: dict | None) -> PlanParams:
+    """把用户存的偏好收敛成合法 `PlanParams`。
+
+    用户能改参数，就必须假定它**残缺、越界、类型不对**都可能发生（前端换了、
+    手改了库、老版本留下的结构）。这里的契约是「永远返回一个能用的对象」：
+    缺项取默认，越界夹紧，类型不对丢弃。
+
+    `review_weeks` 单独处理：去重、排序、只留 1–52 的整数、最多 3 个——
+    「第 100 周复习」这种值会让 `normalize` 永远等不到那一周。
+    """
+    if not isinstance(raw, dict):
+        return DEFAULT_PARAMS
+
+    weekly = int(_clamp(
+        raw.get("weekly_minutes"), PARAM_BOUNDS["weekly_minutes"],
+        default=DEFAULT_PARAMS.weekly_minutes, cast=int,
+    ))
+    ratio = round(_clamp(
+        raw.get("new_ratio"), PARAM_BOUNDS["new_ratio"],
+        default=DEFAULT_PARAMS.new_ratio,
+    ), 2)
+    min_task = int(_clamp(
+        raw.get("min_task_minutes"), PARAM_BOUNDS["min_task_minutes"],
+        default=DEFAULT_PARAMS.min_task_minutes, cast=int,
+    ))
+    max_task = int(_clamp(
+        raw.get("max_task_minutes"), PARAM_BOUNDS["max_task_minutes"],
+        default=DEFAULT_PARAMS.max_task_minutes, cast=int,
+    ))
+    if min_task > max_task:
+        # 两个都合法但顺序反了：把上限抬到下限，而不是把下限压到上限——
+        # 用户说「至少 45 分钟」比「最多 15 分钟」更能反映他的真实意图。
+        max_task = min_task
+
+    weeks: list[int] = []
+    for item in raw.get("review_weeks") or []:
+        try:
+            week = int(item)
+        except (TypeError, ValueError):
+            continue
+        if 1 <= week <= 52 and week not in weeks:
+            weeks.append(week)
+    weeks.sort()
+    if not weeks:
+        weeks = list(DEFAULT_REVIEW_WEEKS)
+
+    return PlanParams(
+        weekly_minutes=weekly,
+        new_ratio=ratio,
+        review_weeks=tuple(weeks[:MAX_REVIEW_WEEKS]),
+        min_task_minutes=min_task,
+        max_task_minutes=max_task,
+    )
+
+
+def to_prefs(params: PlanParams) -> dict:
+    """存回用户偏好的形状（`from_prefs` 的逆操作）。
+
+    刻意**不含** `version`：那是「这次排期用的规则版本」，属于快照，
+    不是用户的设置。混进去之后，用户改一次参数就把版本号写进了自己的偏好里，
+    以后升级规则还得去清理这批脏数据。
+    """
+    return {
+        "weekly_minutes": params.weekly_minutes,
+        "new_ratio": params.new_ratio,
+        "review_weeks": list(params.review_weeks),
+        "min_task_minutes": params.min_task_minutes,
+        "max_task_minutes": params.max_task_minutes,
+    }
+
 
 @dataclass
 class NormalizedTask:

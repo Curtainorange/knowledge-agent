@@ -55,3 +55,13 @@ class UserRepository(BaseRepository[User]):
         """更新推送频率偏好（weekly / daily / quiet，见系统设计 §7.1）。"""
         user.push_frequency = frequency
         self._session.flush()
+
+    def set_plan_params(self, user: User, params: dict | None) -> None:
+        """更新排期参数（F 模块）。
+
+        传 `None` = 恢复默认（调用方负责把「用户想用默认」表达成 None）。
+        写入前必须已经过 `plan_rules.from_prefs()` 收敛——仓储不做业务校验，
+        但它也不该成为绕过收敛的后门，所以这里只接受已收敛的 dict。
+        """
+        user.plan_params = params
+        self._session.flush()

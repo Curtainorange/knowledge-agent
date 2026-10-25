@@ -184,6 +184,22 @@ class L4Orchestrator:
         )
         return goal.id
 
+    def _plan_params(self, user_id: str):
+        """用户自定的排期参数（没设过 / 读不到就用默认）。
+
+        读失败回默认，不让计划生成跟着失败：一个坏参数不值得让整页排期崩掉，
+        用户看到的是「按默认值排了一份」，而不是「计划生成失败」。
+        """
+        from app.agent import plan_rules
+        from app.domain.repositories.user_repository import UserRepository
+
+        try:
+            user = UserRepository(self._session).get(user_id)
+        except Exception as exc:  # pragma: no cover - 防御性兜底
+            logger.warning("读取用户排期参数失败，改用默认值: %s", exc)
+            return plan_rules.DEFAULT_PARAMS
+        return plan_rules.from_prefs(getattr(user, "plan_params", None))
+
     def generate_plan(self, *, user_id: str, goal_id: str) -> L4PlanResult | None:
         """为某个目标生成计划。目标不存在返回 None（404）；生成失败返回 degraded。"""
         goal = LearningGoalRepository(self._session, user_id=user_id).get(goal_id)
@@ -214,7 +230,7 @@ class L4Orchestrator:
 
         normalized, snapshot = plan_rules.normalize(
             [t.model_dump() for t in draft.tasks[: settings.l4_max_tasks]],
-            params=plan_rules.DEFAULT_PARAMS,
+            params=self._plan_params(user_id),
             remaining_ratio=self._remaining_ratio(user_id),
         )
         plan = self._apply_plan_change(

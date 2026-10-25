@@ -2,8 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="认知副驾">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>路径修正 · 认知副驾</title>
 <link rel="stylesheet" href="/assets/style.css">
@@ -53,6 +55,32 @@
     <h2>当前计划</h2>
     <div class="meta" id="plan-note">还没有计划。在目标列表里点「生成计划」，或先创建目标。</div>
     <div id="plan-view"></div>
+  </div>
+
+  <div class="card">
+    <h2>排期参数
+      <button id="param-save" class="primary sm">保存</button>
+      <button id="param-reset" class="sm">恢复默认</button>
+    </h2>
+    <div class="meta">决定计划怎么排。改完保存，下次生成计划按新参数算——每周可用时间填小了，任务会自动往后顺延，而不是硬塞。</div>
+    <div class="inline-form">
+      <label class="meta">每周可用
+        <input id="param-weekly" type="number" min="30" max="3000" step="10" style="max-width:96px"> 分钟
+      </label>
+      <label class="meta">新学占
+        <input id="param-ratio" type="number" min="20" max="90" step="5" style="max-width:76px"> %
+      </label>
+    </div>
+    <div class="inline-form">
+      <label class="meta">复习周
+        <input id="param-weeks" type="text" placeholder="2,4" style="max-width:96px">
+      </label>
+      <label class="meta">单任务
+        <input id="param-min" type="number" min="5" max="60" step="5" style="max-width:70px"> –
+        <input id="param-max" type="number" min="15" max="240" step="5" style="max-width:70px"> 分钟
+      </label>
+    </div>
+    <div class="meta" id="param-note"></div>
   </div>
 
   <div class="card">
@@ -266,10 +294,66 @@
   });
   $('#dev-check').addEventListener('click', checkDeviation);
 
+  /* ---- 排期参数（F 模块）----
+     读回来的一定是「生效中的值」：超范围的输入后端会夹紧，保存后用它回填，
+     用户看到的就是真正会被执行的数字，而不是自己刚敲的那个。 */
+  function fillParams(p) {
+    p = p || {};
+    $('#param-weekly').value = p.weekly_minutes != null ? p.weekly_minutes : '';
+    $('#param-ratio').value = p.new_ratio != null ? Math.round(p.new_ratio * 100) : '';
+    $('#param-weeks').value = (p.review_weeks || []).join(',');
+    $('#param-min').value = p.min_task_minutes != null ? p.min_task_minutes : '';
+    $('#param-max').value = p.max_task_minutes != null ? p.max_task_minutes : '';
+  }
+
+  function readParams() {
+    var weeks = String($('#param-weeks').value || '')
+      .split(/[,\s，、]+/)
+      .map(function (s) { return parseInt(s, 10); })
+      .filter(function (n) { return !isNaN(n) && n > 0; });
+    return {
+      weekly_minutes: parseInt($('#param-weekly').value, 10),
+      new_ratio: parseFloat($('#param-ratio').value) / 100,
+      review_weeks: weeks,
+      min_task_minutes: parseInt($('#param-min').value, 10),
+      max_task_minutes: parseInt($('#param-max').value, 10)
+    };
+  }
+
+  async function loadParams() {
+    try {
+      var data = await CC.api('GET', '/api/v1/preferences');
+      fillParams(data.plan_params || {});
+    } catch (err) {
+      $('#param-note').textContent = '参数加载失败：' + err.message;
+    }
+  }
+
+  async function saveParams(body, okText) {
+    try {
+      var data = await CC.api('PUT', '/api/v1/preferences', body);
+      fillParams(data.plan_params || {});
+      $('#param-note').textContent = okText + '（下次生成计划生效）';
+      CC.toast(okText);
+    } catch (err) {
+      $('#param-note').textContent = '保存失败：' + err.message;
+    }
+  }
+
+  $('#param-save').addEventListener('click', function () {
+    saveParams({ plan_params: readParams() }, '排期参数已保存');
+  });
+
+  $('#param-reset').addEventListener('click', function () {
+    // 空对象 = 恢复默认，比另开一个 reset 字段清楚
+    saveParams({ plan_params: {} }, '已恢复默认参数');
+  });
+
   (async function boot() {
     if (!(await CC.requireAuth())) {
       return;
     }
+    await loadParams();
     await loadGoals();
     await loadPlan();
   })();

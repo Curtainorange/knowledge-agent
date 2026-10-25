@@ -4,7 +4,7 @@ from __future__ import annotations
 from datetime import datetime
 from uuid import uuid4
 
-from sqlalchemy import DateTime, Integer, String
+from sqlalchemy import JSON, DateTime, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.domain.models.base import Base, TimestampMixin
@@ -20,6 +20,11 @@ class User(Base, TimestampMixin):
     password_hash: Mapped[str] = mapped_column(String(255))
     nickname: Mapped[str] = mapped_column(String(64), default="学习者")
     push_frequency: Mapped[str] = mapped_column(String(16), default="weekly")  # weekly/daily/quiet
+    # 排期参数（F 模块）：每周可用分钟 / 新学占比 / 复习周 / 单任务时长区间。
+    # 空 = 用 `plan_rules.DEFAULT_PARAMS`。存 JSON 而不是四个列，是因为这组值
+    # 是**一起读一起写**的一个整体，拆成列只会让「加一个参数」变成一次迁移。
+    # 读取一律走 `plan_rules.from_prefs()` 收敛——库里什么形状都可能存在。
+    plan_params: Mapped[dict | None] = mapped_column(JSON, nullable=True)
     # 知识源凭证 AES-256 加密落库；仅使用时解密，禁止写日志（需求安全-2）
     knowledge_credentials: Mapped[str | None] = mapped_column(String, nullable=True)
     # 令牌版本：改密 / 注销时 +1，已签发的 access 与 refresh 立即失效
