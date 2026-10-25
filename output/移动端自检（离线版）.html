@@ -1,0 +1,256 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#4f46e5">
+<title>移动端自检 · 认知副驾</title>
+<style>
+  /* 刻意不引 style.css：这页要能在样式系统坏掉时仍然可用 */
+  *{box-sizing:border-box}
+  body{
+    margin:0;padding:14px;
+    padding-bottom:calc(24px + env(safe-area-inset-bottom,0px));
+    font:15px/1.6 -apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif;
+    background:#f4f6fb;color:#1a2033;
+  }
+  h1{margin:0 0 4px;font-size:17px}
+  .sub{margin:0 0 14px;color:#7a8194;font-size:13px}
+  .card{background:#fff;border:1px solid #e6e9f2;border-radius:12px;padding:12px 14px;margin-bottom:12px}
+  .card h2{margin:0 0 8px;font-size:13px;color:#7a8194;font-weight:600}
+  table{width:100%;border-collapse:collapse}
+  td{padding:6px 0;border-bottom:1px dashed #eef1f8;font-size:13.5px;vertical-align:top}
+  tr:last-child td{border-bottom:none}
+  td:first-child{color:#7a8194;width:48%}
+  /* 值列右对齐并禁止折行：「命中」贴着标签会挤成一坨 */
+  td:last-child{font-weight:600;font-variant-numeric:tabular-nums;text-align:right;white-space:nowrap}
+  .ok{color:#059669}
+  .bad{color:#dc2626}
+  .note{font-size:12.5px;color:#7a8194;margin:8px 0 0;line-height:1.55}
+  input[type=text]{
+    width:100%;font:inherit;font-size:16px;padding:11px 12px;
+    border:1px solid #d8dce8;border-radius:10px;background:#fff;
+  }
+  button{
+    width:100%;min-height:46px;margin-top:10px;border:none;border-radius:10px;
+    background:#4f46e5;color:#fff;font:inherit;font-size:15px;font-weight:600;
+  }
+  button.ghost{background:#fff;color:#3d4457;border:1px solid #d8dce8}
+  textarea{
+    width:100%;min-height:150px;margin-top:10px;padding:10px;
+    font:12px/1.5 ui-monospace,Consolas,monospace;color:#1a2033;
+    border:1px solid #d8dce8;border-radius:10px;background:#fafbfe;resize:vertical;
+  }
+  /* 用来读 env() 的实际值：计算后的 padding 就是安全区像素 */
+  #safe-probe{padding:0 env(safe-area-inset-right,0px) 0 env(safe-area-inset-left,0px);height:0}
+  #safe-probe::before{content:"";display:block;height:env(safe-area-inset-top,0px)}
+  #safe-probe::after{content:"";display:block;height:env(safe-area-inset-bottom,0px)}
+</style>
+</head>
+<body>
+
+<h1>移动端自检</h1>
+<p class="sub">把最下面「报告」里的内容发回来即可。这个页面不需要登录。</p>
+
+<div class="card">
+  <h2>视口</h2>
+  <table id="t-view"></table>
+</div>
+
+<div class="card">
+  <h2>媒体查询（断点是否命中）</h2>
+  <table id="t-mq"></table>
+</div>
+
+<div class="card">
+  <h2>安全区 env(safe-area-inset-*)</h2>
+  <table id="t-safe"></table>
+  <p class="note">全为 0 有两种可能：这台手机确实没有刘海/手势条，或者 viewport 缺了
+    <code>viewport-fit=cover</code>（那样 env() 一定是 0，导航条会贴着屏幕最底边）。</p>
+</div>
+
+<div class="card">
+  <h2>键盘（关键）</h2>
+  <table id="t-kb"></table>
+  <p class="note">点下面的输入框、等键盘弹出来，数值会自动更新。安卓上
+    <b>keyboardGap 应当是 0</b>（安卓会自己缩 layout viewport）；如果是几百，说明补偿会重复扣一次。</p>
+  <input type="text" id="kb-input" placeholder="点这里弹出键盘">
+</div>
+
+<div class="card">
+  <h2>报告</h2>
+  <textarea id="report" readonly></textarea>
+  <button id="btn-copy">复制报告</button>
+  <button class="ghost" onclick="location.href='/app.html'">去对话页看导航与输入框</button>
+</div>
+
+<div id="safe-probe"></div>
+
+<script>
+(function () {
+  var lines = [];
+  var kb = { before: null, after: null };
+
+  function pad(n) { return String(n); }
+  function row(label, value, cls) {
+    return '<tr><td>' + label + '</td><td' + (cls ? ' class="' + cls + '"' : '') + '>' + value + '</td></tr>';
+  }
+  function css(el, prop) { return getComputedStyle(el).getPropertyValue(prop).trim(); }
+  function px(v) { return parseFloat(v) || 0; }
+
+  /* env() 的实际像素：靠一个带 padding / 伪元素高度的探针取计算值 */
+  function safeAreas() {
+    var probe = document.getElementById('safe-probe');
+    var before = getComputedStyle(probe, '::before');
+    var after = getComputedStyle(probe, '::after');
+    return {
+      top: px(before.height),
+      bottom: px(after.height),
+      left: px(css(probe, 'padding-left')),
+      right: px(css(probe, 'padding-right'))
+    };
+  }
+
+  function renderView() {
+    var vv = window.visualViewport;
+    var overflow = document.documentElement.scrollWidth - window.innerWidth;
+    var rows = [
+      row('innerWidth × innerHeight', window.innerWidth + ' × ' + window.innerHeight),
+      row('devicePixelRatio', String(window.devicePixelRatio)),
+      row('screen', screen.width + ' × ' + screen.height),
+      row('visualViewport', vv ? (Math.round(vv.width) + ' × ' + Math.round(vv.height) +
+        ' @ offsetTop ' + Math.round(vv.offsetTop)) : '不支持'),
+      row('横向溢出', overflow > 1 ? ('是，多出 ' + overflow + 'px') : '否',
+        overflow > 1 ? 'bad' : 'ok')
+    ];
+    document.getElementById('t-view').innerHTML = rows.join('');
+    return overflow;
+  }
+
+  function renderMq() {
+    var checks = [
+      ['(max-width:720px)', '手机竖屏断点'],
+      ['(max-height:480px)', '矮视口断点（横屏）'],
+      ['(hover:none)', '触屏（hover 重置块）'],
+      ['(pointer:coarse)', '粗指针'],
+      ['(display-mode:standalone)', 'PWA 独立窗口']
+    ];
+    var rows = [];
+    var out = {};
+    for (var i = 0; i < checks.length; i++) {
+      var hit = window.matchMedia(checks[i][0]).matches;
+      out[checks[i][0]] = hit;
+      rows.push(row(checks[i][0] + ' ' + checks[i][1], hit ? '命中' : '不命中', hit ? 'ok' : ''));
+    }
+    document.getElementById('t-mq').innerHTML = rows.join('');
+    return out;
+  }
+
+  function renderSafe() {
+    var s = safeAreas();
+    document.getElementById('t-safe').innerHTML = [
+      row('top', pad(s.top) + 'px'),
+      row('bottom', pad(s.bottom) + 'px'),
+      row('left', pad(s.left) + 'px'),
+      row('right', pad(s.right) + 'px')
+    ].join('');
+    return s;
+  }
+
+  function gapNow() {
+    var vv = window.visualViewport;
+    if (!vv) { return 0; }
+    var g = window.innerHeight - vv.height;
+    return g > 0 ? Math.round(g) : 0;
+  }
+
+  function renderKb() {
+    var vv = window.visualViewport;
+    var rows = [
+      row('当前 gap（页面会用它扣高度）', gapNow() + 'px',
+        gapNow() === 0 ? 'ok' : 'bad'),
+      row('visualViewport.height', vv ? Math.round(vv.height) : '不支持')
+    ];
+    if (kb.before) {
+      rows.push(row('键盘弹起前', 'innerHeight ' + kb.before.ih + ' / vv.height ' + kb.before.vh));
+    }
+    if (kb.after) {
+      rows.push(row('键盘弹起后', 'innerHeight ' + kb.after.ih + ' / vv.height ' + kb.after.vh));
+    }
+    document.getElementById('t-kb').innerHTML = rows.join('');
+  }
+
+  function buildReport() {
+    var vv = window.visualViewport;
+    var s = safeAreas();
+    var mq = [
+      'max-width720=' + (window.matchMedia('(max-width:720px)').matches ? 1 : 0),
+      'max-height480=' + (window.matchMedia('(max-height:480px)').matches ? 1 : 0),
+      'hover:none=' + (window.matchMedia('(hover:none)').matches ? 1 : 0),
+      'pointer:coarse=' + (window.matchMedia('(pointer:coarse)').matches ? 1 : 0)
+    ].join(' ');
+    var overflow = document.documentElement.scrollWidth - window.innerWidth;
+    lines = [
+      'UA: ' + navigator.userAgent,
+      'viewport: ' + window.innerWidth + 'x' + window.innerHeight + ' dpr' + window.devicePixelRatio,
+      'screen: ' + screen.width + 'x' + screen.height,
+      'visualViewport: ' + (vv ? (Math.round(vv.width) + 'x' + Math.round(vv.height) + '@' + Math.round(vv.offsetTop)) : 'n/a'),
+      'mq: ' + mq,
+      'safe-area: t' + s.top + ' b' + s.bottom + ' l' + s.left + ' r' + s.right,
+      'overflow-x: ' + (overflow > 1 ? overflow + 'px' : 'none'),
+      'kb-gap-now: ' + gapNow()
+    ];
+    if (kb.before) { lines.push('kb-before: ih' + kb.before.ih + ' vv' + kb.before.vh); }
+    if (kb.after) { lines.push('kb-after: ih' + kb.after.ih + ' vv' + kb.after.vh); }
+    document.getElementById('report').value = lines.join('\n');
+  }
+
+  function refresh() {
+    renderView();
+    renderMq();
+    renderSafe();
+    renderKb();
+    buildReport();
+  }
+
+  /* 键盘：focus 前记一次，visualViewport 变化后记一次 */
+  var input = document.getElementById('kb-input');
+  input.addEventListener('focus', function () {
+    var vv = window.visualViewport;
+    kb.before = { ih: window.innerHeight, vh: vv ? Math.round(vv.height) : 0 };
+    kb.after = null;
+    refresh();
+  });
+  input.addEventListener('blur', function () {
+    setTimeout(refresh, 200);
+  });
+
+  if (window.visualViewport) {
+    window.visualViewport.addEventListener('resize', function () {
+      var vv = window.visualViewport;
+      if (input === document.activeElement) {
+        kb.after = { ih: window.innerHeight, vh: Math.round(vv.height) };
+      }
+      refresh();
+    });
+  }
+
+  document.getElementById('btn-copy').addEventListener('click', function () {
+    var box = document.getElementById('report');
+    box.focus();
+    box.select();
+    var ok = false;
+    try { ok = document.execCommand('copy'); } catch (e) { ok = false; }
+    if (navigator.clipboard && navigator.clipboard.writeText) {
+      navigator.clipboard.writeText(box.value).then(function () {}, function () {});
+    }
+    this.textContent = ok ? '已复制' : '请长按下方文字手动复制';
+  });
+
+  window.addEventListener('resize', refresh);
+  window.addEventListener('orientationchange', function () { setTimeout(refresh, 300); });
+  refresh();
+})();
+</script>
+</body>
+</html>

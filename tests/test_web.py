@@ -362,6 +362,22 @@ def test_mobile_bottom_nav_is_not_captured_by_backdrop_filter(client):
     assert "position:fixed" in css.split("@media(max-width:720px){", 1)[1]
 
 
+def test_mobile_self_check_page_is_public(client):
+    """真机自检页（/assets/mobile-check.html）：手边没有 iPhone 时靠它在安卓上
+    读出三样 Chromium 无头测不出来的值——`env(safe-area-inset-*)` 的实际像素、
+    `visualViewport` 在键盘弹起时的取值、断点媒体查询是否命中。
+
+    它必须**免登录**：要登录才能看的自检页，在「登录本身可能坏」的场景下毫无用处。"""
+    resp = client.get("/assets/mobile-check.html")
+    assert resp.status_code == 200
+    assert "text/html" in resp.headers["content-type"]
+    body = resp.text
+    assert "safe-area-inset" in body
+    assert "visualViewport" in body
+    assert "max-height:480px" in body     # 横屏断点是否命中要看这个
+    assert "viewport-fit=cover" in body   # 自己也要有，否则 env() 读出来全是 0
+
+
 def test_mobile_header_keeps_logout_reachable(client):
     """退出按钮只该在阅读器页收进 ⋯ 菜单。写成裸 `#btn-logout{display:none}`
     会命中全站——而底部导航里没有「我的」，手机上就没有任何退出入口。"""
