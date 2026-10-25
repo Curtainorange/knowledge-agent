@@ -237,14 +237,34 @@ window.CC = (function () {
     }
   }
 
+  /* 高亮当前页对应的导航项。
+     手机上底部导航是 8 项的横向滚动条（375px 屏只看得到约 4 项），靠后的页面
+     （冲突 / 简报 / 路径修正 / 诊断 / 通知）高亮项默认停在屏幕外——用户既看不出
+     自己在哪一页，也看不出右边还有入口。所以标完 active 把它滚到滚动条正中。 */
   function highlightNav() {
     var page = document.body.getAttribute('data-page');
     var links = document.querySelectorAll('.nav a');
+    var active = null;
     for (var i = 0; i < links.length; i++) {
       if (links[i].getAttribute('data-nav') === page) {
         links[i].classList.add('active');
+        active = links[i];
       }
     }
+    if (active) {
+      centerInScroller(active.parentNode, active);
+    }
+  }
+
+  /* 把元素滚到横向滚动容器正中。
+     只在容器真的能横向滚动时才动 scrollLeft：桌面导航排得下（scrollWidth ==
+     clientWidth），这里必须原样不动，否则会因 offsetLeft 语义差异产生横向抖动。 */
+  function centerInScroller(box, el) {
+    if (!box || !box.clientWidth || box.scrollWidth <= box.clientWidth + 1) {
+      return;
+    }
+    var left = el.offsetLeft - (box.clientWidth - el.offsetWidth) / 2;
+    box.scrollLeft = Math.max(0, Math.min(left, box.scrollWidth - box.clientWidth));
   }
 
   /* 业务页统一入口：无令牌直接跳登录；令牌失效由 api() 负责续期或跳转。

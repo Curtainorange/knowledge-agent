@@ -10,6 +10,15 @@ PAGES = (
 )
 
 
+def _css_rule(css: str, selector: str) -> str:
+    """取出 css 里第一条 `<selector>{...}` 规则（够用于断言「某属性在不在里面」）。"""
+    start = css.find(selector + "{")
+    assert start != -1, "样式里找不到规则：" + selector
+    end = css.find("}", start)
+    assert end != -1, "规则没闭合：" + selector
+    return css[start:end + 1]
+
+
 def test_all_pages_served(client):
     for path in PAGES:
         resp = client.get(path)
@@ -208,9 +217,27 @@ NAV_PAGES = (
 
 
 def test_all_pages_declare_viewport(client):
-    """手机适配的前提：每页都声明 viewport（缺它移动端按桌面宽度渲染）。"""
+    """手机适配的前提：每页都声明 viewport，且带 viewport-fit=cover。
+
+    少了 viewport-fit=cover，iOS 上 `env(safe-area-inset-*)` **恒为 0**——
+    CSS 里写满的安全区避让全部失效，底部导航会被 Home 指示条压住。
+    这条是「代码写了、语义到不了」的典型，必须由测试钉住。"""
     for path in PAGES:
-        assert 'name="viewport"' in client.get(path).text, path
+        body = client.get(path).text
+        assert 'name="viewport"' in body, path
+        assert "viewport-fit=cover" in body, path
+
+
+def test_pages_declare_ios_home_icon(client):
+    """iOS「添加到主屏幕」不读 manifest 的 icons，只认 <link rel="apple-touch-icon">。
+    缺它时装到桌面是网页截图，PWA 那一套等于白做。"""
+    for path in PAGES:
+        body = client.get(path).text
+        assert 'rel="apple-touch-icon"' in body, path
+        assert "/assets/icons/apple-touch-icon-180.png" in body, path
+    icon = client.get("/assets/icons/apple-touch-icon-180.png")
+    assert icon.status_code == 200
+    assert "image/png" in icon.headers["content-type"]
 
 
 def test_nav_entries_cover_all_capabilities(client):
@@ -230,12 +257,56 @@ def test_mobile_skeleton_in_css(client):
 
 
 def test_mobile_high_freq_pages_in_css(client):
-    """高频三页移动方案：对话 flex 贴底（dvh 随键盘收缩）、通知表单单列、知识库搜索吸顶。"""
+    """高频三页移动方案：对话 flex 贴底、通知表单单列、知识库搜索吸顶。
+
+    对话区高度 = dvh − 固定留白 − `--kb-gap`：iOS 的软键盘只改 visualViewport、
+    不改 layout viewport，单靠 dvh 输入框会被键盘盖住。"""
     css = client.get("/assets/style.css").text
-    assert "100dvh" in css            # 对话区随动态视口收缩（键盘不遮输入框）
+    assert "100dvh" in css            # 对话区随浏览器 UI 收起而变高
+    assert "--kb-gap" in css          # 键盘高度补偿（iOS 必需）
     assert "#pref-form" in css        # 偏好表单单列
     assert "#kb-search" in css        # 搜索框吸顶
     assert "position:sticky" in css
+
+
+def test_mobile_keyboard_inset_from_visual_viewport(client):
+    """键盘补偿必须由 visualViewport 实测得出，不能靠 CSS 猜。
+
+    `100dvh` 在 iOS 键盘弹起时纹丝不动（变的只有 visualViewport），
+    所以 agent.js 要把「视口被顶掉多少」写成 --kb-gap，CSS 才扣得准。"""
+    js = client.get("/assets/agent.js").text
+    assert "visualViewport" in js
+    assert "bindKeyboardInset" in js
+    assert "--kb-gap" in js
+    assert "vv.addEventListener('resize'" in js
+    # 手机上没有 Ctrl 键，placeholder 里的 Ctrl+Enter 提示要按窄屏换掉
+    assert "tuneComposerPlaceholder" in js
+
+
+def test_touch_devices_have_hover_reset(client):
+    """触屏没有悬停语义：tap 后 :hover 会粘住（卡片一直浮着、导航像有两个选中）。
+    必须有一层 @media(hover:none) 把会造成状态误读的 hover 还原，且选中态要保住。"""
+    css = client.get("/assets/style.css").text
+    assert "@media(hover:none)" in css
+    assert ".nav a.active:hover" in css          # 选中态不能在重置里被抹掉
+    assert "button.primary:hover:not(:disabled)" in css
+    assert "-webkit-tap-highlight-color" in css
+    assert "overscroll-behavior:contain" in css
+
+
+def test_history_drawer_locks_background_scroll(client):
+    """窄屏历史抽屉是覆盖层：要出遮罩（可点外关闭）并锁背景滚动，
+    否则手指在抽屉上滑到底会带动下面的聊天区（移动端滚动穿透）。"""
+    body = client.get("/app.html").text
+    assert 'id="history-backdrop"' in body
+
+    js = client.get("/assets/agent.js").text
+    assert "drawer-open" in js
+    assert "history-backdrop" in js
+
+    css = client.get("/assets/style.css").text
+    assert "body.drawer-open{overflow:hidden}" in css
+    assert "#history-backdrop" in css
 
 
 def test_mobile_secondary_pages_in_css(client):
@@ -274,6 +345,29 @@ def test_reader_mobile_experience(client):
     assert "#btn-more{display:inline-flex}" in css      # 移动端才露出 ⋯
     assert ".toc-panel,.notes-panel{" in css            # 全屏抽屉
     assert ".more-menu[hidden]" in css                  # display:flex 不吃 hidden 属性，须显式兜底
+
+
+def test_mobile_bottom_nav_is_not_captured_by_backdrop_filter(client):
+    """窄屏底部导航是 position:fixed。而 backdrop-filter / filter / transform 会让元素
+    变成 **fixed 后代的包含块**：一旦毛玻璃挂在 header.topbar 自己身上，.nav 的
+    bottom:0 就相对顶栏解析，导航条直接飞到页面顶部、盖住品牌与账号。
+
+    这个 bug 桌面完全看不出来（桌面 .nav 是流式），是靠 375px 真机截图才抓到的，
+    所以必须用测试钉住「毛玻璃只能挂在 ::before 上」。"""
+    css = client.get("/assets/style.css").text
+    header = _css_rule(css, "header.topbar")
+    assert "backdrop-filter" not in header, "backdrop-filter 不能挂在 header.topbar 上"
+    assert "backdrop-filter" in _css_rule(css, "header.topbar::before")
+    # 底部导航的移动端定位不能被人改掉
+    assert "position:fixed" in css.split("@media(max-width:720px){", 1)[1]
+
+
+def test_mobile_header_keeps_logout_reachable(client):
+    """退出按钮只该在阅读器页收进 ⋯ 菜单。写成裸 `#btn-logout{display:none}`
+    会命中全站——而底部导航里没有「我的」，手机上就没有任何退出入口。"""
+    css = client.get("/assets/style.css").text
+    assert ".reader-page #btn-logout{display:none}" in css
+    assert "\n  #btn-logout{display:none}" not in css
 
 
 def test_reading_log_page_has_group_switch_and_chart(client):

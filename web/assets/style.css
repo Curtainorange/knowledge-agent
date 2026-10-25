@@ -45,6 +45,8 @@ body{
   background-attachment:fixed;
   color:var(--text);
   -webkit-font-smoothing:antialiased;
+  /* 触屏点按时浏览器默认叠一层灰块；全站自带 :active 反馈，那层灰只会让点击显得脏 */
+  -webkit-tap-highlight-color:transparent;
 }
 ::selection{background:rgba(99,102,241,.22)}
 
@@ -52,11 +54,19 @@ body{
 header.topbar{
   display:flex;align-items:center;gap:16px;flex-wrap:wrap;
   padding:12px 24px;
-  background:rgba(255,255,255,.78);
-  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
   border-bottom:1px solid rgba(230,233,242,.9);
   box-shadow:var(--shadow-xs);
   position:sticky;top:0;z-index:50;
+}
+/* 毛玻璃背景必须挂在伪元素上，不能挂在 topbar 自己身上：
+   `backdrop-filter`（以及 filter / transform / contain）会把该元素变成
+   **fixed 后代的包含块**。窄屏时 .nav 是 position:fixed;bottom:0 的底部导航，
+   一旦包含块变成顶栏，它就相对顶栏定位——直接飞到页面顶部、盖住品牌与账号。
+   这一点在桌面上完全看不出来（桌面 .nav 是普通流式），只有真机/窄屏才暴露。 */
+header.topbar::before{
+  content:"";position:absolute;inset:0;z-index:-1;
+  background:rgba(255,255,255,.78);
+  -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
 }
 .brand{
   display:inline-flex;align-items:center;gap:10px;
@@ -729,14 +739,22 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 
 /* ============ 高频页移动适配（M2a：对话 / 通知 / 知识库）============ */
 @media(max-width:720px){
-  /* 对话工作台：卡片区撑满视口余量，消息流内部滚动、输入区贴底
-     ——键盘弹起时 dvh 随视口收缩，输入框不会被键盘盖住（flex 方案，零 JS）。
-     vh 是旧浏览器回退。150px ≈ 移动顶栏 + 底部导航 + 留白，富余一点好过裁切。 */
+  /* 对话工作台：卡片区撑满视口余量，消息流内部滚动、输入区贴底。
+     iOS 的软键盘不改 layout viewport（dvh 纹丝不动），所以除了 dvh 还要扣掉
+     --kb-gap——它由 agent.js 从 visualViewport 实时算出的键盘高度。桌面无软键盘
+     时该变量为 0，行为与原来一致。vh 是旧浏览器回退。 */
   main.single{padding:10px 12px 0}
-  .agent-wrap{height:calc(100vh - 150px);height:calc(100dvh - 150px);min-height:300px}
+  .agent-wrap{
+    height:calc(100vh - 150px - var(--kb-gap,0px));
+    height:calc(100dvh - 150px - var(--kb-gap,0px));
+    /* 200 而不是 300：小屏（iPhone SE 667px）键盘弹起后可分配高度只剩 ~250px，
+       min-height 一旦高于它就会把输入框顶到键盘下面——防塌陷的护栏不能反过来挡住键盘 */
+    min-height:200px;
+  }
   .agent-wrap>.card{display:flex;flex-direction:column;height:100%;margin-bottom:0}
   .agent-head{margin-bottom:6px}
-  .agent-log{flex:1 1 auto;min-height:0;max-height:none}
+  /* overscroll-behavior:contain：消息流滚到顶再下拉时，别触发浏览器整页刷新 */
+  .agent-log{flex:1 1 auto;min-height:0;max-height:none;overscroll-behavior:contain}
   .composer{flex:0 0 auto}
   .composer button{flex:0 0 auto;min-width:64px}
 
@@ -781,7 +799,9 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
 
   .reader-page .lbl-full{display:none}
   .reader-page .lbl-short{display:inline}
-  #btn-logout{display:none}
+  /* 只有阅读器页把退出收进 ⋯ 菜单（它有 more-logout）。没加前缀时这条会命中全站，
+     手机上所有页面都点不到退出——而底部导航里没有「我的」，等于无处退出。 */
+  .reader-page #btn-logout{display:none}
   #btn-more{display:inline-flex}
   #chapter-indicator{display:none}
 
@@ -815,13 +835,25 @@ main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px
   main.single.workbench{grid-template-columns:1fr;padding:10px 12px 0}
   #btn-history,#btn-history-close{display:inline-block}
   .history-panel{
-    position:fixed;left:0;top:0;bottom:0;width:300px;max-width:85vw;z-index:70;
+    position:fixed;left:0;top:0;bottom:0;width:300px;max-width:85vw;z-index:78;
     background:#fff;border-right:1px solid var(--border);box-shadow:8px 0 32px rgba(26,32,51,.10);
     padding:14px;max-height:100%;
     transform:translateX(-105%);transition:transform .18s ease;
   }
   .history-panel.open{transform:translateX(0)}
   .history-actions{opacity:1}
+  /* 重命名 / 删除在手机上已常驻显示，触控目标要跟上来（桌面 2px 7px 的尺寸只有 ~20px 高） */
+  .h-act{min-height:40px;min-width:40px;display:inline-flex;align-items:center;justify-content:center}
+
+  /* 抽屉遮罩：z-index 夹在对话区与抽屉之间；底部导航（80）仍在最上层，
+     切页比「先关遮罩」更符合用户意图。 */
+  #history-backdrop{
+    position:fixed;inset:0;z-index:75;
+    background:rgba(26,32,51,.38);
+  }
+  #history-backdrop[hidden]{display:none}
+  /* 遮罩在时锁住背景滚动，否则手指滑到底会穿透到下面的聊天区（移动端滚动穿透） */
+  body.drawer-open{overflow:hidden}
 }
 
 /* ============ 需求确认卡与建议卡（B 模块） ============
@@ -877,4 +909,36 @@ main.single.workbench{grid-template-columns:250px minmax(0,1fr);max-width:1120px
 .cmp-col a:hover{text-decoration:underline}
 @media (max-width:720px){
   .cmp-cols{grid-template-columns:1fr}
+}
+
+/* ============ 触屏设备：撤销「悬停装饰」（阶段 1 · 真机修正）============
+   触屏没有悬停语义。iOS / Android 在 tap 之后会把 :hover 挂到该元素上，
+   直到用户点别处——表现是「点过的卡片一直浮着」「底部导航像有两个选中」
+   「按钮一直保持高亮描边」。这些都是误判，不是反馈。
+   这里把**会造成状态误读**的 hover 还原成默认值；纯装饰（下划线、滚动条）
+   不动，它们不会让人以为「这玩意被选中了」。
+   写法上用与原始规则相同的选择器 + 更靠后的位置来覆盖，不改原规则。 */
+@media(hover:none){
+  .nav a:hover{background:transparent;color:var(--text-2)}
+  .nav a.active:hover{background:var(--accent-grad);color:#fff}
+  .card:hover{box-shadow:var(--shadow-sm);transform:none}
+  .item:hover{border-color:var(--border);box-shadow:none}
+  .item.active:hover{border-color:var(--accent);background:var(--accent-weak);box-shadow:0 0 0 3px var(--accent-ring)}
+  .book-item:hover{border-color:var(--border);box-shadow:none;transform:none}
+  .note-card:hover{border-color:var(--border);box-shadow:none}
+  .chip:hover{border-color:var(--border);color:var(--text-2);background:#fff}
+  .toc-item:hover{background:none;color:var(--text-2)}
+  .toc-item.on:hover{background:var(--accent-weak);color:var(--accent)}
+  .more-menu button:hover{background:none;color:var(--text-2)}
+  .h-act:hover{color:var(--muted);background:none}
+  .feature:hover{transform:none;box-shadow:var(--shadow-sm);border-color:var(--border)}
+  .reader-figure img:hover{transform:none;box-shadow:var(--shadow-md)}
+  a.ghost:hover{border-color:var(--border-strong);color:var(--text-2);box-shadow:none}
+  .card-actions a:hover{border-color:var(--border-strong);background:none}
+  .book-row .book-side a:hover{border-color:var(--border-strong);background:none}
+  /* 按钮：通用重置后要按变体依次还原，否则 primary 会掉白字、danger 会变灰字 */
+  button:hover:not(:disabled){border-color:var(--border-strong);color:var(--text);box-shadow:none}
+  button.primary:hover:not(:disabled){color:#fff;opacity:1;box-shadow:0 3px 10px rgba(79,70,229,.32)}
+  button.danger:hover:not(:disabled){background:none;border-color:#f2caca;color:var(--danger)}
+  button.link:hover:not(:disabled){border:none;background:none;color:var(--accent);box-shadow:none}
 }

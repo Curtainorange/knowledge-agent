@@ -4,6 +4,10 @@
   icon-192.png          常规图标 192×192（purpose: any）
   icon-512.png          常规图标 512×512（purpose: any）
   icon-maskable-512.png 自适应图标 512×512（purpose: maskable）
+  apple-touch-icon-180.png  iOS 加到主屏用 180×180
+
+iOS 的「添加到主屏幕」**不读 manifest 的 icons**，只认 `<link rel="apple-touch-icon">`；
+缺这张图时装到桌面是网页截图。180 是 iOS 的推荐边长（不透明的正方形，iOS 自己切圆角）。
 
 maskable 版按 Android 规范留安全区：头像缩到画布 72%、铺品牌底色
 （--accent #4f46e5），保证被圆形/圆角遮罩裁切后主体不缺角。
@@ -47,6 +51,14 @@ def main() -> int:
     canvas.alpha_composite(icon, ((512 - inner) // 2, (512 - inner) // 2))
     canvas.save(OUT_DIR / "icon-maskable-512.png")
     print(f"生成 {OUT_DIR / 'icon-maskable-512.png'}")
+
+    # iOS 主屏图标：不要透明通道（iOS 会把透明处填黑），直接铺品牌底色合成 RGB。
+    # 主体缩到 86%：iOS 会自己套 squircle 圆角，原图铺满会被切掉四角（脸贴边）。
+    apple = Image.new("RGBA", (180, 180), BRAND_BG + (255,))
+    inner = int(180 * 0.86)
+    apple.alpha_composite(base.resize((inner, inner), Image.LANCZOS), ((180 - inner) // 2, (180 - inner) // 2))
+    apple.convert("RGB").save(OUT_DIR / "apple-touch-icon-180.png")
+    print(f"生成 {OUT_DIR / 'apple-touch-icon-180.png'}")
     return 0
 
 

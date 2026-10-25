@@ -1261,10 +1261,23 @@ window.CCA = (function () {
     }
   }
 
+  /* 抽屉开关。窄屏时它是 fixed 覆盖层：
+     ① 出遮罩，给「点外面关闭」一个可见落点；
+     ② 锁背景滚动——不锁的话手指在抽屉上滑到底会带动下面的聊天区一起滚（滚动穿透）；
+     ③ 桌面宽度下侧栏是常驻栏，不锁页面也不出遮罩，所以两个动作都只在窄屏生效。 */
   function openHistoryDrawer(open) {
     var panel = document.getElementById('history-panel');
     if (panel) {
       panel.classList.toggle('open', !!open);
+    }
+    var narrow = !!(window.matchMedia && window.matchMedia('(max-width:720px)').matches);
+    var locked = !!open && narrow;
+    if (document.body && document.body.classList) {
+      document.body.classList.toggle('drawer-open', locked);
+    }
+    var backdrop = document.getElementById('history-backdrop');
+    if (backdrop) {
+      backdrop.hidden = !locked;
     }
   }
 
@@ -1345,7 +1358,69 @@ window.CCA = (function () {
     }
   }
 
+  /* iOS 的软键盘不改变 layout viewport——100dvh 在键盘弹起时纹丝不动，贴在卡片底部的
+     输入框就被键盘盖住（Android 会缩 layout viewport，所以在 Android 上看不出问题）。
+     visualViewport 才是键盘真正改变的量：把它被顶掉的高度写成 --kb-gap，交给 CSS 扣高度。
+     纯 CSS 做不到这件事——M2a 那版「flex + dvh、刻意不引 visualViewport」的前提只对
+     Android 成立，这是对它的修正。 */
+  function bindKeyboardInset() {
+    var vv = window.visualViewport;
+    var root = document.documentElement;
+    if (!vv || !root || !root.style || typeof root.style.setProperty !== 'function') {
+      return;
+    }
+    if (window.matchMedia && !window.matchMedia('(max-width:720px)').matches) {
+      return;  // 桌面没有软键盘；宽屏下 .agent-wrap 也不读这个变量
+    }
+    function sync() {
+      var gap = Math.max(0, Math.round(window.innerHeight - vv.height - (vv.offsetTop || 0)));
+      root.style.setProperty('--kb-gap', gap + 'px');
+      // 键盘弹起后用户正在打字：把消息流带到底部，别让最后一条回复被键盘挤在看不见的地方
+      var input = document.getElementById('agent-input');
+      if (gap > 0 && input && document.activeElement === input && log) {
+        log.scrollTop = log.scrollHeight;
+      }
+    }
+    vv.addEventListener('resize', sync);
+    vv.addEventListener('scroll', sync);
+    sync();
+  }
+
+  /* 手机上没有 Ctrl 键：placeholder 里那行「Ctrl + Enter 发送」是纯噪音，还白占一行高度 */
+  function tuneComposerPlaceholder() {
+    var input = document.getElementById('agent-input');
+    if (!input || !window.matchMedia || !window.matchMedia('(max-width:720px)').matches) {
+      return;
+    }
+    input.setAttribute(
+      'placeholder',
+      '直接说你想做什么，例如：\n之前存的那段讲查询优化的内容\n记一下：B+树更适合范围查询 #数据库'
+    );
+  }
+
   function bind() {
+    bindKeyboardInset();
+    tuneComposerPlaceholder();
+    // 抽屉开着时把窗口拉宽：侧栏变回常驻栏，遮罩与滚动锁必须撤掉，否则页面卡住不能滚
+    var drawerMq = window.matchMedia && window.matchMedia('(max-width:720px)');
+    if (drawerMq) {
+      var onDrawerMq = function (event) {
+        if (!event.matches) {
+          openHistoryDrawer(false);
+        }
+      };
+      if (drawerMq.addEventListener) {
+        drawerMq.addEventListener('change', onDrawerMq);
+      } else if (drawerMq.addListener) {
+        drawerMq.addListener(onDrawerMq);  // 老 Safari
+      }
+    }
+    var drawerBackdrop = document.getElementById('history-backdrop');
+    if (drawerBackdrop) {
+      drawerBackdrop.addEventListener('click', function () {
+        openHistoryDrawer(false);
+      });
+    }
     document.getElementById('agent-send').addEventListener('click', function () {
       send(null);
     });

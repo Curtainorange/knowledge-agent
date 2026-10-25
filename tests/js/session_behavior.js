@@ -57,8 +57,9 @@ function makeEnv(opts) {
   };
   const document = {
     querySelector: (sel) => elements[sel] || null,
-    querySelectorAll: () => [],
-    body: { getAttribute: () => 'knowledge' }
+    /* 导航项只有测「底部横滑条定位」时才需要；其余场景给空数组（app.js 循环零次） */
+    querySelectorAll: (sel) => (sel === '.nav a' && opts.navLinks) ? opts.navLinks : [],
+    body: { getAttribute: () => opts.page || 'knowledge' }
   };
   const location = {
     pathname: opts.pathname || '/knowledge.html',
@@ -197,6 +198,56 @@ function makeEnv(opts) {
     await env.CC.requireAuth();
     await env.CC.requireAuth();
     check('退出按钮只绑定一次', env.calls.logoutBinds === 1, String(env.calls.logoutBinds));
+  });
+
+  await scenario('H. 移动端底部导航：active 项滚进视野（不再是屏幕外的隐形高亮）', async () => {
+    // 8 项 × 70px = 560px，容器 375px：在 scrollLeft=0 时第 8 项（通知）完全不可见
+    const keys = ['app', 'knowledge', 'books', 'conflicts', 'brief', 'l4', 'l5', 'notify'];
+    const nav = { clientWidth: 375, scrollWidth: 560, scrollLeft: 0 };
+    const links = keys.map((key, i) => ({
+      key,
+      offsetLeft: i * 70,
+      offsetWidth: 70,
+      parentNode: nav,
+      classList: { added: false, add() { this.added = true; } },
+      getAttribute: (n) => (n === 'data-nav' ? key : null)
+    }));
+    const env = makeEnv({
+      page: 'notify',
+      navLinks: links,
+      storage: { cc_access_token: 't', cc_refresh_token: 'r', cc_username: '111' },
+      route: (url) => (url === ME ? { status: 200, body: { username: '111' } } : { status: 404, body: {} })
+    });
+    await env.CC.requireAuth();
+    check('active 标在「通知」这一项', links[7].classList.added === true);
+    check('其余项没被误标', links.slice(0, 7).every((l) => !l.classList.added));
+    check('导航条已横向滚动（旧版恒为 0，高亮项在屏幕外）', nav.scrollLeft > 0, String(nav.scrollLeft));
+    const visible = nav.scrollLeft <= links[7].offsetLeft &&
+      links[7].offsetLeft + links[7].offsetWidth <= nav.scrollLeft + nav.clientWidth;
+    check('「通知」项落在可视区内', visible,
+      `scrollLeft=${nav.scrollLeft} 项=[${links[7].offsetLeft}, ${links[7].offsetLeft + links[7].offsetWidth}]`);
+    check('没有滚过头', nav.scrollLeft <= nav.scrollWidth - nav.clientWidth, String(nav.scrollLeft));
+  });
+
+  await scenario('I. 桌面导航排得下时不横向位移（避免桌面抖动）', async () => {
+    const nav = { clientWidth: 1100, scrollWidth: 1100, scrollLeft: 0 };
+    const links = ['app'].map((key) => ({
+      key,
+      offsetLeft: 260,
+      offsetWidth: 70,
+      parentNode: nav,
+      classList: { added: false, add() { this.added = true; } },
+      getAttribute: (n) => (n === 'data-nav' ? key : null)
+    }));
+    const env = makeEnv({
+      page: 'app',
+      navLinks: links,
+      storage: { cc_access_token: 't', cc_refresh_token: 'r', cc_username: '111' },
+      route: (url) => (url === ME ? { status: 200, body: { username: '111' } } : { status: 404, body: {} })
+    });
+    await env.CC.requireAuth();
+    check('active 照常标记', links[0].classList.added === true);
+    check('scrollLeft 保持 0', nav.scrollLeft === 0, String(nav.scrollLeft));
   });
 
   console.log('');

@@ -2,8 +2,10 @@
 <html lang="zh-CN">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
+<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<meta name="apple-mobile-web-app-title" content="认知副驾">
 <link rel="manifest" href="/manifest.webmanifest">
 <title>对话 · 认知副驾</title>
 <link rel="stylesheet" href="/assets/style.css">
@@ -56,6 +58,9 @@
     </div>
   </div>
 </main>
+
+<!-- 历史抽屉的遮罩：只在窄屏出现（桌面侧栏常驻，没有遮罩也没有滚动锁） -->
+<div id="history-backdrop" hidden></div>
 
 <div id="toast"></div>
 <script src="/assets/app.js"></script>
