@@ -291,6 +291,71 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 }
 .reader-nav button{min-width:100px}
 
+/* ---------- 阅读排版：主题 / 页宽 / 行距 / 字体（设置面板写入 CSS 变量） ---------- */
+.reader-card{max-width:var(--rd-width,840px)}
+.reader-body{
+  background:var(--rd-bg,transparent);color:var(--rd-fg,var(--text-2));
+  line-height:var(--rd-lh,1.95);font-family:var(--rd-font,inherit);
+}
+/* 页码标记：空 span，页码靠伪元素显示。
+   必须是空元素——划词偏移按 DOM 文本长度计算，塞进真字符会让所有
+   高亮与摘录的 char_start 整体错位（见 reader.html 的 getSelectionInfo）。 */
+.page-mark{
+  display:block;text-align:right;margin:16px 0 4px;
+  font-size:11px;line-height:1;letter-spacing:.04em;
+  color:var(--rd-muted,var(--muted-2));user-select:none;
+}
+.page-mark::after{content:attr(data-show);font-variant-numeric:tabular-nums}
+
+/* 纸白 = 默认（不写规则）；米黄与夜间各自覆盖卡片、正文与顶栏 */
+body.reader-page[data-theme="sepia"]{--rd-bg:#f7f0df;--rd-fg:#3b3327;--rd-muted:#8d8069}
+body.reader-page[data-theme="sepia"] .reader-card{background:#fdf8ec;border-color:#e9dfc9}
+body.reader-page[data-theme="sepia"] .reader-title{color:#3b3327;border-color:#e9dfc9}
+body.reader-page[data-theme="night"]{--rd-bg:#1c1e24;--rd-fg:#c8ccd4;--rd-muted:#767d8c;background:#15171c}
+body.reader-page[data-theme="night"] .reader-card{background:#22252c;border-color:#2f333c}
+body.reader-page[data-theme="night"] .reader-title{color:#e3e6ec;border-color:#2f333c}
+body.reader-page[data-theme="night"] .reader-progress{background:#2b2f38}
+body.reader-page[data-theme="night"] header.topbar::before{background:rgba(24,26,32,.9)}
+body.reader-page[data-theme="night"] .brand{color:#e3e6ec}
+body.reader-page[data-theme="night"] .reader-indicator{background:#2a2e37;color:#cfd4dd}
+body.reader-page[data-theme="night"] .topbar button{background:#2a2e37;border-color:#3a3f4a;color:#cfd4dd}
+body.reader-page[data-theme="night"] .more-menu{background:#22252c;border-color:#2f333c}
+body.reader-page[data-theme="night"] .more-menu button{color:#cfd4dd}
+/* 高亮底色在深色正文上要压暗：原本的 #fff3c9 / #d9f2e5 是给白底算的，
+   直接放到夜间背景上会亮到刺眼，且浅底深字与周围的浅底浅字对不上。 */
+body.reader-page[data-theme="night"] .reader-body mark.mark-excerpt{
+  background:rgba(245,158,11,.22);color:#f0d9a8;
+}
+body.reader-page[data-theme="night"] .reader-body mark.mark-note{
+  background:rgba(16,185,129,.20);color:#a9e8cd;border-bottom-color:#2f8f6b;
+}
+
+/* 阅读设置抽屉（右侧） */
+.reader-settings{
+  position:fixed;right:0;top:0;bottom:0;width:340px;max-width:90vw;z-index:75;
+  background:var(--card);border-left:1px solid var(--border);padding:16px;overflow-y:auto;
+  box-shadow:-8px 0 32px rgba(26,32,51,.10);
+}
+.reader-settings[hidden]{display:none}
+.reader-settings .panel-head{display:flex;align-items:center;justify-content:space-between;margin-bottom:14px}
+.reader-settings h3{margin:0;font-size:15px}
+.setting-row{display:flex;align-items:center;gap:10px;margin-bottom:14px}
+.setting-label{flex:0 0 44px;font-size:13px;color:var(--muted)}
+.seg{flex:1;display:flex;gap:4px;padding:3px;background:var(--bg-2);border-radius:10px}
+.seg button{
+  flex:1;min-height:34px;padding:6px 4px;font-size:12.5px;
+  background:none;border:none;border-radius:8px;color:var(--text-2);cursor:pointer;
+}
+.seg button.on{background:var(--card);color:var(--accent);font-weight:600;box-shadow:var(--shadow-xs)}
+body.reader-page[data-theme="night"] .reader-settings{background:#22252c;border-color:#2f333c}
+body.reader-page[data-theme="night"] .reader-settings h3{color:#e3e6ec}
+body.reader-page[data-theme="night"] .seg{background:#1b1d23}
+body.reader-page[data-theme="night"] .seg button.on{background:#2f333c;color:#9aa7ff}
+/* 窄屏顶栏挤不下「Aa」，入口收进 ⋯ 菜单（不隐藏功能，只换入口） */
+@media (max-width:720px){
+  .reader-page #btn-settings{display:none}
+}
+
 /* 目录抽屉（左侧） */
 .toc-panel{
   position:fixed;left:0;top:0;bottom:0;width:340px;max-width:88vw;background:var(--card);

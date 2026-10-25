@@ -23,6 +23,7 @@ class BookRepository(BaseRepository[Book]):
         chapters: list,
         full_text: str,
         total_chars: int,
+        page_marks: list | None = None,
         book_id: str | None = None,
     ) -> Book:
         book = Book(
@@ -34,6 +35,7 @@ class BookRepository(BaseRepository[Book]):
             file_path=file_path,
             chapters=chapters,
             full_text=full_text,
+            page_marks=page_marks or [],
             total_chars=total_chars,
         )
         self._session.add(book)

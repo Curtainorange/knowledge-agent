@@ -45,6 +45,11 @@ class ParsedBook:
     chapters: list[dict]  # [{index, title, char_start, char_end}]
     full_text: str
     images: list[dict] = field(default_factory=list)  # [{name, data, mime}]
+    # PDF 专有：每一物理页在 full_text 里的起点
+    # [{page, char_start, label}]，page 从 1 起，label 是页面上原印的页码（可能为空）。
+    # 为什么单独存而不在正文插标记：插标记会把所有 char 偏移顶歪，
+    # 已有的高亮 / 摘录 / 通读分块全都按 char_start 存，改一次就得全量迁移。
+    page_marks: list[dict] = field(default_factory=list)
 
 
 def _read_with_encoding(path: Path) -> str:
@@ -278,6 +283,12 @@ _CJK_RE = re.compile(r"[\u3400-\u9fff]")
 _CJK_SPACE_RE = re.compile(r"(?<=[\u3400-\u9fff])[ \t]+(?=[\u3400-\u9fff])")
 # 纯页码行：页眉页脚剔除没生效时（页数太少等），至少别把它并进正文句子
 _PDF_PAGE_NUMBER_RE = re.compile(r"[\d０-９]{1,6}")
+# 前言 / 目录常用罗马数字编页（i, ii, xiii）
+_PDF_ROMAN_RE = re.compile(r"[ivxlcdm]{1,7}", re.I)
+# 印刷页码的最大长度：超过这个长度的「数字行」更可能是正文里的数据
+_PDF_LABEL_MAX_LEN = 8
+# 同一个标签出现在超过这个比例的页上，说明它不是页码（每页都印的年份之类）
+_PDF_LABEL_MAX_PAGE_RATIO = 0.3
 
 # PDF 元数据里的常见占位值：直接当书名会让整架书都显示成 untitled
 _PDF_JUNK_METADATA = {
@@ -375,6 +386,50 @@ def _furniture_positions(lines: list[str]) -> list[tuple[int, list[int]]]:
     top = list(range(min(_PDF_FURNITURE_BAND, len(lines))))
     bottom = list(range(max(0, len(lines) - _PDF_FURNITURE_BAND), len(lines)))
     return [(0, top), (1, bottom)]
+
+
+def _pdf_page_label(line: str) -> str:
+    """把一行「像页码的东西」抽成裸数字（印刷页码），不像就返回空。
+
+    容忍 `123` / `- 123 -` / `第 123 页` / `iv` / `xiii` 这几种常见印法：
+    先去掉页/破折号/空白等噪音字符，再看剩下的整串是不是纯数字或罗马数字。
+    """
+    core = re.sub(r"[第页\s—–\-·.]", "", line)
+    if not core or len(core) > _PDF_LABEL_MAX_LEN:
+        return ""
+    if _PDF_PAGE_NUMBER_RE.fullmatch(core) or _PDF_ROMAN_RE.fullmatch(core):
+        return core
+    return ""
+
+
+def _printed_page_labels(raw_pages: list[str]) -> dict[int, str]:
+    """从每页首 / 末行认出印刷页码 → {页下标: 标签}。
+
+    页码行本来会被 `_strip_page_furniture` 当页脚剔掉（短行、去掉数字后每页签名相同），
+    但「第 N 页」正是读者对照纸书时唯一认得的坐标。先捞出来再剔：正文干净，坐标留着。
+
+    先看页末（页码通常在页脚），页末不像页码再看页首。页数太少时一律不认——
+    短文档里首行的纯数字更可能是正文数据。
+    """
+    total = len(raw_pages)
+    if total < _PDF_FURNITURE_MIN_TOTAL:
+        return {}
+
+    picked: dict[int, str] = {}
+    for page_no, text in enumerate(raw_pages):
+        lines = [line.strip() for line in text.splitlines() if line.strip()]
+        if not lines:
+            continue
+        label = _pdf_page_label(lines[-1]) or _pdf_page_label(lines[0])
+        if label:
+            picked[page_no] = label
+
+    # 页码逐页不同：同一个「标签」出现在太多页上，说明它是每页都印的东西（年份、书名编号）
+    counts: dict[str, int] = {}
+    for label in picked.values():
+        counts[label] = counts.get(label, 0) + 1
+    limit = max(2, int(total * _PDF_LABEL_MAX_PAGE_RATIO))
+    return {page_no: label for page_no, label in picked.items() if counts[label] <= limit}
 
 
 def _strip_page_furniture(pages: list[list[str]]) -> list[list[str]]:
@@ -532,8 +587,18 @@ def _pdf_outline_marks(reader, page_count: int) -> list[tuple[str, int]]:
     return marks
 
 
-def _assemble_pdf(pages_text: list[str], marks: list[tuple[str, int]]) -> tuple[list[dict], str]:
-    """按 (标题, 起始页) 分组拼出章节与全文；偏移规则与 epub 保持一致。"""
+def _assemble_pdf(
+    pages_text: list[str],
+    marks: list[tuple[str, int]],
+    labels: dict[int, str] | None = None,
+) -> tuple[list[dict], str, list[dict]]:
+    """按 (标题, 起始页) 分组拼出章节与全文；偏移规则与 epub 保持一致。
+
+    顺便记下每页在全文里的起点（`page_marks`），阅读页据此显示「原书第 N 页」。
+    逐页拼接而不是先 `join` 再算偏移：页边界只有拼的时候才知道，
+    事后再用长度反推，页间分隔符规则一改就会全歪。
+    """
+    labels = labels or {}
     if marks:
         groups = list(marks)
         if groups[0][1] > 0:
@@ -541,23 +606,30 @@ def _assemble_pdf(pages_text: list[str], marks: list[tuple[str, int]]) -> tuple[
     else:
         groups = [(f"第 {i + 1} 页", i) for i in range(len(pages_text))]
 
-    full_text = ""
+    parts: list[str] = []
     chapters: list[dict] = []
+    page_marks: list[dict] = []
     offset = 0
     for i, (title, start) in enumerate(groups):
         end = groups[i + 1][1] if i + 1 < len(groups) else len(pages_text)
-        text = "\n\n".join(pages_text[start:end])
+        chapter_start = offset
+        for page_no in range(start, end):
+            if page_no > start:
+                parts.append("\n\n")
+                offset += 2
+            page_marks.append(
+                {"page": page_no + 1, "char_start": offset, "label": labels.get(page_no, "")}
+            )
+            parts.append(pages_text[page_no])
+            offset += len(pages_text[page_no])
         chapters.append(
-            {"index": i + 1, "title": title, "char_start": offset, "char_end": offset + len(text)}
+            {"index": i + 1, "title": title, "char_start": chapter_start, "char_end": offset}
         )
-        full_text += text
         if i < len(groups) - 1:
-            full_text += "\n\n"
-            offset += len(text) + 2
-        else:
-            offset += len(text)
+            parts.append("\n\n")
+            offset += 2
 
-    return chapters, full_text
+    return chapters, "".join(parts), page_marks
 
 
 def parse_pdf(path: Path, title: str | None = None) -> ParsedBook:
@@ -579,6 +651,8 @@ def parse_pdf(path: Path, title: str | None = None) -> ParsedBook:
     except Exception as exc:
         raise _PdfError(f"解析 PDF 失败：{exc}") from exc
 
+    # 印刷页码必须在剔除页眉页脚**之前**取：页码行本身就会被当成页脚删掉
+    labels = _printed_page_labels(raw_pages)
     pages = _strip_page_furniture(
         [[line.rstrip() for line in text.splitlines()] for text in raw_pages]
     )
@@ -587,10 +661,11 @@ def parse_pdf(path: Path, title: str | None = None) -> ParsedBook:
     if not any(pages_text):
         raise _PdfError("这个 PDF 里没有可提取的文字（多为扫描图片版），暂时无法阅读")
 
-    chapters, full_text = _assemble_pdf(pages_text, marks)
+    chapters, full_text, page_marks = _assemble_pdf(pages_text, marks, labels)
     return ParsedBook(
         title=meta_title or (title or "").strip() or path.stem,
         author=meta_author,
         chapters=chapters,
         full_text=full_text,
+        page_marks=page_marks,
     )

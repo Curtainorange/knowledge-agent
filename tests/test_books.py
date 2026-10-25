@@ -335,6 +335,56 @@ def test_parse_pdf_strips_repeated_header_and_page_number(tmp_path):
     assert len(parsed.chapters) == 8
 
 
+def test_parse_pdf_records_page_marks_with_printed_labels(tmp_path):
+    """页码映射：每页起点记进 page_marks，页面上印的页码原样留下。
+
+    页码行本身会被当页脚剔掉（正文要干净），但「第 N 页」是读者对照纸书时唯一
+    认得的坐标，所以剔之前先捞出来。
+    """
+    from app.books.parser import parse_pdf
+
+    pages = [["Running Header", f"body line {i}", str(i + 1)] for i in range(8)]
+    parsed = parse_pdf(_write_pdf(tmp_path, "marks.pdf", pages, title="Marks"))
+
+    assert [m["page"] for m in parsed.page_marks] == list(range(1, 9))
+    assert [m["label"] for m in parsed.page_marks] == [str(i) for i in range(1, 9)]
+    # 偏移必须真的落在该页正文起点上（不信长度推算，直接回读全文）
+    for i, mark in enumerate(parsed.page_marks):
+        assert parsed.full_text.startswith(f"body line {i}", mark["char_start"])
+    # 正文里不插页码标记，页脚照旧剔除
+    assert "Running Header" not in parsed.full_text
+
+
+def test_parse_pdf_page_marks_follow_outline_chapters(tmp_path):
+    """按书签分章时，页码偏移与章节边界必须自洽（跨章同页也算章首）。"""
+    from app.books.parser import parse_pdf
+
+    parsed = parse_pdf(_write_pdf(
+        tmp_path, "marks_outline.pdf",
+        [["cover page", "1"], ["alpha text", "2"], ["alpha more", "3"], ["beta text", "4"]],
+        title="Outlined Marks",
+        outline=[("Alpha", 1), ("Beta", 3)],
+    ))
+
+    assert [m["page"] for m in parsed.page_marks] == [1, 2, 3, 4]
+    # 每个页起点必须落在某一章的区间内，且该章正文能切到这一页的内容
+    for mark in parsed.page_marks:
+        holder = next(
+            c for c in parsed.chapters
+            if c["char_start"] <= mark["char_start"] < c["char_end"]
+        )
+        assert holder["char_start"] <= mark["char_start"] < holder["char_end"]
+
+
+def test_parse_epub_has_no_page_marks(tmp_path):
+    """epub / txt 没有物理页，page_marks 必须为空（前端据此不渲染页码）。"""
+    from app.books.parser import parse_txt
+
+    path = tmp_path / "no_marks.txt"
+    path.write_text(SAMPLE_TXT, encoding="utf-8")
+    assert parse_txt(path).page_marks == []
+
+
 def test_parse_pdf_keeps_repeated_line_inside_page(tmp_path):
     """页中重复出现的正文行不能当页眉删掉——判定范围只限页首 / 页末行。"""
     from app.books.parser import parse_pdf
@@ -503,6 +553,62 @@ def test_upload_pdf(client):
     chapter = client.get(f"/api/v1/books/{body['book_id']}/chapter/2", headers=headers).json()
     assert "second page text" in chapter["content"]
     assert chapter["next_index"] is None
+    # 2 页文档不认印刷页码（页数太少，首末行的数字更可能是正文数据），但物理页仍在
+    assert [m["page"] for m in chapter["page_marks"]] == [2]
+    assert chapter["page_marks"][0]["label"] == ""
+
+
+def test_chapter_page_marks_are_chapter_relative(client):
+    """页码偏移一律换算成**章内**相对位置：前端按它插标记，差一位就标到别的段落上。"""
+    headers = auth_headers(client, "book_pdf_marks")
+    pages = [
+        ["Running Header", f"{word} paragraph body", str(i + 1)]
+        for i, word in enumerate(
+            ["alpha", "beta", "gamma", "delta", "epsilon", "zeta", "eta", "theta"]
+        )
+    ]
+    resp = _upload(
+        client, headers, "页码书.pdf",
+        build_pdf(pages, title="Page Marks", outline=[("Alpha", 0), ("Beta", 4)]),
+    )
+    assert resp.status_code == 201, resp.text
+    book_id = resp.json()["book_id"]
+
+    first = client.get(f"/api/v1/books/{book_id}/chapter/1", headers=headers).json()
+    assert [m["label"] for m in first["page_marks"]] == ["1", "2", "3", "4"]
+    for mark in first["page_marks"]:
+        assert first["content"][mark["offset"]:].lstrip().startswith(("alpha", "beta", "gamma", "delta"))
+
+    second = client.get(f"/api/v1/books/{book_id}/chapter/2", headers=headers).json()
+    assert second["page_marks"][0]["offset"] == 0  # 章首正好是页首
+    assert second["page_marks"][0]["label"] == "5"
+
+
+def test_epub_chapter_has_no_page_marks(client):
+    """epub 没有物理页：接口必须返回空表，前端据此不渲染任何页码。"""
+    headers = auth_headers(client, "book_epub_marks")
+    container = (
+        '<?xml version="1.0"?><container version="1.0" '
+        'xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    opf = (
+        '<?xml version="1.0"?><package xmlns="http://www.idpf.org/2007/opf" version="2.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">无页码</dc:title></metadata>'
+        '<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/></manifest>'
+        '<spine><itemref idref="c1"/></spine></package>'
+    )
+    buf = BytesIO()
+    with zipfile.ZipFile(buf, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("content.opf", opf)
+        zf.writestr("c1.xhtml", "<html><body><h1>第一章</h1><p>正文一段。</p></body></html>")
+    resp = _upload(client, headers, "无页码.epub", buf.getvalue())
+    assert resp.status_code == 201, resp.text
+
+    chapter = client.get(f"/api/v1/books/{resp.json()['book_id']}/chapter/1", headers=headers).json()
+    assert chapter["page_marks"] == []
 
 
 def test_upload_pdf_without_text_rejected(client):

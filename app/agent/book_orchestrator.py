@@ -299,10 +299,52 @@ def _outcome_from_reading(book: Book, reading: BookAgentReading, *, state: str) 
 # ---- 讨论 ------------------------------------------------------------------
 
 
+def _excerpts_for(session: Session, *, book: Book, question: str) -> list[dict]:
+    """检索与问题相关的原文片段。
+
+    索引不存在时先懒建（老书第一次讨论走到这里）。整段用 savepoint 包住：
+    索引是增强项，建不起来也**不能**把外层事务一起搞坏——那会让讨论直接报错。
+    """
+    from app.books import chunking
+
+    try:
+        with session.begin_nested():
+            chunking.ensure_chunks(session, book)
+    except Exception as exc:  # pragma: no cover - 索引失败不阻断讨论
+        logger.warning("book chunk ensure failed book=%s err=%s", book.id, exc)
+
+    try:
+        return chunking.search(session, book=book, query=question)
+    except Exception as exc:  # pragma: no cover - 同上
+        logger.warning("book chunk search failed book=%s err=%s", book.id, exc)
+        return []
+
+
+def _format_excerpts(hits: list[dict]) -> str:
+    """把检索结果排成「〔片段 1｜第 3 章 · P.87〕原文…」的样子，方便模型照抄位置。"""
+    blocks: list[str] = []
+    for i, hit in enumerate(hits, 1):
+        parts: list[str] = []
+        if hit.get("chapter_index"):
+            parts.append(f"第 {hit['chapter_index']} 章")
+        title = (hit.get("chapter_title") or "").strip()[:40]
+        if title:
+            parts.append(title)
+        if hit.get("page"):
+            parts.append(hit["page"])
+        where = " · ".join(parts) or "正文"
+        blocks.append(f"〔片段 {i}｜{where}〕\n{(hit.get('text') or '').strip()}")
+    return "\n\n".join(blocks)
+
+
 def discuss(
     session: Session, gateway: ModelGateway, *, user_id: str, book: Book, question: str
 ) -> str | None:
     """就通读过的书回答一个问题。没有通读笔记返回 None（调用方提示先通读）。
+
+    **两路并用**：通读笔记给全局脉络，原文检索给具体位置的原句。
+    只喂笔记时，用户问「第 3 章那个实验的数据」模型只能顺着要点编；
+    只喂片段时，又会答得没有全局。缺一半都不算读过这本书。
 
     讨论是自然语言回复（不产 JSON），复用 multi_turn_dialogue 的策略，
     只把系统提示词换成 BOOK_CHAT 并显式传版本。
@@ -320,15 +362,18 @@ def discuss(
     notes_text = (f"总评：{reading.summary}\n\n" if reading.summary else "") + "\n\n".join(chapters)
     notes_text = notes_text[:16_000]  # 笔记超长时截断：讨论够用，且不影响落库的完整版
 
+    excerpt_text = _format_excerpts(_excerpts_for(session, book=book, question=question))
+
+    user_content = f"书名：《{book.title}》\n\n"
+    if excerpt_text:
+        user_content += f"【原文片段】\n{excerpt_text}\n\n"
+    user_content += f"【通读笔记】\n{notes_text}\n\n【用户的问题】\n{question}"
+
     completion: Completion = gateway.chat(
         task_type="multi_turn_dialogue",
         messages=[
             {"role": "system", "content": BOOK_CHAT.text},
-            {
-                "role": "user",
-                "content": f"书名：《{book.title}》\n\n【通读笔记】\n{notes_text}\n\n"
-                           f"【用户的问题】\n{question}",
-            },
+            {"role": "user", "content": user_content},
         ],
         user_id=user_id,
         prompt_version=BOOK_CHAT.version,

@@ -66,6 +66,14 @@ class BookDetailResponse(BaseModel):
     request_id: str
 
 
+class PageMarkOut(BaseModel):
+    """一章内的页码标记。offset 是**章内**相对字符偏移，前端据此把标记插到正文里。"""
+
+    page: int
+    label: str = ""
+    offset: int
+
+
 class ChapterContentResponse(BaseModel):
     book_id: str
     index: int
@@ -74,6 +82,8 @@ class ChapterContentResponse(BaseModel):
     # 该章在全文中的字符区间：前端据此把「选中位置」换算成全文偏移，用于高亮与回溯
     char_start: int = 0
     char_end: int = 0
+    # PDF 原书页边界（epub / txt 恒为空）：阅读页显示「第 N 页」
+    page_marks: list[PageMarkOut] = []
     next_index: int | None
     request_id: str
 
@@ -161,6 +171,31 @@ def _repo(user_id: str, session: Session) -> BookRepository:
     return BookRepository(session, user_id=user_id)
 
 
+def _chapter_page_marks(book: Book, chapter: dict) -> list[PageMarkOut]:
+    """把全书页码映射裁到本章，并换算成章内相对偏移。
+
+    页起点落在章首那一页上也算本章（同一页跨章很常见）——读者翻到这一页，
+    看到的正是「本章从这里开始」，页码标在章首才对得上。
+    """
+    start = int(chapter.get("char_start") or 0)
+    end = int(chapter.get("char_end") or 0)
+    marks: list[PageMarkOut] = []
+    for mark in book.page_marks or []:
+        try:
+            at = int(mark.get("char_start") or 0)
+        except (TypeError, ValueError):
+            continue
+        if start <= at < end:
+            marks.append(
+                PageMarkOut(
+                    page=int(mark.get("page") or 0),
+                    label=str(mark.get("label") or ""),
+                    offset=at - start,
+                )
+            )
+    return marks
+
+
 @router.post("", response_model=BookOut, status_code=status.HTTP_201_CREATED)
 async def upload_book(
     request: Request,
@@ -170,7 +205,9 @@ async def upload_book(
     filename = unquote(request.headers.get("X-Filename", "book.txt"))
     suffix = Path(filename).suffix.lower()
     if suffix not in _ALLOWED_SUFFIXES:
-        raise HTTPException(status_code=400, detail="仅支持 .txt 或 .epub 格式")
+        # 从白名单生成而不是手写：之前这里硬编码「.txt 或 .epub」，
+        # 支持 pdf 之后文案没跟上，用户被拒了还以为系统不支持 PDF
+        raise HTTPException(status_code=400, detail=f"仅支持 {' / '.join(_ALLOWED_SUFFIXES)} 格式")
 
     content = await request.body()
     if not content:
@@ -345,6 +382,7 @@ def get_chapter(
         content=content,
         char_start=chapter["char_start"],
         char_end=chapter["char_end"],
+        page_marks=_chapter_page_marks(book, chapter),
         next_index=next_index,
         request_id=trace.get_request_id() or "",
     )

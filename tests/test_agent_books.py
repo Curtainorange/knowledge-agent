@@ -39,16 +39,28 @@ class ScriptedProvider(LLMProvider):
     def __init__(self) -> None:
         self.rows: list[str] = []
         self.task_types: list[str] = []
+        # 记下每次调用的 messages：讨论是否真的把原文片段送进 prompt，只能从这里看
+        self.calls: list[list[dict]] = []
 
     def chat(
         self, *, model, reasoning, messages, tools=None, response_format=None, task_type="default"
     ) -> Completion:
         self.task_types.append(task_type)
+        self.calls.append(messages)
         text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1, finish_reason="stop",
             model=model, reasoning=reasoning,
         )
+
+    def last_user_message(self) -> str:
+        """最近一次调用里的 user 内容——断言 prompt 拼装用。"""
+        if not self.calls:
+            return ""
+        for message in reversed(self.calls[-1]):
+            if message.get("role") == "user":
+                return message.get("content") or ""
+        return ""
 
 
 @pytest.fixture()
@@ -226,6 +238,75 @@ def test_discuss_without_digest_prompts_to_read_first(client, provider):
     assert card["kind"] == "notice"
     assert card["sends"] and card["sends"][0]["message"] == "通读《测试书》"
     assert provider.task_types == []
+
+
+# ---- 原文检索（A1）：讨论要能查到原句，而不是只有摘要 --------------------------
+
+DISCUSS_TXT = (
+    "第一章 起点\n"
+    "刻意练习的核心是有目标的练习，并在练习中拿到即时反馈。\n\n"
+    "第二章 心理表征\n"
+    "心理表征是大脑对事物的内部编码方式，高手靠它预判局面。\n\n"
+    "第三章 一万小时\n"
+    "一万小时定律只是粗略的概括，练习的质量比时长更关键。"
+)
+
+
+def test_discuss_sends_retrieved_excerpts(client, session, provider):
+    """讨论必须把检索到的原文片段一起送进 prompt——否则细节问题只能靠摘要编。"""
+    user = sign_in(client, "book_discuss_excerpt")
+    book_id = _upload(client, user.headers, "片段书.txt", DISCUSS_TXT.encode("utf-8"))
+    _seed_reading(session, user.user_id, book_id, total_chars=len(DISCUSS_TXT))
+
+    provider.rows = ["书里说得很明确：质量比时长更关键。"]
+    body = _send(client, user.headers, "聊聊《片段书》里讲的一万小时定律")
+
+    assert body["capability"] == "book_discuss"
+    prompt = provider.last_user_message()
+    assert "【原文片段】" in prompt, "检索结果必须进 prompt"
+    assert "一万小时定律只是粗略的概括" in prompt, "命中的原句要原样带过去"
+    assert "【通读笔记】" in prompt, "摘要与原文两路并用，不是二选一"
+
+
+def test_discuss_rebuilds_missing_chunk_index(client, session, provider):
+    """块索引缺失（老书）时讨论不能挂：懒回填后照常检索。"""
+    from sqlalchemy import delete
+
+    from app.domain.models.book_chunk import BookChunk
+
+    user = sign_in(client, "book_discuss_rebuild")
+    book_id = _upload(client, user.headers, "老书.txt", DISCUSS_TXT.encode("utf-8"))
+    _seed_reading(session, user.user_id, book_id, total_chars=len(DISCUSS_TXT))
+
+    # 模拟 0023 迁移之前入库的书：表里没有任何块
+    session.execute(delete(BookChunk).where(BookChunk.book_id == book_id))
+    session.commit()
+
+    provider.rows = ["按书里的意思，心理表征是内部编码。"]
+    body = _send(client, user.headers, "聊聊《老书》里说的心理表征是什么")
+
+    assert body["capability"] == "book_discuss"
+    assert "【原文片段】" in provider.last_user_message()
+    # 懒回填真的落库了，不是每次现切
+    assert session.scalar(
+        select(BookChunk.id).where(BookChunk.book_id == book_id).limit(1)
+    ) is not None
+
+
+def test_upload_builds_chunk_index(client, session):
+    """上传时就把分块索引建好：讨论时才不用现切，块编号也稳定。"""
+    from app.domain.models.book_chunk import BookChunk
+
+    user = sign_in(client, "book_chunks_upload")
+    book_id = _upload(client, user.headers, "索引书.txt", DISCUSS_TXT.encode("utf-8"))
+
+    chunks = list(session.scalars(select(BookChunk).where(BookChunk.book_id == book_id)))
+    assert chunks, "上传后应有分块"
+    assert [c.seq for c in chunks] == sorted(c.seq for c in chunks)
+    # 块的字符区间必须能在原文上切出内容（引用、页码换算都依赖它）
+    book = session.get(Book, book_id)
+    for chunk in chunks:
+        assert book.full_text[chunk.char_start:chunk.char_end] == chunk.text
 
 
 # ---- 推荐 --------------------------------------------------------------------

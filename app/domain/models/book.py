@@ -21,11 +21,14 @@ class Book(Base, TimestampMixin):
     user_id: Mapped[str] = mapped_column(String(36), index=True)
     title: Mapped[str] = mapped_column(String(256))
     author: Mapped[str] = mapped_column(String(128), default="")
-    format: Mapped[str] = mapped_column(String(8))  # txt | epub
+    format: Mapped[str] = mapped_column(String(8))  # txt | epub | pdf
     file_path: Mapped[str] = mapped_column(String(512))  # 本地存储路径（原始文件）
     # 章节结构：[{index, title, char_start, char_end}]，char 为 full_text 内的字符偏移
     chapters: Mapped[list | None] = mapped_column(JSON, default=list)
     full_text: Mapped[str] = mapped_column(Text, default="")  # 去标签后的全文
+    # PDF 专有：每页在 full_text 里的起点，[{page, char_start, label}]
+    # label 是页面上原印的页码（对照纸书用），识别不出来时为空串；epub / txt 为空表
+    page_marks: Mapped[list | None] = mapped_column(JSON, default=list)
     total_chars: Mapped[int] = mapped_column(Integer, default=0)
     current_char: Mapped[int] = mapped_column(Integer, default=0)  # 阅读位置（字符偏移）
     read_progress: Mapped[float] = mapped_column(Float, default=0.0)  # 0..1

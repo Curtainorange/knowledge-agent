@@ -1,6 +1,7 @@
 """书籍业务服务：上传（存文件 + 解析入库）、进度、划词存知识。"""
 from __future__ import annotations
 
+import logging
 import re
 from uuid import uuid4
 
@@ -16,6 +17,8 @@ from app.ingestion.service import IngestionService
 from app.retrieval.embedding import build_embedding
 
 from pathlib import Path
+
+logger = logging.getLogger(__name__)
 
 # 支持的上传格式：后缀 → 存储用的格式标识（与 api 层白名单保持一致）
 _FORMAT_BY_SUFFIX = {".txt": "txt", ".epub": "epub", ".pdf": "pdf"}
@@ -94,6 +97,7 @@ class BookService:
             file_path=str(dest),
             chapters=parsed.chapters,
             full_text=parsed.full_text,
+            page_marks=parsed.page_marks,
             total_chars=len(parsed.full_text),
         )
         self._session.commit()
@@ -107,6 +111,17 @@ class BookService:
                 "total_chars": book.total_chars, "chapter_count": len(parsed.chapters),
             },
         )
+
+        # 原文分块索引（讨论时检索原句用）。失败不影响上传——
+        # 书已经能读能通读，最坏是这次讨论退化成只凭摘要，不该让整个上传失败。
+        try:
+            from app.books import chunking
+
+            chunking.rebuild(self._session, book)
+            self._session.commit()
+        except Exception as exc:  # pragma: no cover - 索引是增强项，不阻断主流程
+            logger.warning("book chunk index failed book=%s err=%s", book.id, exc)
+            self._session.rollback()
         return book
 
     def update_progress(

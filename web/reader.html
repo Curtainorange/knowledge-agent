@@ -21,6 +21,7 @@
   </div>
   <div class="who">
     <button id="btn-notes" class="sm"><span class="lbl-full">本书知识</span><span class="lbl-short">知识</span> <span id="notes-count">0</span></button>
+    <button id="btn-settings" class="sm" title="阅读设置">Aa</button>
     <button id="font-down" class="sm" title="缩小字号">A-</button>
     <button id="font-up" class="sm" title="放大字号">A+</button>
     <button id="btn-more" class="sm" title="更多" aria-haspopup="true">⋯</button>
@@ -29,9 +30,55 @@
 </header>
 
 <div class="more-menu" id="more-menu" hidden>
+  <button id="more-settings">阅读设置</button>
   <button id="more-back">← 书架</button>
   <button id="more-logout">退出登录</button>
 </div>
+
+<aside class="reader-settings" id="reader-settings" hidden>
+  <div class="panel-head">
+    <h3>阅读设置</h3>
+    <button id="settings-close" class="sm">关闭</button>
+  </div>
+  <div class="setting-row">
+    <span class="setting-label">背景</span>
+    <div class="seg" data-setting="theme">
+      <button data-value="paper">纸白</button>
+      <button data-value="sepia">米黄</button>
+      <button data-value="night">夜间</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <span class="setting-label">字号</span>
+    <div class="seg" data-setting="font">
+      <button data-value="15">小</button>
+      <button data-value="18">中</button>
+      <button data-value="22">大</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <span class="setting-label">行距</span>
+    <div class="seg" data-setting="leading">
+      <button data-value="compact">紧凑</button>
+      <button data-value="normal">标准</button>
+      <button data-value="loose">宽松</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <span class="setting-label">字体</span>
+    <div class="seg" data-setting="family">
+      <button data-value="sans">黑体</button>
+      <button data-value="serif">宋体</button>
+    </div>
+  </div>
+  <div class="setting-row">
+    <span class="setting-label">页宽</span>
+    <div class="seg" data-setting="width">
+      <button data-value="standard">标准</button>
+      <button data-value="wide">宽</button>
+    </div>
+  </div>
+</aside>
 
 <main class="single">
   <div class="card reader-card">
@@ -97,6 +144,22 @@
   /* 字号三档（小/中/大）：移动端顶栏放不下连续调节，A-/A+ 在三档间步进 */
   var FONT_TIERS = [15, 18, 22];
 
+  /* 排版偏好：只影响阅读页。全部存 localStorage，换设备不跟随（没有账号级配置）。 */
+  var PREFS_KEY = 'reader_prefs';
+  var PREFS_ALLOWED = {
+    theme: ['paper', 'sepia', 'night'],
+    leading: ['compact', 'normal', 'loose'],
+    family: ['sans', 'serif'],
+    width: ['standard', 'wide']
+  };
+  var PREFS_DEFAULT = { theme: 'paper', leading: 'normal', family: 'sans', width: 'standard' };
+  var PREFS_LEADING = { compact: '1.65', normal: '1.95', loose: '2.3' };
+  var PREFS_FAMILY = {
+    sans: '-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif',
+    serif: 'Georgia,"Songti SC","Songti TC","Noto Serif SC",serif'
+  };
+  var PREFS_WIDTH = { standard: '840px', wide: '1080px' };
+
   function tierIndex(px) {
     var best = 0;
     for (var i = 1; i < FONT_TIERS.length; i++) {
@@ -107,11 +170,27 @@
     return best;
   }
 
+  /* 读偏好：任何一项不合法就回落到默认值，坏掉的存档不该让阅读页起不来 */
+  function loadPrefs() {
+    var raw = {};
+    try {
+      raw = JSON.parse(localStorage.getItem(PREFS_KEY) || '{}') || {};
+    } catch (err) {
+      raw = {};
+    }
+    var prefs = {};
+    Object.keys(PREFS_ALLOWED).forEach(function (key) {
+      prefs[key] = PREFS_ALLOWED[key].indexOf(raw[key]) >= 0 ? raw[key] : PREFS_DEFAULT[key];
+    });
+    return prefs;
+  }
+
   var state = {
     book: null,
     chapter: null,
     notes: [],
     font: FONT_TIERS[tierIndex(Number(localStorage.getItem('reader_font') || 18))],
+    prefs: loadPrefs(),
     saveTimer: null,
     pendingSelection: null
   };
@@ -134,9 +213,18 @@
     return ch ? ch.index : state.book.chapters[0].index;
   }
 
-  function applyFont() {
-    $('#reader-body').style.fontSize = state.font + 'px';
+  /* 应用字号。keepPosition：用户手动调字号时保住当前阅读位置——
+     字号一变正文高度就变，不同步按比例回滚就会「跳页」（读到一半突然跑到章首）。 */
+  function applyFont(keepPosition) {
+    var body = $('#reader-body');
+    var max = body.scrollHeight - body.clientHeight;
+    var ratio = max > 0 ? body.scrollTop / max : 0;
+    body.style.fontSize = state.font + 'px';
     localStorage.setItem('reader_font', String(state.font));
+    syncSettingButtons();
+    if (keepPosition && max > 0) {
+      requestAnimationFrame(function () { restoreScroll(body, ratio); });
+    }
   }
 
   /* 计算已录入区间的高亮标记：绿色=带想法，黄色=纯摘录（偏移基于 full_text 字符） */
@@ -191,28 +279,67 @@
     return html;
   }
 
-  /* 渲染正文：文本 + 插图占位符 [[IMG:name]] → <img>。
-     插图后紧跟一个隐藏的占位 span，保留原始字符，保证划词/高亮的字符偏移不错位。 */
-  function renderContent(text, chapter) {
+  /* 页码标记：**空 span**，页码由 CSS 伪元素显示。
+     必须是空的——划词偏移按 DOM 文本长度算（getSelectionInfo），
+     插进真字符会让所有高亮与摘录的 char_start 整体错位。
+     显示值优先用页面原印的页码（能对照纸书），没识别到才退回物理页。 */
+  function pageMarkHtml(mark) {
+    var physical = Number(mark.page) || 0;
+    var label = (mark.label || '').trim();
+    var show = label ? 'P.' + label : '第 ' + physical + ' 页';
+    var title = label ? '原书第 ' + label + ' 页' : 'PDF 第 ' + physical + ' 页';
+    return '<span class="page-mark" data-show="' + esc(show) + '" title="' + esc(title) + '"></span>';
+  }
+
+  /* 渲染正文：文本 + 插图占位符 [[IMG:name]] → <img> + 页码标记。
+     插图后紧跟一个隐藏的占位 span，保留原始字符，保证划词/高亮的字符偏移不错位。
+     页码与插图一起按位置排序后统一插入，避免两条渲染路径各写一份。 */
+  function renderContent(text, chapter, pageMarks) {
     var marks = computeMarks(text, chapter);
+    var events = [];
     var regex = /\[\[IMG:([^\]]+)\]\]/g;
-    var html = '';
-    var cursor = 0;
     var match;
     while ((match = regex.exec(text)) !== null) {
-      var imgStart = match.index;
-      html += renderTextRange(text, cursor, imgStart, marks);
       var name = match[1];
       // 图片由浏览器直接加载，带不了 Authorization 头，故用 ?token= 兜底。
       // 不用 loading="lazy"：位置恢复要在图片加载完成后校准（lazy 会让 complete 长期为假）。
       var imgUrl = '/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) +
         '?token=' + encodeURIComponent(CC.token() || '');
-      html += '<figure class="reader-figure">' +
-        '<img src="' + imgUrl + '" alt="插图（点击放大）" title="点击放大">' +
-        '<span class="img-pos">[[IMG:' + esc(name) + ']]</span>' +
-      '</figure>';
-      cursor = imgStart + match[0].length;
+      events.push({
+        at: match.index,
+        end: match.index + match[0].length,
+        html: '<figure class="reader-figure">' +
+          '<img src="' + imgUrl + '" alt="插图（点击放大）" title="点击放大">' +
+          '<span class="img-pos">[[IMG:' + esc(name) + ']]</span>' +
+        '</figure>'
+      });
     }
+    (pageMarks || []).forEach(function (mark) {
+      var at = Number(mark.offset);
+      if (!isFinite(at)) {
+        return;
+      }
+      at = Math.max(0, Math.min(text.length, at));
+      events.push({ at: at, end: at, html: pageMarkHtml(mark) });
+    });
+    // 同一位置的零宽标记（页码）排在带长度的元素（插图）之前
+    events.sort(function (a, b) {
+      if (a.at !== b.at) {
+        return a.at - b.at;
+      }
+      return (a.end - a.at) - (b.end - b.at);
+    });
+
+    var html = '';
+    var cursor = 0;
+    events.forEach(function (event) {
+      if (event.at < cursor) {
+        return; // 区间重叠时跳过后者，避免标签错位
+      }
+      html += renderTextRange(text, cursor, event.at, marks);
+      html += event.html;
+      cursor = Math.max(cursor, event.end);
+    });
     html += renderTextRange(text, cursor, text.length, marks);
     return html;
   }
@@ -229,7 +356,9 @@
     state.chapter = data.index;
     var body = $('#reader-body');
     $('#chapter-title').textContent = data.title;
-    body.innerHTML = renderContent(data.content, chapterByIndex(index) || { char_start: 0 });
+    body.innerHTML = renderContent(
+      data.content, chapterByIndex(index) || { char_start: 0 }, data.page_marks
+    );
     applyFont();
     body.scrollTop = 0;
 
@@ -597,6 +726,7 @@
       $('#notes-panel').hidden = true;
       $('#toc-panel').hidden = true;
       $('#more-menu').hidden = true;
+      $('#reader-settings').hidden = true;
       closeLightbox();
       return;
     }
@@ -729,6 +859,71 @@
   });
   $('#img-lightbox').addEventListener('click', closeLightbox);
 
+  /* ---------- 阅读设置（背景 / 行距 / 字体 / 页宽） ---------- */
+  function syncSettingButtons() {
+    Array.prototype.forEach.call(
+      document.querySelectorAll('.seg[data-setting]'),
+      function (seg) {
+        var key = seg.getAttribute('data-setting');
+        var current = key === 'font' ? String(state.font) : state.prefs[key];
+        Array.prototype.forEach.call(seg.querySelectorAll('button'), function (btn) {
+          btn.classList.toggle('on', btn.getAttribute('data-value') === current);
+        });
+      }
+    );
+  }
+
+  /* 偏好落到 CSS 变量上，样式规则只有一份（web/assets/style.css） */
+  function applyPrefs() {
+    var root = document.body;
+    root.dataset.theme = state.prefs.theme;
+    root.style.setProperty('--rd-lh', PREFS_LEADING[state.prefs.leading]);
+    root.style.setProperty('--rd-font', PREFS_FAMILY[state.prefs.family]);
+    root.style.setProperty('--rd-width', PREFS_WIDTH[state.prefs.width]);
+    syncSettingButtons();
+  }
+
+  function setPref(key, value) {
+    if (key === 'font') {
+      var px = Number(value);
+      if (!isFinite(px)) {
+        return;
+      }
+      state.font = px;
+      applyFont(true);
+      return;
+    }
+    if (!PREFS_ALLOWED[key] || PREFS_ALLOWED[key].indexOf(value) < 0) {
+      return;
+    }
+    state.prefs[key] = value;
+    localStorage.setItem(PREFS_KEY, JSON.stringify(state.prefs));
+    applyPrefs();
+  }
+
+  $('#reader-settings').addEventListener('click', function (event) {
+    var btn = event.target.closest('[data-value]');
+    if (!btn) {
+      return;
+    }
+    var seg = btn.closest('.seg[data-setting]');
+    if (seg) {
+      setPref(seg.getAttribute('data-setting'), btn.getAttribute('data-value'));
+    }
+  });
+  $('#settings-close').addEventListener('click', function () {
+    $('#reader-settings').hidden = true;
+  });
+  $('#btn-settings').addEventListener('click', function () {
+    $('#reader-settings').hidden = !$('#reader-settings').hidden;
+    syncSettingButtons();
+  });
+  $('#more-settings').addEventListener('click', function () {
+    $('#more-menu').hidden = true;
+    $('#reader-settings').hidden = false;
+    syncSettingButtons();
+  });
+
   function stepFont(dir) {
     var i = tierIndex(state.font) + dir;
     if (i < 0) {
@@ -740,7 +935,7 @@
       return;
     }
     state.font = FONT_TIERS[i];
-    applyFont();
+    applyFont(true);
     CC.toast('字号：' + ['小', '中', '大'][i]);
   }
   $('#font-down').addEventListener('click', function () { stepFont(-1); });
@@ -756,7 +951,13 @@
   });
   window.addEventListener('beforeunload', saveProgress);
 
+  /* 测试钩子：Node 侧（tests/js/reader_render.js）用它验证「页码标记不产生字符」
+     这个不变量——它直接决定划词偏移会不会整体错位，而 pytest 看不到最终 HTML。
+     只暴露两个纯函数，不改变任何运行时行为。 */
+  window.__readerInternals = { renderContent: renderContent, pageMarkHtml: pageMarkHtml };
+
   (async function boot() {
+    applyPrefs();
     if (!(await CC.requireAuth())) {
       return;
     }
