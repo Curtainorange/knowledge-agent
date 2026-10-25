@@ -477,7 +477,7 @@ class L2Orchestrator:
             verdict = self._review_pair(
                 user_id=user_id, log_row=new_row, log_repo=log_repo, xrepo=xrepo,
                 result=result, suppressed_types=suppressed,
-                initial_suggestion=judgment.suggestion,
+                initial_suggestion=judgment.suggestion, notify=False,
             )
             if verdict is not None:
                 return RejudgeResult(
@@ -497,7 +497,7 @@ class L2Orchestrator:
             claim_a_text=row.claim_a_text, claim_b_text=row.claim_b_text,
             relation=judgment.relation, conflict_type=judgment.conflict_type,
             detail=judgment.detail, suggestion=judgment.suggestion,
-            confidence=calibrated,
+            confidence=calibrated, notify=False,
         )
         return RejudgeResult(
             verdict=FinalVerdict(
@@ -899,12 +899,16 @@ class L2Orchestrator:
         detail: str,
         suggestion: str,
         confidence: float,
+        notify: bool = True,
     ) -> None:
         """终判的唯一入库收口（初判直过阈值 / 复核合议后共用）。
 
         非矛盾：印证展示；若该对曾有冲突（重判翻案场景）则撤回——终判说没有，
         库里就不该有。矛盾：阈值 + 抑制后 upsert（一 pair_key 一条冲突，
         被撤回的旧冲突复活而不是再插一行）。
+
+        `notify=False` 用于用户显式翻案（`rejudge_pair`）：他本人就在看这条冲突，
+        再给他推一条「发现冲突」的通知是自说自话。
         """
         if relation != "矛盾":
             existing = xrepo.find_by_pair(user_id, pair_key)
@@ -938,6 +942,7 @@ class L2Orchestrator:
             return
 
         existing = xrepo.find_by_pair(user_id, pair_key, include_retracted=True)
+        is_new = existing is None
         conflict = xrepo.upsert_from_rejudge(
             existing,
             user_id=user_id,
@@ -957,6 +962,66 @@ class L2Orchestrator:
             "l2 conflict created type=%s conf=%.2f pair=%s",
             conflict_type, confidence, pair_key,
         )
+        if notify and is_new:
+            self._notify_conflict(
+                user_id=user_id, conflict=conflict,
+                title_a=title_a, title_b=title_b,
+                conflict_type=conflict_type, detail=detail,
+                suggestion=suggestion, confidence=confidence,
+            )
+
+    def _notify_conflict(
+        self,
+        *,
+        user_id: str,
+        conflict,
+        title_a: str,
+        title_b: str,
+        conflict_type: str,
+        detail: str,
+        suggestion: str,
+        confidence: float,
+    ) -> None:
+        """高置信冲突 → 主动推送（L2「被动」的最后一块）。
+
+        只推**新产生**的冲突，且置信度 ≥ `l2_conflict_push_min_confidence`：
+        低于该值的判定本来还要走复核，拿它去打扰用户等于「自己没把握却先报警」。
+        去重 / 免打扰 / 同类收敛三道闸门由 `PushService` 统一把守，这里不重复实现。
+
+        推送是**旁路**：任何异常只记日志，绝不让通知失败反噬扫描主链路
+        （与 ADR-14「推送是旁路」一致）。
+        """
+        if not settings.l2_conflict_push_enabled:
+            return
+        if confidence < settings.l2_conflict_push_min_confidence:
+            logger.info(
+                "l2 conflict push skipped (conf=%.2f < %.2f) id=%s",
+                confidence, settings.l2_conflict_push_min_confidence, conflict.id,
+            )
+            return
+        try:
+            from app.agent.push_service import PushService
+
+            body = (detail or "").strip()
+            advice = (suggestion or "").strip()
+            if advice:
+                body = f"{body}\n建议：{advice}" if body else f"建议：{advice}"
+            PushService(self._session).enqueue(
+                user_id=user_id,
+                push_type="conflict",
+                title=f"观点冲突：{title_a or '一处笔记'} ⇄ {title_b or '另一处笔记'}",
+                body=body[:1000],
+                payload={
+                    "conflict_id": conflict.id,
+                    "conflict_type": conflict_type or "矛盾",
+                    "confidence": round(float(confidence), 3),
+                    "href": "/conflicts.html",
+                },
+                subject=conflict.id,
+                conflict_type=conflict_type or "",
+            )
+        except Exception as exc:  # 推送是旁路，不能反噬扫描
+            logger.warning("l2 conflict push failed id=%s err=%s", conflict.id, exc)
 
     def _review_pair(
         self,
@@ -968,6 +1033,7 @@ class L2Orchestrator:
         result: L2ScanResult,
         suppressed_types: set[str],
         initial_suggestion: str = "",
+        notify: bool = True,
     ) -> FinalVerdict | None:
         """换角度重判一次并合议（第二道闸，只花 1 次复核调用，不重判）。
 
@@ -1058,7 +1124,7 @@ class L2Orchestrator:
             claim_a_text=log_row.claim_a_text, claim_b_text=log_row.claim_b_text,
             relation=verdict.relation, conflict_type=verdict.conflict_type,
             detail=verdict.detail, suggestion=verdict.suggestion,
-            confidence=verdict.confidence,
+            confidence=verdict.confidence, notify=notify,
         )
         events.record(
             self._session, user_id=user_id, event_type=events.L2_JUDGMENT_REVIEWED,

@@ -156,3 +156,30 @@ def test_build_weekly_digest_counts_locally(session):
     assert digest.conflict_unseen == 2
     assert digest.new_items == 1
     assert digest.title  # 周标签标题非空
+
+
+# ---------- 接口契约：payload 必须透出 ----------
+
+
+def test_push_jobs_api_exposes_payload(client, session):
+    """通知页的「去查看」按钮读 `payload.href`；端点漏掉 payload 时它永远不会出现。
+
+    这类薄层最容易在改动中静默丢失：后端有、前端不显示，两边都不报错。
+    """
+    from tests.helpers import auth_headers
+
+    headers = auth_headers(client, "push_payload_api")
+    user_id = client.get("/api/v1/auth/me", headers=headers).json()["user_id"]
+
+    _service(session).enqueue(
+        user_id=user_id, push_type="conflict",
+        title="观点冲突：A ⇄ B", body="细节",
+        payload={"conflict_id": "c-1", "href": "/conflicts.html"}, subject="c-1",
+    )
+
+    data = client.get("/api/v1/push/jobs", headers=headers).json()
+    assert data["total"] == 1
+    item = data["items"][0]
+    assert item["push_type"] == "conflict"
+    assert item["payload"]["conflict_id"] == "c-1"
+    assert item["payload"]["href"] == "/conflicts.html"

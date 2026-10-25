@@ -142,6 +142,11 @@ class Settings(BaseSettings):
     l2_review_max_per_scan: int = 5   # 单轮扫描复核调用预算（硬闸门，超出转 pending 下轮补）
     l2_review_lo: float = 0.35
     l2_review_hi: float = 0.75
+    # 高置信冲突主动推送（L2「被动」三块的最后一块：录入即碰撞 / 主动推送 / 收敛抑制）。
+    # 只推**新产生**的冲突，阈值与复核上沿对齐——低于 0.75 的本来还要走复核，
+    # 拿它去打扰用户属于「自己都没把握却先报警」。
+    l2_conflict_push_enabled: bool = True
+    l2_conflict_push_min_confidence: float = 0.75
 
     # --- L3 认知助产（主题分布 → 「该问但没问」的追问）---
     l3_max_items_per_analysis: int = 60  # 单次分析送入模型的条目上限（成本与上下文闸门）

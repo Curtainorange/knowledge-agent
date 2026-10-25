@@ -21,6 +21,9 @@ class PushJobOut(BaseModel):
     push_type: str
     title: str
     body: str
+    # 结构化内容（冲突 id / 诊断 id / 跳转地址）：前端靠它把「通知」变成「可点的事」，
+    # 只给标题和正文的话，用户读完只能自己去翻页面找那条冲突。
+    payload: dict = {}
     created_at: str = ""
 
 
@@ -48,6 +51,7 @@ def list_pending(
                 push_type=j.push_type,
                 title=j.title,
                 body=j.body,
+                payload=j.payload or {},
                 created_at=j.created_at.isoformat() if j.created_at else "",
             )
             for j in jobs

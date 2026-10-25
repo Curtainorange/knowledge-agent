@@ -83,11 +83,18 @@
       return;
     }
     $('#notify-list').innerHTML = items.map(function (item) {
+      // 后端 payload.href 是「这件事该去哪里处理」；缺省时不给按钮，
+      // 免得出现点了没反应的空入口。
+      var href = (item.payload && item.payload.href) || '';
+      var go = href
+        ? '<button class="link" data-go="' + esc(href) + '">去查看</button>'
+        : '';
       return '<div class="question-card">' +
         '<div class="q-head">' + esc(item.title || '通知') + ' ' + typeBadge(item.push_type) + '</div>' +
         '<div class="cf-block">' + esc(item.body || '') + '</div>' +
         '<div class="meta">' + esc(item.created_at ? item.created_at.slice(0, 16).replace('T', ' ') : '') + '</div>' +
         '<div class="cf-actions">' +
+          go +
           '<button class="sm" data-read="' + esc(item.job_id) + '">标记已读</button>' +
         '</div>' +
       '</div>';
@@ -136,6 +143,11 @@
 
   $('#btn-reload').addEventListener('click', loadJobs);
   $('#notify-list').addEventListener('click', function (event) {
+    var go = event.target.closest('[data-go]');
+    if (go) {
+      window.location.href = go.getAttribute('data-go');
+      return;
+    }
     var btn = event.target.closest('[data-read]');
     if (btn) {
       markRead(btn.getAttribute('data-read'));
