@@ -605,6 +605,11 @@ def suggestion_card(
                 "how_to_verify": str(it.get("how_to_verify") or ""),
                 "basis_item_ids": [str(b) for b in (it.get("basis_item_ids") or [])],
                 "confidence": float(it.get("confidence") or 0.0),
+                # 效果回访（B 模块闭环）：`status` 表示「我去做了」，
+                # `effect` 是试过之后的效果。两者分开存——「做了但没用」和
+                # 「没做直接说没用」是两回事，混成一个字段就再也分不开。
+                "status": str(it.get("status") or ""),   # "" | done
+                "effect": str(it.get("effect") or ""),   # "" | worked | partial | none
             }
             for it in (items or [])
         ],
@@ -624,7 +629,10 @@ def suggestion_card(
         "confidence": round(float(confidence or 0.0), 3),
         "note": note,
         "href": spec.href if spec else "",
-        # 「这条不对」走快操作：记偏好并收敛同类建议，不追问原因
+        # 「这条不对」走快操作：记偏好并收敛同类建议，不追问原因。
+        # 每条建议还有「我去做了 / 效果如何」两组按钮，由前端按 item.status /
+        # item.effect 逐条渲染——它们**必须带 item id**，而这张卡片的 actions
+        # 是卡级描述（不带 item），所以不在这里穷举。
         "actions": [
             {"action": "suggestion.reject", "label": "这条不对", "target_id": "", "value": ""}
         ] if state == "ok" else [],

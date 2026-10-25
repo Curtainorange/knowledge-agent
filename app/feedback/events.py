@@ -53,6 +53,11 @@ AGENT_INTAKE_ANSWERED = "agent.intake.answered"   # 一次确认作答（含跳�
 AGENT_INTAKE_SKIPPED = "agent.intake.skipped"
 SUGGESTION_CREATED = "suggestion.created"
 SUGGESTION_REJECTED = "suggestion.rejected"        # 用户否掉建议（同类收敛的依据）
+# 「做了吗 / 有用吗」：只记 reject 的话，系统只学到「他不喜欢什么」，
+# 学不到「什么东西真的有用」——后者才是判断建议质量的唯一证据。
+# ADOPTED 是**埋点**（算采纳率用），刻意不驱动行为；真正改变行为的是 EFFECT=none。
+SUGGESTION_ADOPTED = "suggestion.adopted"          # 用户说「我去做了」
+SUGGESTION_EFFECT = "suggestion.effect"            # 试过之后的效果（worked / partial / none）
 # 冲突归因（D 模块）
 CONFLICT_ATTRIBUTED = "l2.conflict.attributed"     # 一处冲突完成了归因（含成功/失败原因）
 # 推送（ADR-14）

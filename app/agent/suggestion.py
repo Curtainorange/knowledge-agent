@@ -42,6 +42,20 @@ MAX_EVIDENCE = 8
 # 「不强制」不只是措辞客气，而是**被否掉之后真的改变行为**。
 RESTRAIN_DAYS = 7
 
+# ---- 效果回访（B 模块闭环的最后一环）---------------------------------------
+# 三个值刻意都是「用户自己的判断」，不是系统打分：建议有没有用，只有试过的人知道。
+# 值域放在这里而不是卡片层，是因为它同时要过事件 payload 与收敛判断——
+# 两处各写一份字符串，早晚会分叉。
+EFFECT_WORKED = "worked"
+EFFECT_PARTIAL = "partial"
+EFFECT_NONE = "none"
+EFFECT_VALUES = (EFFECT_WORKED, EFFECT_PARTIAL, EFFECT_NONE)
+EFFECT_LABELS = {
+    EFFECT_WORKED: "有用了",
+    EFFECT_PARTIAL: "一般",
+    EFFECT_NONE: "没用",
+}
+
 
 class SuggestionDraftItem(BaseModel):
     """单条建议。四要素缺一，这条就不合格。"""
@@ -119,7 +133,13 @@ def build_query(ctx: intake.IntakeContext) -> str:
 
 
 def _restrained_reason(session: Session, *, user_id: str, ctx: intake.IntakeContext) -> str:
-    """最近是否否过同类建议（同目标 + 有交集的帮助类型）。
+    """最近是否否过 / 试过没用的同类建议（同目标 + 有交集的帮助类型）。
+
+    两种证据，强度不同，文案也不同：
+
+    - `suggestion.rejected`：他不喜欢这类建议（没试）；
+    - `suggestion.effect` 且 effect=none：**他试了，没用**。这是更硬的证据，
+      再推同类的等于让他把同一件事失败两次。
 
     读失败一律按"没否过"处理：收敛是体验优化，不该因为读不到事件就不给建议。
     """
@@ -129,22 +149,38 @@ def _restrained_reason(session: Session, *, user_id: str, ctx: intake.IntakeCont
         from app.domain.repositories.learning_event_repository import LearningEventRepository
         from app.feedback import events
 
-        rows = LearningEventRepository(session, user_id=user_id).list_recent(
-            user_id, event_type=events.SUGGESTION_REJECTED, limit=20
-        )
+        repo = LearningEventRepository(session, user_id=user_id)
+        candidates = [
+            *repo.list_recent(user_id, event_type=events.SUGGESTION_REJECTED, limit=20),
+            *repo.list_recent(user_id, event_type=events.SUGGESTION_EFFECT, limit=20),
+        ]
     except Exception:  # pragma: no cover - 防御性兜底
         return ""
 
     cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(days=RESTRAIN_DAYS)
     wanted = set(ctx.help_type or [])
-    for row in rows:
+
+    def _same_kind(row) -> bool:
         occurred = getattr(row, "occurred_at", None)
         if occurred is not None and occurred < cutoff:
-            continue
+            return False
         payload = getattr(row, "payload", None) or {}
         if str(payload.get("goal") or "") != (ctx.goal or ""):
-            continue
-        if wanted & set(payload.get("help_type") or []):
+            return False
+        return bool(wanted & set(payload.get("help_type") or []))
+
+    # 「试过没用」优先于「没试就否掉」：前者是事实，后者只是偏好
+    for row in candidates:
+        payload = getattr(row, "payload", None) or {}
+        if (
+            getattr(row, "event_type", "") == events.SUGGESTION_EFFECT
+            and str(payload.get("effect") or "") == EFFECT_NONE
+            and _same_kind(row)
+        ):
+            return "这类建议你试过，当时没用。这次换个方向——你也可以直接说哪里不顺手。"
+
+    for row in candidates:
+        if getattr(row, "event_type", "") == events.SUGGESTION_REJECTED and _same_kind(row):
             return "这类建议你之前否过，我们先换个方向——你可以说说哪里不对，或者换个问法。"
     return ""
 

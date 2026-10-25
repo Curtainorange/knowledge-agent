@@ -12,7 +12,7 @@
 |---|---|---|
 | 1 | 开场探明意图 | 开场卡是 `reading_intake`，且问的是槽位而不是直接推动作 |
 | 2 | 给建议 | 补槽 → 生成 → `suggestion` 卡 state=ok，每条建议的依据都在证据池里 |
-| 3 | 用户否掉一条 | 卡片就地更新且写回会话（刷新不回到旧卡） |
+| 3 | 效果回访 | 「我去做了」→「有用了」两步都落到卡片上，并写回会话 |
 | 4 | 冲突归因 | 七项结构化字段齐全，背景非空且不超长（≤120 字硬上限） |
 | 5 | 计划依据 | `rules_snapshot` 6 项齐全，单周时长 ≤ 周容量（AT-F2 硬断言） |
 
@@ -401,41 +401,59 @@ def step2_suggestion(
     if not library_level:
         _fail("没有一条 library 级依据——B 模块要求至少一条来自知识库本身")
     _log(f"      建议 {len(items)} 条，证据 {len(pool)} 条（library 级 {len(library_level)} 条）")
-
-    # 效果回访（做了 / 效果如何）如果已经实现，脚本自动覆盖；没实现就明确说出来，
-    # 而不是假装第 3 步就是它——「半成品当完成」正是这套脚本要防的事。
-    actions = {a.get("action") for a in card.get("actions") or []}
-    effects = [a for a in actions if "effect" in str(a) or "followup" in str(a)]
-    if not effects:
-        _log("      ⚠ 效果回访（做了/效果如何）目前没有卡片入口，第 3 步只覆盖「否掉一条」")
     return card
 
 
-def step3_reject(client, headers: dict, conversation_id: str, card: dict) -> None:
-    _step(3, "用户否掉一条（卡片就地更新并写回会话）")
+def step3_followup(client, headers: dict, conversation_id: str, card: dict) -> None:
+    """效果回访：做了吗 → 有用吗，并把状态写回会话。
+
+    这一步之前是缺的（只有「这条不对」），所以在这儿卡住过一次——
+    演示脚本的价值就在这：卡片上少一条腿，走一遍就露出来了。
+    """
+    _step(3, "效果回访（做了 → 有用 → 写回会话）")
     items = card.get("items") or []
     if not items:
-        _fail("没有可否掉的建议项")
-    rejected = items[0]
-    result = _action(
-        client, headers, conversation_id, card, "suggestion.reject",
-        target_id=str(rejected.get("id") or ""),
-    )
-    new_card = result.get("card") or {}
-    remaining = new_card.get("items") or []
-    if len(remaining) != len(items) - 1:
-        _fail(f"否掉一条后剩 {len(remaining)} 条，期望 {len(items) - 1} 条")
+        _fail("没有可回访的建议项")
+    target = str(items[0].get("id") or "")
 
-    # 写回会话是关键：只改前端内存的话，刷新就回到旧卡（10-20 修过一次同类问题）
-    stored = _latest_card(client, headers, conversation_id, "suggestion")
-    if stored is None:
-        _fail("会话里找不到 suggestion 卡")
-    if len(stored.get("items") or []) != len(remaining):
-        _fail(
-            f"卡片没写回会话：接口返回 {len(remaining)} 条，"
-            f"会话里还是 {len(stored.get('items') or [])} 条"
+    done = _action(client, headers, conversation_id, card, "suggestion.done", target_id=target)
+    done_card = done.get("card") or {}
+    first = (done_card.get("items") or [{}])[0]
+    if first.get("status") != "done":
+        _fail(f"点了「我去做了」但条目状态是 {first.get('status')!r}，期望 done")
+    _log("      已标记「我去做了」")
+
+    scored = _action(
+        client, headers, conversation_id, done_card,
+        "suggestion.effect", target_id=target, value="worked",
+    )
+    scored_card = scored.get("card") or {}
+    first = (scored_card.get("items") or [{}])[0]
+    if first.get("effect") != "worked":
+        _fail(f"效果没记上：{first.get('effect')!r}")
+    _log("      效果记为「有用了」")
+
+    # 第二条仍然可以否掉——两种反馈互不干扰，否则「有用」就成了唯一出口
+    rest = scored_card.get("items") or []
+    if len(rest) > 1:
+        rejected = _action(
+            client, headers, conversation_id, scored_card,
+            "suggestion.reject", target_id=str(rest[1].get("id") or ""),
         )
-    _log(f"      已否掉「{str(rejected.get('action') or '')[:24]}…」，剩余 {len(remaining)} 条")
+        after = (rejected.get("card") or {}).get("items") or []
+        if len(after) != len(rest) - 1:
+            _fail(f"否掉一条后剩 {len(after)} 条，期望 {len(rest) - 1} 条")
+        _log(f"      另否掉一条，剩 {len(after)} 条")
+
+    # 写回会话是关键：只改前端内存的话，刷新一次就回到没回访过的状态
+    stored = _latest_card(client, headers, conversation_id, "suggestion") or {}
+    stored_item = (stored.get("items") or [{}])[0]
+    if stored_item.get("effect") != "worked":
+        _fail(
+            f"回访状态没写回会话：库里 effect={stored_item.get('effect')!r}"
+            "（只改了接口返回的卡，刷新就会回退）"
+        )
+    _log("      状态已写回会话")
 
 
 def step4_attribution(client, headers: dict, conflict_id: str) -> None:
@@ -564,7 +582,7 @@ def run_round(index: int, *, timeout: float) -> int:
         try:
             conversation_id, card = step1_opening(client, headers)
             card = step2_suggestion(client, headers, conversation_id, card, timeout=timeout)
-            step3_reject(client, headers, conversation_id, card)
+            step3_followup(client, headers, conversation_id, card)
             step4_attribution(client, headers, conflict_id)
             step5_plan(client, headers, conversation_id, timeout=timeout)
         except DemoError as exc:

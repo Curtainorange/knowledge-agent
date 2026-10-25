@@ -75,6 +75,7 @@ from app.agent.l3_orchestrator import L3Orchestrator
 from app.agent.l4_orchestrator import L4Orchestrator
 from app.agent.l5_orchestrator import L5Orchestrator
 from app.core.config import settings
+from app.feedback import events
 from app.domain.models.task_run import TaskRun
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.domain.repositories.learning_plan_repository import LearningGoalRepository
@@ -1045,6 +1046,14 @@ def apply_action(
             reply, new_card = _reject_suggestion(
                 session, user_id=user_id, card=card, item_id=target_id
             )
+        elif kind == "suggestion" and action == "suggestion.done":
+            reply, new_card = _mark_suggestion_done(
+                session, user_id=user_id, card=card, item_id=target_id
+            )
+        elif kind == "suggestion" and action == "suggestion.effect":
+            reply, new_card = _record_suggestion_effect(
+                session, user_id=user_id, card=card, item_id=target_id, effect=value
+            )
         else:
             raise ActionError(f"这张卡片不支持该操作（{kind} / {action}）")
         # 新卡写回会话（复用 start_action_turn 用的那个 `_replace_card`）：
@@ -1335,6 +1344,98 @@ def _reject_suggestion(session, *, user_id, card, item_id):
     new_card["state"] = "insufficient_evidence"
     new_card["note"] = "这条不推了。要不要换个方向问？"
     return "记下了。", new_card
+
+
+# ---- 效果回访（B 模块闭环的最后一环）---------------------------------------
+#
+# 只有「这条不对」时，系统只学到用户不爱什么，学不到什么真有用。
+# 所以拆成两步：先问「做了吗」（status=done），再问「有用吗」（effect）。
+#
+# 为什么敢拆两步而不是一步三选：两步的每一步都是**一次点击**，
+# 总成本与「一步三选」相同，但多拿到一个关键事实——他到底有没有真的试。
+# 「没试就说没用」与「试了没用」对收敛的含义完全不同。
+
+
+def _mark_suggestion_done(session, *, user_id, card, item_id):
+    """「我去做了」：只记动作，不问效果（效果在下一步）。"""
+    items, hit = _patch_suggestion_item(card, item_id, {"status": "done"})
+    if hit is None:
+        raise ActionError("这条建议已经不在了，刷新看看")
+
+    _record_suggestion_event(
+        session, user_id=user_id, event_type=events.SUGGESTION_ADOPTED,
+        card=card, item_id=item_id,
+    )
+    new_card = dict(card)
+    new_card["items"] = items
+    return "做了就好。效果怎么样？按你自己的判断说一句就行。", new_card
+
+
+def _record_suggestion_effect(session, *, user_id, card, item_id, effect):
+    """试过之后的效果。三选一，秒回，不调模型。"""
+    from app.agent import suggestion
+
+    effect = (effect or "").strip()
+    if effect not in suggestion.EFFECT_VALUES:
+        raise ActionError(f"未知的效果选项：{effect!r}")
+
+    items, hit = _patch_suggestion_item(
+        card, item_id, {"status": "done", "effect": effect}
+    )
+    if hit is None:
+        raise ActionError("这条建议已经不在了，刷新看看")
+
+    _record_suggestion_event(
+        session, user_id=user_id, event_type=events.SUGGESTION_EFFECT,
+        card=card, item_id=item_id, extra={"effect": effect},
+    )
+    new_card = dict(card)
+    new_card["items"] = items
+
+    replies = {
+        suggestion.EFFECT_WORKED: "记下了。这类做法以后可以接着用。",
+        suggestion.EFFECT_PARTIAL: "记下了，一般就说明还差点意思。下次我按这个方向收一版。",
+        suggestion.EFFECT_NONE: "记下了。这类建议最近不再推了，换个方向更划算。",
+    }
+    return replies[effect], new_card
+
+
+def _patch_suggestion_item(card: dict, item_id: str, patch: dict) -> tuple[list[dict], dict | None]:
+    """复制一份 items 并给指定条目打补丁。
+
+    必须复制：卡片 dict 直接来自会话消息，原地改嵌套 dict 不会让 JSON 列变脏，
+    `commit` 之后库里还是旧的——前端刷新就回退（10-20 踩过一次同类）。
+    """
+    items: list[dict] = []
+    hit: dict | None = None
+    for raw in card.get("items") or []:
+        item = dict(raw)
+        if item.get("id") == item_id:
+            item.update(patch)
+            hit = item
+        items.append(item)
+    return items, hit
+
+
+def _record_suggestion_event(session, *, user_id, event_type, card, item_id, extra=None):
+    """记一条回访事件。payload 带 goal / help_type——收敛判断按它们匹配。
+
+    埋点失败不影响主流程（与 `_reject_suggestion` 一致）：
+    用户点了按钮，卡片的反馈必须给出，哪怕事件表写不进去。
+    """
+    digest = card.get("digest") or {}
+    item = next((it for it in card.get("items") or [] if it.get("id") == item_id), {})
+    payload = {
+        "item_id": item_id,
+        "action": str(item.get("action") or "")[:120],
+        "goal": digest.get("goal") or "",
+        "help_type": digest.get("help_type") or [],
+    }
+    payload.update(extra or {})
+    try:
+        events.record(session, user_id=user_id, event_type=event_type, payload=payload)
+    except Exception as exc:  # pragma: no cover
+        logger.warning("建议回访埋点失败: %s", exc)
 
 
 def _set_conflict_state(session: Session, *, user_id: str, conflict_id: str, state: str) -> str:

@@ -706,6 +706,8 @@ window.CCA = (function () {
      三层信息：建议正文（做什么 / 为什么 / 怎么验）、依据（可展开、可跳转）、
      延伸参考（外部、未入库，独立分区）。**依据与外部参考不许混排**——
      外部内容看起来像"你的知识库说的"，是这个功能最容易失信的地方。 */
+  var SUGGESTION_EFFECT_LABEL = { worked: '有用了', partial: '一般', none: '没用' };
+
   function suggestionHtml(card) {
     var parts = ['<div class="suggestion">'];
 
@@ -758,8 +760,24 @@ window.CCA = (function () {
               '<span>' + esc(e.quote) + '</span>' + evidenceJump(e) + '</div>';
           }).join('') + '</details>');
       }
-      parts.push('<div class="cf-actions">' +
-        actionButton(card.key, 'suggestion.reject', it.id, '', '这条不对') + '</div>');
+      /* 效果回访：先问「做了吗」，再问「有用吗」。
+         两步各一次点击，总成本与一步三选相同，但能分清「没试就说没用」
+         和「试了没用」——后者才是收敛的硬证据。 */
+      var status = it.status || '';
+      var effect = it.effect || '';
+      if (effect) {
+        parts.push('<div class="meta">效果：' + esc(SUGGESTION_EFFECT_LABEL[effect] || effect) + '</div>');
+      } else if (status === 'done') {
+        parts.push('<div class="meta">试过之后效果怎么样？</div>');
+        parts.push('<div class="cf-actions">' +
+          actionButton(card.key, 'suggestion.effect', it.id, 'worked', '有用了') +
+          actionButton(card.key, 'suggestion.effect', it.id, 'partial', '一般') +
+          actionButton(card.key, 'suggestion.effect', it.id, 'none', '没用') + '</div>');
+      } else {
+        parts.push('<div class="cf-actions">' +
+          actionButton(card.key, 'suggestion.done', it.id, '', '我去做了') +
+          actionButton(card.key, 'suggestion.reject', it.id, '', '这条不对') + '</div>');
+      }
       parts.push('</div>');
     });
 
