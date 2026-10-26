@@ -213,6 +213,65 @@ def test_digest_with_unknown_title_offers_shelf(client, provider):
     assert any(s["message"] == "通读《测试书》" for s in card["sends"])
 
 
+def test_digest_rejects_scanned_book(session):
+    """扫描图片版没有正文：判 degraded，且一次模型都不调。
+
+    回归：原来只在「切不出块」时降级；扫描版能切出 1 块元数据，于是「成功」
+    产出一份封面占位符摘要，看着像读过，实际一个字都没读到。
+    """
+    from app.agent import book_orchestrator
+
+    provider = ScriptedProvider()
+    text = " ".join(f"[[IMG:img_{i:04d}.jpg]]" for i in range(120)) + " Anna's Archive 共 209 页"
+    book = Book(
+        id="scan1", user_id="u1", title="扫描书", author="", format="epub",
+        file_path="x.epub", chapters=[], full_text=text, total_chars=len(text),
+    )
+    session.add(book)
+    session.commit()
+
+    out = book_orchestrator.read_whole_book(
+        session, ModelGateway(provider=provider), user_id="u1", book=book
+    )
+    assert out.state == "degraded"
+    assert "正文" in out.note
+    assert provider.task_types == [], "扫描版不该调模型"
+
+
+def test_digest_resumes_from_breakpoint(session):
+    """长书分两次读：第二次从断点接着读，合并后要点覆盖全书。"""
+    from app.agent import book_orchestrator
+
+    text = "正" * 18_000  # 切成 2 块
+    book = Book(
+        id="resume1", user_id="u1", title="长书", author="", format="txt",
+        file_path="x.txt", chapters=[], full_text=text, total_chars=len(text),
+    )
+    session.add(book)
+    session.commit()
+
+    chunk_row = json.dumps({"topic": "测试", "gist": "这一块的要点", "points": ["p"]}, ensure_ascii=False)
+    summary_row = json.dumps({"summary": "全书总评"}, ensure_ascii=False)
+    provider = ScriptedProvider()
+    provider.rows = [chunk_row, summary_row, chunk_row, summary_row]
+
+    first = book_orchestrator.read_whole_book(
+        session, ModelGateway(provider=provider), user_id="u1", book=book, max_chunks=1
+    )
+    assert first.truncated is True
+    assert first.chunk_count == 1
+    assert len(first.chapters) == 1
+    assert "还剩 1 块" in first.note
+
+    second = book_orchestrator.read_whole_book(
+        session, ModelGateway(provider=provider), user_id="u1", book=book
+    )
+    assert second.truncated is False
+    assert second.chunk_count == 2
+    assert [c["index"] for c in second.chapters] == [0, 1], "续读要合并上次的要点"
+    assert second.summary == "全书总评"
+
+
 # ---- 讨论 --------------------------------------------------------------------
 
 
@@ -410,15 +469,25 @@ def test_build_chunks_merges_fragmented_chapters():
     assert all(len(c["text"]) <= 12000 for c in chunks), "单块不得超过上限"
 
 
-def test_build_chunks_truncates_oversized_book():
+def test_build_chunks_returns_all_chunks_and_flags_over_limit():
+    """切块不再截断：续读要知道全书一共多少块、上次读到哪。"""
     from app.agent.book_orchestrator import MAX_CHUNKS, _build_chunks
 
     book = Book(
         id="b2", user_id="u1", title="t", author="", format="txt", file_path="",
         chapters=[], full_text="x" * (12000 * (MAX_CHUNKS + 5)), total_chars=0,
     )
-    chunks, truncated = _build_chunks(book)
-    assert truncated and len(chunks) == MAX_CHUNKS
+    chunks, over_limit = _build_chunks(book)
+    assert over_limit is True
+    assert len(chunks) == MAX_CHUNKS + 5, "全部块都要返回，截断交给 read_whole_book"
+
+
+def test_readable_chars_strips_image_placeholders():
+    """扫描版的「全文」是图片占位符，原始字数看着有几千，有效字数为零。"""
+    from app.agent.book_orchestrator import _readable_chars
+
+    assert _readable_chars("[[IMG:img_0001.jpg]]" * 50) == 0
+    assert _readable_chars("正常正文" * 100) == 400
 
 
 # ---- 异步入队 ----------------------------------------------------------------

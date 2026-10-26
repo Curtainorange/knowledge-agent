@@ -18,6 +18,7 @@
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -38,8 +39,16 @@ from app.llm.prompts import BOOK_CHAT, BOOK_DIGEST_CHUNK, BOOK_DIGEST_SUMMARY, B
 logger = logging.getLogger(__name__)
 
 MAX_CHUNK_CHARS = 12_000   # 单块最大字符数（送模型的原文长度）
-MAX_CHUNKS = 24            # 块数上限：28.8 万字封顶，超出截断并在卡片注明
+MAX_CHUNKS = 24            # **单次**读取的块数预算（24 × 1.2 万 ≈ 28.8 万字）
                            # （19.9 万字的《刻意练习》= 17 块，16 挡不住真实书单）
+                           # 超出不丢弃：read_whole_book 会从断点续读，见 `start` 参数。
+# 可读正文下限：低于这个数，通读只能产出一份「元数据摘要」——典型是扫描图片版
+# （epub 全文是 [[IMG:img_0000.jpg]] 占位符，字数看着有几千，一个字的正文都没有）。
+# 1500 字 ≈ 一份正常章节的下限，低于它连摘要都无从谈起。
+READABLE_MIN_CHARS = 1500
+# 图片占位符下限：只有占位符足够多（≥10 页的扫描件）才判「扫描版」。
+# 单看「文字少」会误伤真正的短文本——短文本至少还能读，扫描版是根本没有正文。
+SCAN_MIN_IMAGES = 10
 
 
 # ---- 模型输出契约（结构化 JSON）---------------------------------------------
@@ -118,8 +127,38 @@ def resolve_book(session: Session, *, user_id: str, title: str) -> Book | None:
 # ---- 通读 ------------------------------------------------------------------
 
 
+def _readable_chars(text: str) -> int:
+    """去掉图片占位符 / URL / md5 后，还剩多少可见字符。
+
+    扫描图片版 epub 的「全文」是 `[[IMG:img_0000.jpg]]` 这类占位符加出版元数据，
+    `total_chars` 看着有几千，真正能读的字几乎为零——用原始字数判断不出来，
+    必须先剥掉噪声再数。
+    """
+    body = text or ""
+    body = re.sub(r"\[\[IMG:[^\]]*\]\]", "", body)
+    body = re.sub(r"https?://\S+", "", body)
+    body = re.sub(r"\b[0-9a-fA-F]{32}\b", "", body)
+    return len(re.sub(r"\s+", "", body))
+
+
+def _looks_scanned(text: str) -> bool:
+    """是不是「扫描图片版」：图片占位符够多，且剥掉噪声后几乎没字。
+
+    两个条件必须同时满足。只看「有效字数少」会误伤真正的短文本
+    （一篇几百字的短文照样能通读）；只看「占位符多」会误伤图文混排的教材
+    （全是插图但正文几万字）。
+    """
+    body = text or ""
+    if len(re.findall(r"\[\[IMG:", body)) < SCAN_MIN_IMAGES:
+        return False
+    return _readable_chars(body) < READABLE_MIN_CHARS
+
+
 def _build_chunks(book: Book) -> tuple[list[dict], bool]:
-    """把全文切成 (块列表, 是否截断)。块：{index, title, text}。
+    """把全文切成 (全部块, 是否超过单次预算)。块：{index, title, text}。
+
+    **不在这里截断**：续读需要知道全书一共多少块、上次读到第几块。
+    单次读多少由 `read_whole_book(max_chunks=...)` 决定，超出部分下次接着读。
 
     切块的规模上限是**字数**而不是章节数——epub 章节碎片很多（目录、版权页都是一章），
     若按章切，块上限会被碎片顶满，正文反而被截断。做法：章节先展开成片段，
@@ -151,13 +190,12 @@ def _build_chunks(book: Book) -> tuple[list[dict], bool]:
         else:
             chunks.append({"index": len(chunks), "title": label, "text": text, "titles": [label]})
 
-    truncated = len(chunks) > MAX_CHUNKS
-    chunks = chunks[:MAX_CHUNKS]
+    over_limit = len(chunks) > MAX_CHUNKS
     for chunk in chunks:
         if len(chunk["titles"]) > 1:
             chunk["title"] = f"{chunk['titles'][0]} 等 {len(chunk['titles'])} 节"
         del chunk["titles"]
-    return chunks, truncated
+    return chunks, over_limit
 
 
 def _digest_chunk(gateway: ModelGateway, *, user_id: str, chunk: dict) -> ChunkDigest:
@@ -196,35 +234,128 @@ def _summarize(gateway: ModelGateway, *, user_id: str, notes: list[dict]) -> Sum
     return parse_structured(completion.text, validator=lambda d: SummaryDigest(**d))
 
 
-def read_whole_book(
-    session: Session, gateway: ModelGateway, *, user_id: str, book: Book, force: bool = False
-) -> DigestOutcome:
-    """通读一本书（或复用未过期的既有笔记），结果覆盖式落 `book_agent_readings`。
+def _done_chunks(existing: BookAgentReading | None) -> int:
+    """上次读到第几块（下一块从这里开始）。
 
+    用分章要点的最大 index 推断，不加数据库字段：`chapters_note` 里的 index 是
+    **全书块序号**，而块序列由 (full_text, chapters) 确定性切出——同一本书不会变，
+    所以它天然就是断点。
+    """
+    if existing is None:
+        return 0
+    idxs = [
+        c.get("index") for c in (existing.chapters_note or [])
+        if isinstance(c.get("index"), int)
+    ]
+    return (max(idxs) + 1) if idxs else 0
+
+
+def _merge_notes(
+    existing: BookAgentReading | None, start: int, notes: list[dict]
+) -> list[dict]:
+    """把本次新读的块与上次的笔记按块序号合并（同序号以本次为准）。
+
+    只保留 `index < start` 的旧笔记：从 start 起重读的块必须用本次结果覆盖，
+    否则强行重读的那一段会带着旧结论留在笔记里。
+    """
+    by_index: dict[int, dict] = {}
+    if existing is not None:
+        for chapter in existing.chapters_note or []:
+            idx = chapter.get("index")
+            if isinstance(idx, int) and idx < start:
+                by_index[idx] = {
+                    "index": idx,
+                    "title": chapter.get("title") or "",
+                    "topic": chapter.get("topic") or "",
+                    "gist": chapter.get("gist") or "",
+                    "points": list(chapter.get("points") or []),
+                }
+    for note in notes:
+        by_index[note["index"]] = {
+            "index": note["index"],
+            "title": note["title"],
+            "topic": note["topic"],
+            "gist": note["gist"],
+            "points": note["points"],
+        }
+    return [by_index[i] for i in sorted(by_index)]
+
+
+def read_whole_book(
+    session: Session,
+    gateway: ModelGateway,
+    *,
+    user_id: str,
+    book: Book,
+    force: bool = False,
+    start: int | None = None,
+    max_chunks: int = MAX_CHUNKS,
+) -> DigestOutcome:
+    """通读一本书（支持从断点续读），结果覆盖式落 `book_agent_readings`。
+
+    三种进入方式：
+    - `force=False` 且上次**已读完** → 复用，不再花钱；
+    - `force=False` 且上次**没读完** → 从断点续读（「继续读完」走这条）；
+    - `force=True` → 从头重读。
+
+    `start` 是块序号，显式传入时优先于以上推断（0 = 从头）。
+
+    单次只读 `max_chunks` 块（成本护栏）；没读完的部分下次接着读。
     不碰用户的阅读进度与知识库——隔离约束见模块 docstring。
     """
     reading_repo = BookAgentReadingRepository(session, user_id=user_id)
 
-    if not force:
-        existing = reading_repo.get_by_book(book.id)
-        if (
-            existing is not None
-            and existing.status == "done"
-            and existing.total_chars == book.total_chars
-            and (existing.summary or existing.chapters_note)
-        ):
-            return _outcome_from_reading(book, existing, state="reused")
+    # 护栏：扫描图片版没有正文。必须先于切块判定——否则它会「成功」地读出一份
+    # 元数据摘要（封面占位符 + 出版信息），看着像读过，实际一个字都没读到。
+    if _looks_scanned(book.full_text):
+        readable = _readable_chars(book.full_text)
+        return DigestOutcome(
+            state="degraded", book_id=book.id, title=book.title, author=book.author or "",
+            summary="",
+            note=(
+                f"这本书没有可读正文（剥掉图片占位符后只剩 {readable} 字，"
+                "多半是扫描图片版或纯图片 PDF），通读不了；换一个文字版再试。"
+            ),
+        )
 
-    chunks, truncated = _build_chunks(book)
-    if not chunks:
+    existing = reading_repo.get_by_book(book.id)
+    all_chunks, _over_limit = _build_chunks(book)
+    if not all_chunks:
         return DigestOutcome(
             state="degraded", book_id=book.id, title=book.title, author=book.author or "",
             summary="", note="这本书没有可读的文本内容（可能是空文件或纯图片 PDF）。",
         )
 
+    total = len(all_chunks)
+    same_book = bool(existing and existing.total_chars == book.total_chars)
+    done = _done_chunks(existing) if same_book else 0
+
+    if start is None:
+        start = 0 if force else done
+    start = max(0, min(int(start), total))
+
+    # 已读完整本且没要求重读 → 复用
+    if (
+        not force
+        and start >= total
+        and existing is not None
+        and existing.status == "done"
+        and (existing.summary or existing.chapters_note)
+    ):
+        return _outcome_from_reading(book, existing, state="reused")
+
+    batch = all_chunks[start:start + max_chunks]
+    if not batch:
+        if existing is not None:
+            return _outcome_from_reading(book, existing, state="reused")
+        return DigestOutcome(
+            state="degraded", book_id=book.id, title=book.title, author=book.author or "",
+            summary="", note="这本书没有可读的文本内容。",
+        )
+
     notes: list[dict] = []
     failed = 0
-    for chunk in chunks:
+    for chunk in batch:
         try:
             digest = _digest_chunk(gateway, user_id=user_id, chunk=chunk)
             notes.append({
@@ -242,52 +373,60 @@ def read_whole_book(
                 "book_title": book.title, "topic": "", "gist": "", "points": [],
             })
 
-    usable = [note for note in notes if note["gist"]]
-    summary = ""
+    merged = _merge_notes(existing if same_book else None, start, notes)
+    usable = [note for note in merged if note.get("gist")]
+    # 汇总用**合并后的全部要点**：续读时只汇总本批，会把上次读的部分丢掉
+    summary = (existing.summary or "") if (same_book and existing is not None) else ""
     if usable:
         try:
-            summary = _summarize(gateway, user_id=user_id, notes=usable).summary.strip()
+            summary = _summarize(
+                gateway, user_id=user_id,
+                notes=[{**note, "book_title": book.title} for note in usable],
+            ).summary.strip()
         except LLMError as exc:
             logger.warning("book digest summary failed book=%s err=%s", book.id, exc)
+
+    consumed = start + len(batch)
+    truncated = consumed < total
 
     reading = reading_repo.upsert(
         book_id=book.id,
         status="done" if usable else "failed",
         total_chars=book.total_chars,
         summary=summary,
-        chapters_note=[
-            {"index": n["index"], "title": n["title"], "topic": n["topic"],
-             "gist": n["gist"], "points": n["points"]}
-            for n in notes
-        ],
-        chunk_count=len(chunks),
+        chapters_note=merged,
+        chunk_count=consumed,
         failed_chunks=failed,
         truncated=truncated,
     )
 
     events.record(session, user_id=user_id, event_type=events.BOOK_DIGEST_DONE, payload={
-        "book_id": book.id, "chunks": len(chunks), "failed_chunks": failed,
+        "book_id": book.id, "chunks": len(batch), "start": start, "read_upto": consumed,
+        "total_chunks": total, "failed_chunks": failed,
         "truncated": truncated, "state": reading.status,
     })
 
     state = "ok" if usable else "degraded"
-    note = ""
+    parts: list[str] = []
     if failed:
-        note = f"有 {failed} 段没能生成要点，其余部分不受影响。"
+        parts.append(f"本次有 {failed} 段没能生成要点，其余部分不受影响。")
+    if start > 0:
+        parts.append(f"从上次断点接着读，本次读了第 {start + 1}–{consumed} 块。")
     if truncated:
-        note = (note + " " if note else "") + (
-            f"全书超出单次通读上限，本次精读了前 {MAX_CHUNKS} 块（约 "
-            f"{sum(len(c['text']) for c in chunks)} 字）。"
+        parts.append(
+            f"这本书共 {total} 块，还剩 {total - consumed} 块没读；说「继续读」我就接着往下读。"
         )
+    note = " ".join(parts)
+
     return DigestOutcome(
         state=state, book_id=book.id, title=book.title, author=book.author or "",
         summary=summary, chapters=reading.chapters_note or [],
-        chunk_count=len(chunks), failed_chunks=failed, truncated=truncated, note=note,
+        chunk_count=consumed, failed_chunks=failed, truncated=truncated, note=note,
     )
 
 
 def _outcome_from_reading(book: Book, reading: BookAgentReading, *, state: str) -> DigestOutcome:
-    note = "这本书已经有通读笔记，直接沿用。想重新读一遍就说「重新通读」。" if state == "reused" else ""
+    note = "这本书的通读笔记已经齐了，直接沿用。想从头重读就说「重新通读」。" if state == "reused" else ""
     return DigestOutcome(
         state=state, book_id=book.id, title=book.title, author=book.author or "",
         summary=reading.summary or "", chapters=reading.chapters_note or [],

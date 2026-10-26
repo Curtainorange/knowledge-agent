@@ -3,7 +3,8 @@
 直接连 dev.db（只写 book_agent_readings 独立表，不碰用户阅读进度与知识库），
 走真实 LLM KEY；跑完打印总评与分章要点概要。
 
-用法：python scripts/read_demo_book.py [书名]
+用法：python scripts/read_demo_book.py [书名] [--resume]
+      --resume 从上次断点接着读（默认从头重读）
 """
 from __future__ import annotations
 
@@ -15,7 +16,9 @@ from sqlalchemy.orm import sessionmaker
 
 from app.core.config import settings
 
-TITLE = sys.argv[1] if len(sys.argv) > 1 else "世界尽头的咖啡馆"
+_ARGS = [a for a in sys.argv[1:] if not a.startswith("--")]
+TITLE = _ARGS[0] if _ARGS else "世界尽头的咖啡馆"
+RESUME = "--resume" in sys.argv
 
 
 def main() -> None:
@@ -47,7 +50,7 @@ def main() -> None:
     print("开始通读……", flush=True)
 
     outcome = book_orchestrator.read_whole_book(
-        session, gateway, user_id=user_id, book=book, force=True
+        session, gateway, user_id=user_id, book=book, force=not RESUME
     )
     session.commit()
 
