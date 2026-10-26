@@ -127,7 +127,18 @@
 </aside>
 
 <div class="img-lightbox" id="img-lightbox" hidden>
-  <img id="lightbox-img" alt="">
+  <div class="lb-bar">
+    <span class="lb-counter" id="lb-counter">1 / 1</span>
+    <span class="lb-tools">
+      <button type="button" id="lb-zoom-out" title="缩小（-）">−</button>
+      <button type="button" id="lb-zoom-fit" title="适应屏幕（0）">适应</button>
+      <button type="button" id="lb-zoom-in" title="放大（+）">＋</button>
+      <button type="button" id="lb-close" title="关闭（Esc）">关闭</button>
+    </span>
+  </div>
+  <button type="button" class="lb-nav lb-prev" id="lb-prev" title="上一张（←）">‹</button>
+  <div class="lb-stage" id="lb-stage"><img id="lightbox-img" alt=""></div>
+  <button type="button" class="lb-nav lb-next" id="lb-next" title="下一张（→）">›</button>
 </div>
 
 <div id="toast"></div>
@@ -344,9 +355,26 @@
     return html;
   }
 
+  /* 竖版长图 = 扫描书的一页。标记后由 CSS 取消 max-height，按正文宽度铺满，
+     否则 3:4 的扫描页会被压到 347px 宽，小字完全看不清。 */
+  function markPageImages(body) {
+    Array.prototype.forEach.call(body.querySelectorAll('img'), function (im) {
+      function tag() {
+        if (!im.naturalWidth || !im.naturalHeight) {
+          return;
+        }
+        im.classList.toggle('is-page', im.naturalHeight >= im.naturalWidth * 1.15);
+      }
+      if (im.complete && im.naturalWidth) {
+        tag();
+      } else {
+        im.addEventListener('load', tag);
+      }
+    });
+  }
+
   /* 按比例恢复章内滚动位置；插图加载完成后会再调用一次校准 */
-  function restoreScroll(body, ratio) {
-    var max = body.scrollHeight - body.clientHeight;
+  function restoreScroll(body, ratio) {    var max = body.scrollHeight - body.clientHeight;
     body.scrollTop = Math.max(0, ratio * max);
     updateNavAndProgress();
   }
@@ -359,6 +387,7 @@
     body.innerHTML = renderContent(
       data.content, chapterByIndex(index) || { char_start: 0 }, data.page_marks
     );
+    markPageImages(body);
     applyFont();
     body.scrollTop = 0;
 
@@ -731,8 +760,27 @@
       return;
     }
 
-    if (typing || !drawer.hidden || !$('#img-lightbox').hidden) {
-      return; // 正在输入 / 抽屉或大图打开时不拦截方向键
+    if (typing || !drawer.hidden) {
+      return; // 正在输入 / 摘录抽屉打开时不拦截方向键
+    }
+    // 大图查看器打开时：← → 切图，+ − 缩放，0 适应屏幕，Esc 关（上面已处理）
+    if (!$('#img-lightbox').hidden) {
+      if (event.key === 'ArrowLeft') {
+        event.preventDefault();
+        lbStep(-1);
+      } else if (event.key === 'ArrowRight') {
+        event.preventDefault();
+        lbStep(1);
+      } else if (event.key === '+' || event.key === '=') {
+        event.preventDefault();
+        lbZoom(1.35);
+      } else if (event.key === '-') {
+        event.preventDefault();
+        lbZoom(1 / 1.35);
+      } else if (event.key === '0') {
+        lbReset();
+      }
+      return;
     }
     if (event.key === 'ArrowLeft') {
       event.preventDefault();
@@ -841,23 +889,210 @@
     $('#reader-body').scrollTo({ top: 0, behavior: 'smooth' });
   });
 
-  /* 插图点击放大（lightbox） */
+  /* ---------- 插图查看器：翻页 + 缩放 + 拖动 ----------
+     扫描书一页就是一张图，放大看小字时必须能直接切下一张，
+     不能再「关掉 → 找下一张 → 点开」。图片列表取当前章节渲染出的 <img>。 */
+  var lb = { imgs: [], index: 0, scale: 1, tx: 0, ty: 0 };
+
+  function lbImages() {
+    return Array.prototype.slice.call(
+      document.querySelectorAll('#reader-body .reader-figure img')
+    );
+  }
+
+  function lbApply() {
+    $('#lightbox-img').style.transform =
+      'translate(' + lb.tx + 'px,' + lb.ty + 'px) scale(' + lb.scale + ')';
+    $('#lb-stage').classList.toggle('is-zoomed', lb.scale > 1.001);
+  }
+
+  function lbReset() {
+    lb.scale = 1;
+    lb.tx = 0;
+    lb.ty = 0;
+    lbApply();
+  }
+
+  function lbShow(index) {
+    var total = lb.imgs.length;
+    if (!total) {
+      return;
+    }
+    lb.index = Math.max(0, Math.min(total - 1, index));
+    $('#lightbox-img').src = lb.imgs[lb.index].src;
+    $('#lb-counter').textContent = (lb.index + 1) + ' / ' + total;
+    $('#lb-prev').disabled = lb.index <= 0;
+    $('#lb-next').disabled = lb.index >= total - 1;
+    lbReset();
+  }
+
+  function lbStep(delta) {
+    if (!lb.imgs.length) {
+      return;
+    }
+    var next = lb.index + delta;
+    if (next < 0 || next >= lb.imgs.length) {
+      return;
+    }
+    lbShow(next);
+  }
+
+  function lbZoom(factor) {
+    lb.scale = Math.max(1, Math.min(5, lb.scale * factor));
+    if (lb.scale <= 1.001) {
+      lb.scale = 1;
+      lb.tx = 0;
+      lb.ty = 0;
+    }
+    lbApply();
+  }
+
   function closeLightbox() {
     var box = $('#img-lightbox');
     if (!box.hidden) {
       box.hidden = true;
       $('#lightbox-img').src = '';
+      lb.imgs = [];
+      lbReset();
     }
   }
+
+  function openLightbox(img) {
+    lb.imgs = lbImages();
+    var i = lb.imgs.indexOf(img);
+    lbShow(i < 0 ? 0 : i);
+    $('#img-lightbox').hidden = false;
+  }
+
   $('#reader-body').addEventListener('click', function (event) {
     var img = event.target.closest('img');
     if (!img || !img.src) {
       return;
     }
-    $('#lightbox-img').src = img.src;
-    $('#img-lightbox').hidden = false;
+    openLightbox(img);
   });
-  $('#img-lightbox').addEventListener('click', closeLightbox);
+
+  $('#lb-prev').addEventListener('click', function (event) {
+    event.stopPropagation();
+    lbStep(-1);
+  });
+  $('#lb-next').addEventListener('click', function (event) {
+    event.stopPropagation();
+    lbStep(1);
+  });
+  $('#lb-close').addEventListener('click', closeLightbox);
+  $('#lb-zoom-in').addEventListener('click', function () { lbZoom(1.35); });
+  $('#lb-zoom-out').addEventListener('click', function () { lbZoom(1 / 1.35); });
+  $('#lb-zoom-fit').addEventListener('click', lbReset);
+
+  /* 点空白处关闭；点图片本身留给双击缩放 */
+  $('#img-lightbox').addEventListener('click', function (event) {
+    var id = event.target.id;
+    if (id === 'img-lightbox' || id === 'lb-stage') {
+      closeLightbox();
+    }
+  });
+
+  /* 双击：适应屏幕 ↔ 2 倍 */
+  $('#lightbox-img').addEventListener('dblclick', function (event) {
+    event.stopPropagation();
+    if (lb.scale > 1.001) {
+      lbReset();
+    } else {
+      lb.scale = 2;
+      lbApply();
+    }
+  });
+
+  /* 滚轮缩放 */
+  $('#lb-stage').addEventListener('wheel', function (event) {
+    event.preventDefault();
+    lbZoom(event.deltaY < 0 ? 1.15 : 1 / 1.15);
+  }, { passive: false });
+
+  /* 拖动平移（放大后才生效，避免和「点一下关闭」冲突） */
+  (function () {
+    var stage = $('#lb-stage');
+    var img = $('#lightbox-img');
+    var dragging = false;
+    var sx = 0, sy = 0, ox = 0, oy = 0;
+
+    stage.addEventListener('pointerdown', function (event) {
+      if (lb.scale <= 1.001) {
+        return;
+      }
+      dragging = true;
+      sx = event.clientX;
+      sy = event.clientY;
+      ox = lb.tx;
+      oy = lb.ty;
+      stage.classList.add('is-dragging');
+      try { img.setPointerCapture(event.pointerId); } catch (err) { /* 指针已释放 */ }
+    });
+    stage.addEventListener('pointermove', function (event) {
+      if (!dragging) {
+        return;
+      }
+      lb.tx = ox + (event.clientX - sx);
+      lb.ty = oy + (event.clientY - sy);
+      lbApply();
+    });
+    function endDrag() {
+      dragging = false;
+      stage.classList.remove('is-dragging');
+    }
+    stage.addEventListener('pointerup', endDrag);
+    stage.addEventListener('pointercancel', endDrag);
+  })();
+
+  /* 触摸：未放大时左右滑切图；双指捏合缩放 */
+  (function () {
+    var box = $('#img-lightbox');
+    var startX = 0, startY = 0, startDist = 0, startScale = 1, multi = false;
+
+    box.addEventListener('touchstart', function (event) {
+      if (event.touches.length === 2) {
+        multi = true;
+        startDist = Math.hypot(
+          event.touches[0].clientX - event.touches[1].clientX,
+          event.touches[0].clientY - event.touches[1].clientY
+        );
+        startScale = lb.scale;
+        return;
+      }
+      multi = false;
+      startX = event.touches[0].clientX;
+      startY = event.touches[0].clientY;
+    }, { passive: true });
+
+    box.addEventListener('touchmove', function (event) {
+      if (event.touches.length === 2 && startDist > 0) {
+        var dist = Math.hypot(
+          event.touches[0].clientX - event.touches[1].clientX,
+          event.touches[0].clientY - event.touches[1].clientY
+        );
+        lb.scale = Math.max(1, Math.min(5, startScale * (dist / startDist)));
+        lbApply();
+      }
+    }, { passive: true });
+
+    box.addEventListener('touchend', function (event) {
+      if (multi) {
+        multi = false;
+        startDist = 0;
+        return;
+      }
+      if (lb.scale > 1.001) {
+        return; // 放大后单指是拖动，不切图
+      }
+      var touch = event.changedTouches[0];
+      var dx = touch.clientX - startX;
+      var dy = touch.clientY - startY;
+      if (Math.abs(dx) >= 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+        lbStep(dx < 0 ? 1 : -1);
+      }
+    }, { passive: true });
+  })();
 
   /* ---------- 阅读设置（背景 / 行距 / 字体 / 页宽） ---------- */
   function syncSettingButtons() {

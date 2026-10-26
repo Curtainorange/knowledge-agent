@@ -629,23 +629,64 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
   box-shadow:var(--shadow-md);background:#fafbfe;
   transition:transform .15s,box-shadow .15s;
 }
+/* 竖版长图（扫描书的一页 = 一张图）：不再限高，按正文宽度铺满。
+   限高 520px 会把 3:4 的扫描页压到 347px 宽，正文小字根本看不清。
+   （is-page 由 reader.html 按图片实际宽高比打上） */
+.reader-figure img.is-page{max-height:none;width:100%}
 .reader-figure img:hover{transform:scale(1.008);box-shadow:var(--shadow-lg)}
 .img-pos{display:none}
 
-/* 插图放大（lightbox） */
+/* 插图放大：全屏查看器（翻页 + 缩放 + 拖动）。
+   扫描书一页一张图，放大看字时必须能直接切下一张，不能「关掉再点」。 */
 .img-lightbox{
-  position:fixed;inset:0;z-index:100;padding:32px;cursor:zoom-out;
-  display:flex;align-items:center;justify-content:center;
-  background:rgba(15,18,32,.88);
+  position:fixed;inset:0;z-index:100;
+  display:grid;grid-template-columns:56px 1fr 56px;grid-template-rows:auto 1fr;
+  background:rgba(15,18,32,.94);
   -webkit-backdrop-filter:blur(4px);backdrop-filter:blur(4px);
-  animation:lb-in .16s ease;
+  animation:lb-in .16s ease;touch-action:none;
 }
 .img-lightbox[hidden]{display:none}
-.img-lightbox img{
-  max-width:100%;max-height:100%;border-radius:12px;
-  box-shadow:0 24px 64px rgba(0,0,0,.5);
+.lb-bar{
+  grid-column:1/-1;display:flex;align-items:center;justify-content:space-between;
+  gap:12px;padding:10px 14px;color:#fff;
 }
+.lb-counter{font-size:13px;font-variant-numeric:tabular-nums;opacity:.85}
+.lb-tools{display:flex;gap:8px}
+.lb-tools button{
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.22);
+  color:#fff;border-radius:9px;padding:6px 12px;font-size:13px;cursor:pointer;
+}
+.lb-tools button:hover:not(:disabled){background:rgba(255,255,255,.22);color:#fff}
+.lb-tools button:disabled{opacity:.4;cursor:not-allowed}
+.lb-stage{
+  grid-column:2;overflow:hidden;display:flex;align-items:center;justify-content:center;
+  cursor:grab;
+}
+.lb-stage.is-zoomed{cursor:grab}
+.lb-stage.is-dragging{cursor:grabbing}
+.lb-stage img{
+  max-width:100%;max-height:calc(100vh - 110px);border-radius:8px;
+  box-shadow:0 24px 64px rgba(0,0,0,.5);
+  transform-origin:center center;will-change:transform;
+  -webkit-user-select:none;user-select:none;-webkit-user-drag:none;
+}
+.lb-nav{
+  align-self:center;justify-self:center;
+  width:44px;height:64px;border-radius:12px;
+  background:rgba(255,255,255,.12);border:1px solid rgba(255,255,255,.2);
+  color:#fff;font-size:30px;line-height:1;cursor:pointer;
+}
+.lb-nav:hover:not(:disabled){background:rgba(255,255,255,.24);color:#fff}
+.lb-nav:disabled{opacity:.28;cursor:not-allowed}
+.lb-prev{grid-column:1;grid-row:2}
+.lb-next{grid-column:3;grid-row:2}
 @keyframes lb-in{from{opacity:0}to{opacity:1}}
+@media(max-width:720px){
+  .img-lightbox{grid-template-columns:44px 1fr 44px}
+  .lb-nav{width:38px;height:52px;font-size:24px}
+  .lb-tools button{padding:5px 9px;font-size:12px}
+  .lb-stage img{max-height:calc(100vh - 96px)}
+}
 
 /* ============ 对话工作台（统一入口 app.html） ============
    复用 L1 挖掘那套消息流的类（.log/.msg/.bubble/.composer），只补：
