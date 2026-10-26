@@ -18,6 +18,11 @@ dependencies = [
     # 本地没暴露，是因为 anaconda 里自带 numpy；干净环境 pip install -e . 之后
     # import app.main 直接 ModuleNotFoundError，CI 第一次跑就会遇到。
     "numpy>=1.26",
+    # app/books/parser.py 顶层 `from bs4 import BeautifulSoup`，文档字符串还写着
+    # 「已装依赖 bs4」，其实**从没在依赖里出现过**。后果不是用例失败，而是 conftest
+    # 加载即 ImportError → pytest 整体 exit code 4（用法错误），CI 日志里极难认。
+    # 解析器用的是 stdlib 的 html.parser，因此不需要 lxml。
+    "beautifulsoup4>=4.12",
 ]
 
 [project.optional-dependencies]
