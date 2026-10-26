@@ -14,6 +14,7 @@ from sqlalchemy.orm import Session
 from app.core import trace
 from app.core.config import settings
 from app.llm import cost as cost_service
+from app.llm import policy
 from app.llm.completion import Completion
 from app.llm.exceptions import LLMError, RetryableLLMError
 from app.llm.prompts import PROMPT_VERSION_BY_TASK_TYPE
@@ -204,6 +205,9 @@ class ModelGateway:
         调用方照旧只负责 `parse_structured` 解析与降级，不需要感知这一层。
         """
         strat = self.route(task_type)
+        # 工具白名单闸门（harness 层）：必须在**调用之前**拦，且抛出的 PolicyViolation
+        # 不继承 LLMError——否则「供应商回退」会把越权当成一次可重试的失败悄悄吃掉。
+        policy.assert_tools_allowed(tools)
         completion = self._call_with_retry(strat, messages, tools, response_format, json_model)
         self._record_cost(session, user_id, strat, completion, prompt_version)
 
