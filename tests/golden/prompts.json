@@ -52,12 +52,12 @@
     "sha256": "3a9ef4558858d5c9f463482c612fa81d6a595d841cb33ee7428d777aaa47449e"
   },
   "book_recommend": {
-    "version": "v1",
-    "sha256": "c6f8956eee82b76d78300300a5d7552fd85b5e63bb13c6492c3646f80a4f0546"
+    "version": "v2",
+    "sha256": "618bfa29446277f779a64eccc6596bcfe61b9632d913ccccb7c95578f58d3b02"
   },
   "suggestion": {
-    "version": "v1",
-    "sha256": "cc677e378600e92d19d16804b43116151287e16e8d016dab68e58d0917772d5d"
+    "version": "v2",
+    "sha256": "c7bba1f2eb90f9abf7dc4cc202e98935bf3b35b2ee4c4a2cbcdd1595457bd01b"
   },
   "conflict_attribute": {
     "version": "v3",

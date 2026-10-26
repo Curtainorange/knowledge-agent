@@ -344,6 +344,34 @@ def test_recommend_builds_card_from_profile(client, session, provider):
     assert "挑了 2 本" in body["reply"]
 
 
+def test_profile_includes_agent_summary(session):
+    """推荐画像里的已通读书，要带一句话摘要，而不是只有书名。
+
+    回归：推荐靠模型自由发挥，只喂书名模型只能凭记忆硬编承接关系；
+    带上摘要后，模型才能「接着他读过的那本的内容」说。
+    """
+    from app.agent.book_orchestrator import _profile
+
+    book = Book(
+        user_id="u1", title="刻意练习", author="安德斯",
+        format="txt", file_path="x.txt",
+        chapters=[], full_text="x", total_chars=1,
+    )
+    session.add(book)
+    session.commit()
+    session.add(BookAgentReading(
+        user_id="u1", book_id=book.id, status="done",
+        total_chars=1, summary="走出舒适区进行有目的练习。",
+        chapters_note=[], chunk_count=1, failed_chunks=0, truncated=False,
+    ))
+    session.commit()
+
+    read = _profile(session, user_id="u1")["agent_read_books"]
+    assert read, "已通读的书应进画像"
+    assert read[0]["title"] == "刻意练习"
+    assert "舒适区" in read[0]["summary"]
+
+
 def test_recommend_empty_profile_says_so(client, provider):
     user = sign_in(client, "book_recommend_empty")
 

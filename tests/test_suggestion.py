@@ -223,6 +223,62 @@ def test_partial_drop_keeps_valid_item(session):
     assert "省略" in (outcome.note or "")
 
 
+# ---- 通读笔记进证据池 -------------------------------------------------------
+
+
+def _book_and_reading(session, *, user_id="u1", title="原则", summary="极度透明意味着要能说真话。"):
+    from app.domain.models.book import Book
+    from app.domain.models.book_agent_reading import BookAgentReading
+
+    text = "极度透明意味着组织里没有不能说的话。"
+    book = Book(
+        user_id=user_id, title=title, author="瑞·达利欧",
+        format="txt", file_path="x.txt",
+        chapters=[{"index": 0, "title": "第一章", "char_start": 0, "char_end": len(text)}],
+        full_text=text, total_chars=len(text),
+    )
+    session.add(book)
+    session.commit()
+    reading = BookAgentReading(
+        user_id=user_id, book_id=book.id, status="done",
+        total_chars=len(text), summary=summary,
+        chapters_note=[], chunk_count=1, failed_chunks=0, truncated=False,
+    )
+    session.add(reading)
+    session.commit()
+    return book
+
+
+def test_agent_summary_enters_evidence_pool(session):
+    """通读笔记进证据池，模型可同时引用 ki:（自己的）与 agent:（通读的）。"""
+    item = _seed(session)
+    book = _book_and_reading(session)
+    payload = {
+        "action": "用极度透明的方法开周会", "why": "你问的是落地到周会",
+        "steps": [], "how_to_verify": "会后有没有人接着说",
+        "basis_item_ids": [f"ki:{item.id}", f"agent:{book.id}"],
+    }
+    provider = _Scripted([json.dumps({"items": [payload], "reason": ""}, ensure_ascii=False)])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=_ready_ctx(), gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "ok"
+    assert {e.kind for e in outcome.evidence} == {"knowledge_item", "agent_summary"}
+
+
+def test_agent_only_evidence_skips_model(session):
+    """只有通读笔记、没有自己的内容 → 不调模型，直接依据不足。"""
+    book = _book_and_reading(session)
+    provider = _Scripted([_draft(f"agent:{book.id}")])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=_ready_ctx(), gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "insufficient_evidence"
+    assert provider.calls == []
+
+
 # ---- 异常与边界 -------------------------------------------------------------
 
 

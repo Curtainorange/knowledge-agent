@@ -65,6 +65,13 @@ KEYWORD_RELEVANCE_CAP = 0.55
 KEYWORD_MIN_RELEVANCE = 0.05
 # 建议里同书证据上限：防"一本书撑起全部建议"
 MAX_PER_BOOK = 2
+# 通读笔记单次装配上限：通读笔记是"背景脉络"，塞太多只会稀释用户自己的内容
+MAX_AGENT_SUMMARIES = 3
+# 通读笔记的相关性封顶：它代表"整本书的脉络"，与具体疑问的相关性本就该
+# 低于一条直接命中的划线，所以封在关键词封顶（0.55）之下。
+AGENT_RELEVANCE_CAP = 0.5
+# 通读笔记召回的最低门槛：完全词面不相关的书不进池（与 keyword 路径同一口径）
+AGENT_MIN_RELEVANCE = 0.05
 
 BASIS_LIBRARY = "library"
 BASIS_AGENT = "agent_summary"
@@ -216,6 +223,9 @@ def _jumpable(source: str, locator: dict, item_id: str) -> bool:
         return bool(item_id)
     if source == "weread":
         return bool(loc.get("deep_link") or loc.get("chapter_title") or item_id)
+    if source == "agent":
+        # 通读笔记没有具体位置，能点回"这本书"即可
+        return bool(loc.get("book_id"))
     if source in _ITEM_JUMPABLE_SOURCES:
         return bool(item_id)
     return bool(item_id)
@@ -390,6 +400,78 @@ def dedupe_by_book(evidence: list[Evidence], *, max_per_book: int = MAX_PER_BOOK
         counts[key] = counts.get(key, 0) + 1
         kept.append(ev)
     return kept
+
+
+def build_agent_summaries(
+    session: Session,
+    *,
+    user_id: str,
+    query: str,
+    limit: int = MAX_AGENT_SUMMARIES,
+    min_relevance: float = AGENT_MIN_RELEVANCE,
+) -> list[Evidence]:
+    """把已通读的书装配成 `agent_summary` 依据。
+
+    与 `build_evidence` 的分工：那里只产出用户同步的内容（划线 / 手记），
+    这里产出**智能体通读整本书后写的总评**——它没有向量，相关性用关键词分近似，
+    并封顶在 `AGENT_RELEVANCE_CAP`（通读笔记是背景脉络，不该显得和一条直接命中的
+    划线一样相关）。
+
+    `basis=agent_summary` 本身不是豁免：`verify_citations` 已要求每条建议至少
+    1 条 `library`，所以通读笔记**天然不得单独构成依据**，这里不需要再写一遍。
+
+    读失败 / 空库一律返回 `[]`，不让这条支线把建议链路带崩。
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    try:
+        from app.domain.models.book import Book
+        from app.domain.models.book_agent_reading import BookAgentReading
+
+        rows = session.execute(
+            select(Book.title, Book.id, BookAgentReading.summary)
+            .join(BookAgentReading, BookAgentReading.book_id == Book.id)
+            .where(
+                BookAgentReading.user_id == user_id,
+                BookAgentReading.status == "done",
+                BookAgentReading.is_deleted.is_(False),
+            )
+        ).all()
+    except Exception as exc:  # pragma: no cover - 防御性兜底
+        logger.warning("grounding: 读取通读笔记失败，按无处理: %s", exc)
+        return []
+
+    out: list[Evidence] = []
+    for title, book_id, summary in rows:
+        text = (summary or "").strip()
+        if not text:
+            continue
+        relevance = score_keyword(q, title or "", text)
+        if relevance < min_relevance:
+            continue
+        quote = _clip(text, QUOTE_MAX)
+        if not quote:
+            continue
+        out.append(
+            Evidence(
+                evidence_id=f"agent:{book_id}",
+                kind="agent_summary",
+                basis=BASIS_AGENT,
+                source="agent",
+                title=f"《{title}》通读笔记" if title else "通读笔记",
+                quote=quote,
+                locator={"book_id": str(book_id)},
+                retrieval="agent",
+                relevance=min(AGENT_RELEVANCE_CAP, relevance),
+                item_id="",
+                level=LEVEL_L3,
+            )
+        )
+
+    # 只有几本通读，相关性排序后取前 limit 本即可
+    out.sort(key=lambda e: -e.relevance)
+    return out[:limit]
 
 
 # ---- 引用校验 ---------------------------------------------------------------

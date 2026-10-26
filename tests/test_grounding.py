@@ -282,6 +282,69 @@ def test_keyword_zero_overlap_filtered_out(session):
     assert all(e.item_id != item.id for e in items)
 
 
+# ---- 通读笔记装配（agent_summary）-------------------------------------------
+
+
+def _agent_reading(session, book, *, user_id="u1", summary="走出舒适区进行有目的练习。"):
+    from app.domain.models.book_agent_reading import BookAgentReading
+
+    reading = BookAgentReading(
+        user_id=user_id, book_id=book.id, status="done",
+        total_chars=book.total_chars, summary=summary,
+        chapters_note=[], chunk_count=1, failed_chunks=0, truncated=False,
+    )
+    session.add(reading)
+    session.commit()
+    return reading
+
+
+def test_build_agent_summaries_returns_agent_basis(session):
+    book = _book(session, title="走出舒适区")
+    _agent_reading(session, book)
+    evs = grounding.build_agent_summaries(session, user_id="u1", query="走出舒适区")
+    assert evs
+    ev = evs[0]
+    assert ev.kind == "agent_summary"
+    assert ev.basis == grounding.BASIS_AGENT
+    assert ev.source == "agent"
+    assert ev.evidence_id == f"agent:{book.id}"
+    assert ev.can_cite is True
+
+
+def test_build_agent_summaries_empty_query(session):
+    book = _book(session, title="走出舒适区")
+    _agent_reading(session, book)
+    assert grounding.build_agent_summaries(session, user_id="u1", query="  ") == []
+
+
+def test_build_agent_summaries_filters_irrelevant(session):
+    book = _book(session, title="番茄炒蛋")
+    _agent_reading(session, book, summary="三个番茄两个蛋，先炒蛋再炒番茄。")
+    evs = grounding.build_agent_summaries(session, user_id="u1", query="走出舒适区")
+    assert evs == []
+
+
+def test_build_agent_summaries_user_scoped(session):
+    book = _book(session, title="走出舒适区")
+    _agent_reading(session, book, user_id="u1")
+    assert grounding.build_agent_summaries(session, user_id="u2", query="走出舒适区") == []
+
+
+def test_build_agent_summaries_relevance_capped(session):
+    book = _book(session, title="走出舒适区")
+    _agent_reading(session, book, summary="走出舒适区进行有目的练习")
+    evs = grounding.build_agent_summaries(session, user_id="u1", query="走出舒适区")
+    assert evs[0].relevance == grounding.AGENT_RELEVANCE_CAP
+
+
+def test_agent_evidence_jumpable_by_book_id(session):
+    book = _book(session, title="走出舒适区")
+    _agent_reading(session, book)
+    evs = grounding.build_agent_summaries(session, user_id="u1", query="走出舒适区")
+    assert evs[0].jumpable is True
+    assert evs[0].locator.get("book_id") == book.id
+
+
 # ---- 引用校验 ---------------------------------------------------------------
 
 

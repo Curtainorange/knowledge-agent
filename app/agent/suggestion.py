@@ -222,6 +222,10 @@ def generate(
         session, user_id=user_id, query=query, top_k=MAX_EVIDENCE, embedding=embedding
     )
     evidence = grounding.dedupe_by_book(evidence)
+    # 通读笔记作为"背景依据"一并召回：它只作脉络，不能单独撑起建议
+    #（verify_citations 要求每条至少 1 条 library，这里省的是那一次注定被丢的模型调用）。
+    agent_evidence = grounding.build_agent_summaries(session, user_id=user_id, query=query)
+    evidence = evidence + agent_evidence
     citable = [ev for ev in evidence if ev.can_cite]
 
     if not citable:
@@ -234,6 +238,20 @@ def generate(
                 "换个说法，用你笔记里出现过的词",
                 "先把这段想法记一条，再来问",
                 "去对应章节划一段存进来",
+            ],
+        )
+
+    # 通读笔记只作背景：没有你自己的内容时，直接判依据不足，不调模型。
+    if not any(ev.basis == grounding.BASIS_LIBRARY for ev in citable):
+        return SuggestionOutcome(
+            state="insufficient_evidence",
+            digest=digest,
+            evidence=evidence,
+            note="这几本书我通读过，但你还没摘录能支撑这个问题的内容，我不猜。",
+            hints=[
+                "去对应的书里划一段存进来",
+                "先说一句你的想法，我帮你记下来",
+                "换个说法，用你笔记里出现过的词",
             ],
         )
 

@@ -708,6 +708,9 @@ window.CCA = (function () {
     if (e.source === 'book' && loc.book_id && loc.char_start !== undefined && loc.char_start !== null) {
       return '<a href="/reader.html?book=' + esc(loc.book_id) + '&char=' + esc(loc.char_start) + '">看原文</a>';
     }
+    if (e.source === 'agent' && loc.book_id) {
+      return '<a href="/reader.html?book=' + esc(loc.book_id) + '">看这本书</a>';
+    }
     if (e.item_id) {
       return '<a href="/knowledge.html?item=' + esc(e.item_id) + '">看这条</a>';
     }

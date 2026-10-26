@@ -413,9 +413,9 @@ def _profile(session: Session, *, user_id: str) -> dict:
     from app.domain.models.book_agent_reading import BookAgentReading as _R
 
     digested = [
-        row[0]
+        {"title": row[0], "summary": (row[1] or "").strip()[:200]}
         for row in session.execute(
-            select(Book.title).join(_R, _R.book_id == Book.id).where(
+            select(Book.title, _R.summary).join(_R, _R.book_id == Book.id).where(
                 _R.user_id == user_id, _R.status == "done", _R.is_deleted.is_(False)
             )
         ).all()
