@@ -75,3 +75,17 @@ def test_precommit_hook_is_a_shell_script() -> None:
     first_line = HOOK.read_text(encoding="utf-8").splitlines()[0]
     assert first_line.startswith("#!"), f"缺 shebang：{first_line!r}"
     assert "sh" in first_line
+
+
+def test_precommit_hook_is_lf_only() -> None:
+    """钩子必须是 LF 行尾。
+
+    本机 `core.autocrlf=true`：不强制的话，`.githooks/pre-commit` 每次检出都会变成 CRLF，
+    sh 会把 `\\r` 当成命令的一部分，报 `set: command not found` 之类——看起来像"钩子没生效"，
+    实际是整个文件坏了。`.gitattributes` 里对钩子与 `*.sh` 钉了 `eol=lf`，这条检查盯着它别被删。
+    """
+    raw = HOOK.read_bytes()
+    assert b"\r\n" not in raw, (
+        "钩子被检出成 CRLF 了。检查 .gitattributes 里的 `.githooks/* text eol=lf`，"
+        "然后 rm 该文件并 git checkout -- 重新检出。"
+    )

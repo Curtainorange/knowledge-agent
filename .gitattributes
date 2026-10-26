@@ -1,0 +1,13 @@
+# 行尾策略。本机 core.autocrlf=true（Git for Windows 默认），所以这里只钉「必须 LF」的，
+# 其余走 git 默认——不搞全局 eol 覆盖，免得把 diff 搅成整文件重写。
+
+# shell 脚本与 git 钩子必须是 LF：CRLF 会让 sh 把 \r 当成命令的一部分，
+# .githooks/pre-commit 会「看起来装了却不生效」，或者直接报莫名其妙的错。
+.githooks/*     text eol=lf
+*.sh            text eol=lf
+
+# CI 配置同理：workflow 里写了多行 run 块，CRLF 进了 runner 会变成 \r 混在命令末尾
+.github/workflows/*.yml  text eol=lf
+
+# 这个文件自己也要 LF——它决定别人怎么被检出，自己先别漂
+.gitattributes  text eol=lf
