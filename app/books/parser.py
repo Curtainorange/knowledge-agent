@@ -10,6 +10,7 @@
 """
 from __future__ import annotations
 
+import posixpath
 import re
 import zipfile
 from dataclasses import dataclass, field
@@ -116,10 +117,30 @@ def _strip_namespace(root: ET.Element) -> ET.Element:
 
 
 def _resolve_href(opf_dir: str, href: str) -> str:
+    """把 href 解析成 zip 内的真实条目名。
+
+    **必须做路径规范化**：epub 里图片通常写成 `../images/pic.jpg`（相对当前 xhtml），
+    而 zip 内的条目名是 `images/pic.jpg`。不解析 `..` 就会拼出
+    `text/../images/pic.jpg` 这种库里不存在的名字，`zf.read` 抛 KeyError，
+    图片被当成「读不到外链图」整批丢弃——整本图画书只剩零星文字。
+    """
+    if href.startswith("/"):
+        return posixpath.normpath(href).lstrip("/")
     if opf_dir in ("", "."):
-        return href
-    joined = f"{opf_dir}/{href}".replace("//", "/")
-    return joined
+        return posixpath.normpath(href)
+    return posixpath.normpath(posixpath.join(opf_dir, href))
+
+
+def _visible_text(soup) -> str:
+    """取可见正文：先摘掉 head/script/style，再取文本。
+
+    `soup.get_text()` 会把 `<head><title>` 也算进来。Calibre 转出的 epub 里有大量
+    `<title>未知</title>`，直接取全文会让每章开头凭空多一行「未知」——读者以为正文
+    坏了，其实是标题标签混进了正文。
+    """
+    for tag in soup.find_all(["head", "script", "style"]):
+        tag.decompose()
+    return soup.get_text("\n", strip=True) or ""
 
 
 def _extract_images(soup, zf, *, xhtml_dir: str, opf_dir: str, images: list, counter: list) -> None:
@@ -199,7 +220,7 @@ def parse_epub(path: Path, title: str | None = None) -> ParsedBook:
             )
             heading = soup.find(["h1", "h2", "h3"])
             headings.append(heading.get_text(strip=True) if heading else "")
-            parts.append(soup.get_text("\n", strip=True) or "")
+            parts.append(_visible_text(soup))
 
         # 某些 epub spine 缺失或为空，回退：取所有 xhtml 按文件名排序
         if not parts:
@@ -217,7 +238,7 @@ def parse_epub(path: Path, title: str | None = None) -> ParsedBook:
                 )
                 heading = soup.find(["h1", "h2", "h3"])
                 headings.append(heading.get_text(strip=True) if heading else "")
-                parts.append(soup.get_text("\n", strip=True) or "")
+                parts.append(_visible_text(soup))
 
     # 4) 组装全文与章节偏移
     full_text = ""

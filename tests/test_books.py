@@ -142,6 +142,64 @@ def test_parse_epub_extracts_images(tmp_path):
     assert "图前文字" in parsed.full_text and "图后文字" in parsed.full_text
 
 
+def _make_epub_image_in_subdir(tmp_path):
+    """正文放在 text/ 子目录、src 写成 `../images/pic.png`（zip 条目在 OEBPS/images/）。
+
+    这是 Calibre 与多数出版社导出 epub 的真实结构。href 里的 `..` 必须被规范化，
+    否则会拼出 `text/../images/pic.png` 这种 zip 里不存在的名字，图片整批丢掉。
+    实测《时间管理》219 张插图就是这样全丢的，库里只剩 2710 字骨架。
+    """
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    opf = (
+        '<?xml version="1.0"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">子目录插图本</dc:title>'
+        '</metadata><manifest>'
+        '<item id="c1" href="text/c1.xhtml" media-type="application/xhtml+xml"/>'
+        '<item id="img1" href="images/pic.png" media-type="image/png"/>'
+        '</manifest><spine><itemref idref="c1"/></spine></package>'
+    )
+    c1 = (
+        '<html><head><title>未知</title></head><body><h1>第一章</h1>'
+        '<p>正文</p><img src="../images/pic.png"/></body></html>'
+    )
+    path = tmp_path / "book_subdir.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("OEBPS/content.opf", opf)
+        zf.writestr("OEBPS/text/c1.xhtml", c1)
+        zf.writestr("OEBPS/images/pic.png", _PNG_BYTES)
+    return path
+
+
+def test_parse_epub_resolves_parent_relative_image(tmp_path):
+    """img 的 src 写成 ../images/... 时也要能读到（路径必须规范化）。"""
+    from app.books.parser import parse_epub
+
+    parsed = parse_epub(_make_epub_image_in_subdir(tmp_path))
+    assert len(parsed.images) == 1
+    assert "[[IMG:img_0000.png]]" in parsed.full_text
+    assert "正文" in parsed.full_text
+
+
+def test_parse_epub_skips_head_title(tmp_path):
+    """<head><title>未知</title> 不能混进正文。
+
+    Calibre 导出的 epub 常把 title 写成「未知」。soup.get_text() 若连 head 一起取，
+    每章开头就会凭空多一行「未知」——读者会以为正文坏了，其实是标题标签。
+    """
+    from app.books.parser import parse_epub
+
+    parsed = parse_epub(_make_epub_image_in_subdir(tmp_path))
+    assert "未知" not in parsed.full_text
+    assert "第一章" in parsed.full_text
+
+
 def test_upload_rejects_scanned_book(client, tmp_path):
     """图片多 + 几乎无可读文本 = 扫描版，上传即拦。
 
