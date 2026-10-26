@@ -21,6 +21,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
 ROOT = Path(__file__).resolve().parents[1]
 SCRIPT = ROOT / "scripts" / "harness_check.py"
 DOC = ROOT / "docs" / "harness" / "模型可触达面清单.md"
@@ -75,6 +77,31 @@ def test_inventory_doc_in_sync() -> None:
         "清单与代码不一致（文档过期）。跑 `python scripts/harness_check.py --write-doc` 重新生成后提交。\n"
         f"--- 文档里是 ---\n{actual[:800]}\n--- 实际扫描 ---\n{expected[:800]}"
     )
+
+
+def test_test_fixtures_are_tracked() -> None:
+    """测试夹具必须入库：没入库的夹具在干净检出（CI / 换机器）里只会 ERROR。
+
+    这条是有来历的：`.gitignore` 里写的 `data/` 不带前导斜杠，匹配**任意层级**的
+    data 目录，把 `tests/data/` 一起吞了。`tests/data/retrieval_eval.json` 因此从未进过
+    仓库——本机天天绿，`git worktree` 干净检出时 `test_retrieval_eval.py` 的 6 项直接 ERROR。
+    判据用 `git ls-files --error-unmatch`，比"文件存在"强：存在≠入库。
+    """
+    fixtures = sorted((ROOT / "tests" / "data").glob("*"))
+    assert fixtures, "tests/data 下没有夹具，检查自己写错了"
+    for path in fixtures:
+        rel = path.relative_to(ROOT).as_posix()
+        try:
+            proc = subprocess.run(
+                ["git", "ls-files", "--error-unmatch", rel],
+                cwd=str(ROOT), capture_output=True, text=True,
+            )
+        except FileNotFoundError:
+            pytest.skip("环境没有 git，无法判断是否入库")
+        assert proc.returncode == 0, (
+            f"{rel} 没入库（已被 .gitignore 吞掉）。干净检出时相关测试会 ERROR，"
+            "用 `git add -f` 单独放行，或修 .gitignore 的规则。"
+        )
 
 
 def test_agents_md_carries_harness_rules() -> None:

@@ -280,7 +280,9 @@ def render_markdown(data: dict) -> str:
 
     lines += ["### 5. 扫描口径", ""]
     lines += [
-        f"- 范围：`{'` `'.join(SCAN_DIRS)}/` 下的 `.py`（跳过 `__pycache__`），共 {len(_iter_py())} 个文件；",
+        # 刻意**不写文件总数**：新增一个普通模块就红一次，只会把人训练成「红了就 --write-doc」，
+        # 报警器被拆掉。这一节只该记录口径，不该记录数量。
+        f"- 范围：`{'` `'.join(SCAN_DIRS)}/` 下的 `.py`（跳过 `__pycache__`）；",
         f"- 任务类型：`gateway.STRATEGY_TABLE` 共 {len(data['task_types'])} 项，与 policy 白名单要求**完全相等**；",
         "- 全部为静态扫描：不 import 业务模块、不连库、不触网。",
     ]

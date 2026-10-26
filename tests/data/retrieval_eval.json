@@ -1,0 +1,42 @@
+{
+  "corpus": [
+    {"id": "db_index", "title": "数据库索引原理", "content": "B+树索引把数据按键排序，范围查询走叶子节点链表，哈希索引只支持等值查询"},
+    {"id": "tomato", "title": "番茄炒蛋的做法", "content": "三个番茄两个鸡蛋，先炒蛋盛出，再炒番茄出汁后回锅翻炒"},
+    {"id": "transformer", "title": "Transformer 注意力机制", "content": "自注意力把每个词映射为 query key value 三个向量，多头机制并行捕捉不同子空间的关系"},
+    {"id": "feynman", "title": "费曼学习法", "content": "把学到的概念用自己的话讲给外行听，讲不清楚的地方就是没学会的地方，回头重新学"},
+    {"id": "forgetting", "title": "遗忘曲线与复习节奏", "content": "艾宾浩斯遗忘曲线显示记忆在一天内衰减最快，按一天三天七天的间隔重复复习最有效"},
+    {"id": "zettelkasten", "title": "卡片盒笔记法", "content": "每张卡片只写一个想法，用唯一编号建立链接，卡片之间互相引用形成知识网络"},
+    {"id": "rest", "title": "REST 接口设计规范", "content": "用名词命名资源路径，HTTP 动词表达操作，状态码传递结果，接口无状态可缓存"},
+    {"id": "git_rebase", "title": "Git 变基操作", "content": "rebase 把当前分支的提交摘下来重放到目标分支之后，历史线性干净但会改写已有提交"},
+    {"id": "sql_window", "title": "SQL 窗口函数", "content": "row_number rank dense_rank 在分区内排序编号，配合 over 子句做分组内排名与累计求和"},
+    {"id": "pandas", "title": "pandas 数据清洗", "content": "用 dropna 处理缺失值，fillna 填充默认值，duplicated 删除重复行，apply 做逐行变换"},
+    {"id": "overfitting", "title": "过拟合与正则化", "content": "模型在训练集表现好测试集差就是过拟合，用 L2 正则 dropout 早停增加数据来缓解"},
+    {"id": "attention", "title": "注意力机制的本质", "content": "注意力就是加权平均，权重由相似度归一化得到，越相关的词获得越高的权重"},
+    {"id": "cornell", "title": "康奈尔笔记法", "content": "把页面分成笔记区线索区总结区，课上记笔记课后写线索，最后用总结区提炼要点"},
+    {"id": "mvc", "title": "MVC 架构模式", "content": "模型管数据与业务规则，视图管展示，控制器接收请求协调两者，职责分离便于维护"},
+    {"id": "docker", "title": "Docker 容器基础", "content": "镜像是分层模板，容器是镜像的运行实例，volume 持久化数据，端口映射对外暴露服务"},
+    {"id": "normal_dist", "title": "正态分布", "content": "均值决定位置标准差决定胖瘦，68 95 99.7 法则描述一二三倍标准差范围内的概率"},
+    {"id": "bayes", "title": "贝叶斯定理", "content": "后验概率正比于似然乘先验，新证据到来时用贝叶斯公式更新对假设的置信程度"},
+    {"id": "fermi", "title": "费米估算", "content": "把大问题拆成若干可估计的小量相乘，数量级对了答案就八九不离十"},
+    {"id": "deliberate", "title": "刻意练习", "content": "在舒适区边缘练习，目标具体反馈即时，专注于改正错误而不是重复已经会的动作"},
+    {"id": "spaced_repetition", "title": "间隔重复算法", "content": "Anki 的 SM2 算法按回忆质量调整间隔，答对间隔翻倍答错重置为一天"}
+  ],
+  "queries": [
+    {"q": "数据库索引 范围查询", "relevant": ["db_index"]},
+    {"q": "番茄炒蛋 先炒什么", "relevant": ["tomato"]},
+    {"q": "Transformer 自注意力 多头机制", "relevant": ["transformer", "attention"]},
+    {"q": "费曼学习法 讲给别人听", "relevant": ["feynman"]},
+    {"q": "遗忘曲线 间隔复习", "relevant": ["forgetting", "spaced_repetition"]},
+    {"q": "卡片盒笔记法 卡片链接", "relevant": ["zettelkasten"]},
+    {"q": "康奈尔笔记 页面分区", "relevant": ["cornell"]},
+    {"q": "REST 资源命名 状态码", "relevant": ["rest"]},
+    {"q": "git rebase 改写提交", "relevant": ["git_rebase"]},
+    {"q": "窗口函数 分区排名", "relevant": ["sql_window"]},
+    {"q": "pandas 缺失值 去重", "relevant": ["pandas"]},
+    {"q": "过拟合 正则化 dropout", "relevant": ["overfitting"]},
+    {"q": "MVC 控制器 视图 职责", "relevant": ["mvc"]},
+    {"q": "docker 镜像 容器 volume", "relevant": ["docker"]},
+    {"q": "费米估算 数量级", "relevant": ["fermi"]},
+    {"q": "刻意练习 舒适区 反馈", "relevant": ["deliberate"]}
+  ]
+}
