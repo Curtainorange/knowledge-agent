@@ -32,6 +32,24 @@ python -m pytest --no-header -p no:warnings
 node --check web/assets/agent.js   # 仅前端改动
 ```
 
+### 2.1 门禁的触发点（本地钩子 + GitHub Actions）
+
+写在这里的约定只有两种结局：要么有人执行，要么形同不存在。所以门禁挂两处自动触发：
+
+```bash
+git config core.hooksPath .githooks            # 每台机器一次：commit 前自动跑
+git config harness.python "<解释器绝对路径>"    # 本机 pytest 只装在 anaconda 里，需显式指定
+```
+
+- **`.githooks/pre-commit`**：跑 `harness_check.py` + `tests/test_harness_*.py`，约 2 秒。
+  找不到 python 或 pytest 时**明确跳过并打印原因**，不假装通过、也不拿环境问题拦提交。
+  临时绕过：`git commit --no-verify`（能绕，但日志里会留下没跑门禁的提交，别习惯性用）。
+- **`.github/workflows/ci.yml`**：push 到 main / 任何 PR 时跑同一套 + 全量 pytest + `node --check`。
+  触发器里加了 `workflow_dispatch`，改 CI 本身时能立刻手动验一次。
+
+两处跑的是同一个 `harness_check.py` 和同一套测试——本地绿、远端红（或反过来），
+都说明有一边没对齐，先查环境，别急着改代码。
+
 ### 3. 扩大模型可触达面 = 先登记，再写代码
 
 新增工具、新增出网主机、新增凭据字段、新增 LLM 任务类型，一律先在 `app/llm/policy.py` 登记（写清用途），

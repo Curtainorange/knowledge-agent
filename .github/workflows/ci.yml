@@ -1,0 +1,57 @@
+name: CI
+
+# 触发点：推送 main、任何 PR、手动（workflow_dispatch 用于改 CI 本身时立刻验一次）。
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  harness:
+    name: 可触达面 + 全量测试
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      # 测试全程 Mock：conftest 会清空 KEY、强制 hash embedding、禁 worker。
+      # 这里再显式置空一次——万一以后有人往仓库 secrets 里配了 KEY，
+      # 测试也不会突然开始真的调模型花钱（那就是把门禁变成账单）。
+      DEEPSEEK_API_KEY: ""
+      MIMO_API_KEY: ""
+      WEREAD_API_KEY: ""
+      JWT_SECRET: "ci-fixed-secret-not-for-production"
+      # 关掉可能联网的下载路径与后台线程，保证 CI 离线、确定性
+      HF_ENDPOINT: ""
+      WORKER_ENABLED: "false"
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"        # 与 pyproject 的 requires-python >=3.12 对齐
+          cache: pip
+          cache-dependency-path: pyproject.toml
+
+      - name: 安装依赖
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e ".[dev]"
+
+      - name: 模型可触达面门禁
+        # 工具 / 文件 / 网络 / 密钥四类边界是否与 app/llm/policy.py 白名单一致。
+        # 这一步刻意排在测试之前：边界不成立时，跑再多测试也只是在证明「越权之后逻辑还对」。
+        run: python scripts/harness_check.py
+
+      - name: 全量测试
+        run: python -m pytest --no-header -p no:warnings
+
+      - name: 前端语法检查
+        # node 随 ubuntu-latest 预装；这一步与 tests/js 的运行时验证互为补充
+        run: |
+          for f in web/assets/*.js; do
+            node --check "$f"
+          done

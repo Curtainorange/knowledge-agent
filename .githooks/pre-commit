@@ -1,0 +1,60 @@
+#!/bin/sh
+# Harness 门禁：commit 前跑一遍，约 2 秒。
+#
+# 安装（每台机器一次）：
+#   git config core.hooksPath .githooks
+# 指定解释器（本机 pytest 只装在 anaconda 里）：
+#   git config harness.python "D:/Users/Curtain/anaconda3/python.exe"
+# 临时跳过：git commit --no-verify
+#
+# 两件事，与 CI 的 .github/workflows/ci.yml 前两步完全一致——
+# 本地与远端跑同一套检查，才不会出现「本地绿、推送红」或者反过来。
+
+set -u
+cd "$(git rev-parse --show-toplevel 2>/dev/null)" || exit 1
+
+# ---- 解释器：git config > PATH ----
+PY="$(git config --get harness.python 2>/dev/null || true)"
+if [ -z "$PY" ]; then
+  for cand in python python3 py; do
+    if command -v "$cand" >/dev/null 2>&1; then PY="$cand"; break; fi
+  done
+fi
+if [ -z "$PY" ]; then
+  echo "[harness] 找不到 python，跳过门禁（提交继续）。"
+  echo "          装好 python，或 git config harness.python <解释器路径>"
+  exit 0
+fi
+
+# ---- 1) 模型可触达面：只用标准库，任何 python 都能跑 ----
+if ! out="$("$PY" scripts/harness_check.py 2>&1)"; then
+  echo "$out"
+  echo ""
+  echo "[harness] ✗ 模型可触达面与白名单不一致，提交已阻止。"
+  echo "          改了白名单就跑：$PY scripts/harness_check.py --write-doc"
+  exit 1
+fi
+
+# ---- 2) harness 自身的检查 ----
+# 解释器没装 pytest 就明确跳过并说明——不假装通过，也不拿环境问题拦提交。
+if ! "$PY" -c "import pytest" >/dev/null 2>&1; then
+  echo "[harness] ✓ 可触达面通过；跳过 pytest（$PY 没装 pytest）"
+  exit 0
+fi
+
+files="$(ls tests/test_harness_*.py 2>/dev/null || true)"
+if [ -z "$files" ]; then
+  echo "[harness] ✓ 可触达面通过；没找到 tests/test_harness_*.py，跳过后半段"
+  exit 0
+fi
+
+# shellcheck disable=SC2086  # 这里就是要按空格拆成多个文件路径
+if ! out="$("$PY" -m pytest $files --no-header -p no:warnings -q 2>&1)"; then
+  echo "$out"
+  echo ""
+  echo "[harness] ✗ harness 检查未通过，提交已阻止。"
+  exit 1
+fi
+
+echo "[harness] ✓ 可触达面 + harness 检查通过"
+exit 0

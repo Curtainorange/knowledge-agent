@@ -14,6 +14,10 @@ dependencies = [
     "httpx>=0.27",
     "PyJWT>=2.8",
     "pypdf>=4.0",
+    # app/retrieval/embedding.py 顶层就 `import numpy`——它一直是**隐式**依赖：
+    # 本地没暴露，是因为 anaconda 里自带 numpy；干净环境 pip install -e . 之后
+    # import app.main 直接 ModuleNotFoundError，CI 第一次跑就会遇到。
+    "numpy>=1.26",
 ]
 
 [project.optional-dependencies]
