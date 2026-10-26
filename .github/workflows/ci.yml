@@ -47,7 +47,24 @@ jobs:
         run: python scripts/harness_check.py
 
       - name: 全量测试
-        run: python -m pytest --no-header -p no:warnings
+        # tee 到文件：失败时要靠它产注解——workflow 日志接口需要 admin 权限，
+        # 而 check-run annotation 是公开可读的。没有这一步，红了只能靠人去网页上翻。
+        run: |
+          set -o pipefail
+          python -m pytest --no-header -p no:warnings --tb=line -rf 2>&1 | tee pytest.log
+
+      - name: 失败原因写成注解
+        if: failure()
+        run: |
+          echo "===== 失败摘要（同时写进 check-run annotation，便于从 API 读）====="
+          # -rf 的汇总行形如 "FAILED tests/x.py::test_y - AssertionError: ..."
+          grep -E "^(FAILED|ERROR)" pytest.log | head -20 | while IFS= read -r line; do
+            echo "::error title=pytest::$line"
+          done
+          # 用法错误（exit 4）不会有 FAILED 行，这时把最后 20 行抛出来（用 warning 省 error 配额）
+          tail -20 pytest.log | while IFS= read -r line; do
+            echo "::warning title=pytest-tail::$line"
+          done
 
       - name: 前端语法检查
         # node 随 ubuntu-latest 预装；这一步与 tests/js 的运行时验证互为补充
