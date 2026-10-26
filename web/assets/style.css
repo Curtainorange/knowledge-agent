@@ -130,6 +130,17 @@ input:focus,textarea:focus,select:focus{
   outline:none;border-color:var(--accent);
   box-shadow:0 0 0 3px var(--accent-ring);
 }
+/* 复选框 / 单选框不能套用上面「文本框撑满一行」的规则：
+   它们常作为 flex 行里的一个格子（如书架 .book-item 的对比勾选框），
+   width:100% 会让它吃光整行宽度，把相邻的封面与书名挤成一列竖排。 */
+input[type="checkbox"],input[type="radio"]{
+  width:16px;height:16px;flex:0 0 16px;padding:0;margin:0;
+  align-self:center;box-shadow:none;cursor:pointer;accent-color:var(--accent);
+}
+input[type="checkbox"]:focus,input[type="radio"]:focus{
+  border-color:var(--border-strong);
+  box-shadow:0 0 0 3px var(--accent-ring);
+}
 textarea{resize:vertical;min-height:70px}
 .field{margin-bottom:10px}
 .inline-form{display:flex;gap:8px;align-items:center;flex-wrap:wrap}
