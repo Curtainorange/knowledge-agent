@@ -36,17 +36,29 @@ _SCANNED_BOOK_MIN_IMAGES = 30
 _SCANNED_BOOK_MAX_TEXT = 5_000
 _IMAGE_TAG = re.compile(r"\[\[IMG:[^\]]+\]\]")
 
+# 只看字数会误杀「图解书」：图画 + 对话 + 文字的书图多、字数少，但文字是真句子。
+# 用中文句读出现次数区分——实测《时间管理》（219 图 / 2887 字）有 111 个标点，
+# 《天才假象》扫描版（209 图 / 1070 字，全是元数据与乱码）只有 1 个，差两个数量级。
+_SENTENCE_PUNCT = re.compile(r"[，。！？；：、“”‘’…—]")
+_SCANNED_BOOK_MIN_PUNCT = 30
+
 
 def _reject_scanned_book(parsed) -> None:
-    """图片多、去图占位后几乎没有可读文本 → 判为扫描版，直接拒绝入库。"""
+    """图片多、去图占位后几乎没有可读文本 → 判为扫描版，直接拒绝入库。
+
+    例外：字数虽少但句读充足 → 判定为图解书（图画本身就是内容），放行。
+    """
     if not parsed.images or len(parsed.images) < _SCANNED_BOOK_MIN_IMAGES:
         return
-    clean_chars = len(_IMAGE_TAG.sub("", parsed.full_text or "").strip())
-    if clean_chars < _SCANNED_BOOK_MAX_TEXT:
-        raise ValueError(
-            "这本书看起来是扫描版（大量图片、几乎没有可读文本），"
-            "无法阅读、通读与冲突检测；请换文字版后再上传。"
-        )
+    clean = _IMAGE_TAG.sub("", parsed.full_text or "").strip()
+    if len(clean) >= _SCANNED_BOOK_MAX_TEXT:
+        return
+    if len(_SENTENCE_PUNCT.findall(clean)) >= _SCANNED_BOOK_MIN_PUNCT:
+        return
+    raise ValueError(
+        "这本书看起来是扫描版（大量图片、几乎没有可读文本），"
+        "无法阅读、通读与冲突检测；请换文字版后再上传。"
+    )
 
 
 def _books_root() -> Path:

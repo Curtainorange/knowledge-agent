@@ -219,8 +219,13 @@ def parse_epub(path: Path, title: str | None = None) -> ParsedBook:
                 opf_dir=opf_dir, images=images, counter=img_counter,
             )
             heading = soup.find(["h1", "h2", "h3"])
+            text = _visible_text(soup)
+            # 空文档（封面页常见：body 里只有一张图或什么都没有）不生成章节，
+            # 否则第一章打开就是一片空白，看起来像书坏了。
+            if not text.strip():
+                continue
             headings.append(heading.get_text(strip=True) if heading else "")
-            parts.append(_visible_text(soup))
+            parts.append(text)
 
         # 某些 epub spine 缺失或为空，回退：取所有 xhtml 按文件名排序
         if not parts:
@@ -237,8 +242,11 @@ def parse_epub(path: Path, title: str | None = None) -> ParsedBook:
                     opf_dir=opf_dir, images=images, counter=img_counter,
                 )
                 heading = soup.find(["h1", "h2", "h3"])
+                text = _visible_text(soup)
+                if not text.strip():
+                    continue
                 headings.append(heading.get_text(strip=True) if heading else "")
-                parts.append(_visible_text(soup))
+                parts.append(text)
 
     # 4) 组装全文与章节偏移
     full_text = ""

@@ -242,6 +242,49 @@ def test_upload_rejects_scanned_book(client, tmp_path):
     assert "扫描版" in resp.json()["detail"]
 
 
+def test_upload_accepts_picture_book_with_sentences(client, tmp_path):
+    """图多、字数少但文字成句 = 图解书，不能当扫描版拒掉。
+
+    实测区分度：《时间管理》219 图 / 2887 字 / 111 个句读（图解书，要放行）；
+    《天才假象》扫描版 209 图 / 1070 字 / 1 个句读（元数据与乱码，要拒绝）。
+    纯字数判据会把前者误杀，故改用句读数量。
+    """
+    headers = auth_headers(client, "book_picture_book_ok")
+    container = (
+        '<?xml version="1.0"?>'
+        '<container version="1.0" xmlns="urn:oasis:names:tc:opendocument:xmlns:container">'
+        '<rootfiles><rootfile full-path="OEBPS/content.opf" '
+        'media-type="application/oebps-package+xml"/></rootfiles></container>'
+    )
+    n_images = 35
+    manifest_items = "".join(
+        f'<item id="img{i}" href="images/pic{i}.png" media-type="image/png"/>'
+        for i in range(n_images)
+    )
+    opf = (
+        '<?xml version="1.0"?>'
+        '<package xmlns="http://www.idpf.org/2007/opf" version="3.0">'
+        '<metadata><dc:title xmlns:dc="http://purl.org/dc/elements/1.1/">图解书</dc:title></metadata>'
+        f'<manifest><item id="c1" href="c1.xhtml" media-type="application/xhtml+xml"/>{manifest_items}</manifest>'
+        '<spine><itemref idref="c1"/></spine></package>'
+    )
+    body_text = "这是一段图解书的正文，配图讲的是同一个意思。" * 60  # 约 1440 字、120 个句读
+    c1 = "<html><body>" + "".join(
+        f'<img src="images/pic{i}.png"/>' for i in range(n_images)
+    ) + "<p>" + body_text + "</p></body></html>"
+    path = tmp_path / "picture_book.epub"
+    with zipfile.ZipFile(path, "w") as zf:
+        zf.writestr("META-INF/container.xml", container)
+        zf.writestr("OEBPS/content.opf", opf)
+        zf.writestr("OEBPS/c1.xhtml", c1)
+        for i in range(n_images):
+            zf.writestr(f"OEBPS/images/pic{i}.png", _PNG_BYTES)
+
+    resp = _upload(client, headers, "图解书.epub", path.read_bytes())
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["chapter_count"] >= 1
+
+
 def test_upload_accepts_illustrated_book_with_real_text(client, tmp_path):
     """正常图文书（少量插图 + 真正文）不受扫描版拦截影响。"""
     headers = auth_headers(client, "book_illustrated_ok")
