@@ -198,7 +198,9 @@ def _build_chunks(book: Book) -> tuple[list[dict], bool]:
     return chunks, over_limit
 
 
-def _digest_chunk(gateway: ModelGateway, *, user_id: str, chunk: dict) -> ChunkDigest:
+def _digest_chunk(
+    gateway: ModelGateway, *, session: Session | None, user_id: str, chunk: dict
+) -> ChunkDigest:
     from app.llm.structure import parse_structured
 
     completion: Completion = gateway.chat(
@@ -210,11 +212,16 @@ def _digest_chunk(gateway: ModelGateway, *, user_id: str, chunk: dict) -> ChunkD
         user_id=user_id,
         prompt_version=BOOK_DIGEST_CHUNK.version,
         json_model=ChunkDigest,
+        # 不传 session 时 gateway 只把 token 写日志、不落 cost_logs，
+        # 通读成本就查不到账（2026-10-27 之前所有通读都是这样，一条 book_digest 都没有）
+        session=session,
     )
     return parse_structured(completion.text, validator=lambda d: ChunkDigest(**d))
 
 
-def _summarize(gateway: ModelGateway, *, user_id: str, notes: list[dict]) -> SummaryDigest:
+def _summarize(
+    gateway: ModelGateway, *, session: Session | None, user_id: str, notes: list[dict]
+) -> SummaryDigest:
     digest_text = "\n\n".join(
         f"【{note['title']}】{note['gist']}\n" + "\n".join(f"- {p}" for p in note["points"])
         for note in notes
@@ -228,6 +235,7 @@ def _summarize(gateway: ModelGateway, *, user_id: str, notes: list[dict]) -> Sum
         user_id=user_id,
         prompt_version=BOOK_DIGEST_SUMMARY.version,
         json_model=SummaryDigest,
+        session=session,
     )
     from app.llm.structure import parse_structured
 
@@ -357,7 +365,7 @@ def read_whole_book(
     failed = 0
     for chunk in batch:
         try:
-            digest = _digest_chunk(gateway, user_id=user_id, chunk=chunk)
+            digest = _digest_chunk(gateway, session=session, user_id=user_id, chunk=chunk)
             notes.append({
                 "index": chunk["index"], "title": chunk["title"],
                 "book_title": book.title,
@@ -380,7 +388,7 @@ def read_whole_book(
     if usable:
         try:
             summary = _summarize(
-                gateway, user_id=user_id,
+                gateway, session=session, user_id=user_id,
                 notes=[{**note, "book_title": book.title} for note in usable],
             ).summary.strip()
         except LLMError as exc:
