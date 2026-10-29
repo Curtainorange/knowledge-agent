@@ -496,6 +496,45 @@ def test_end_to_end_confirm_then_generate(client, session, provider_override):
         assert set(it["basis_item_ids"]) <= pool
 
 
+def test_end_to_end_type_question_last_shows_generate_button(client, session, provider_override):
+    """先点完三个按钮项，最后打字补「想解决什么」→ 应给「按这些给建议」确认卡。
+
+    回归：goal / self_level / help_type 是按钮，点完即可；「想解决什么」是自由文本，
+    只能靠打字。当时 `_suggestion_gate` 抽满槽位后返回 None（ready），可这条消息走的
+    是 chat 路由，于是落进通用对话——用户点完框框再打字，等来的不是建议，而是一句
+    「没看到你要我输出的那部分」的闲聊，看起来就像系统根本没输出。
+    """
+    user = sign_in(client, "sugg_type_last")
+    headers = dict(user.headers)
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
+        headers=headers,
+    )
+
+    start = client.post("/api/v1/agent/start", json={}, headers=headers)
+    conv = start.json()
+    headers["_cid"] = conv["conversation_id"]
+
+    card = _last_card(conv)
+    assert card is not None and card["kind"] == "reading_intake"
+
+    # 三个按钮项按序点掉（每次点击返回新卡，key 恒为 intake）
+    for slot, value in (("goal", "problem"), ("self_level", "once"), ("help_type", "path")):
+        result = _answer(client, headers, card, slot, value)
+        assert result.get("card"), result
+        card = result["card"]
+
+    # 此时只剩「想解决什么」一个自由文本槽位。打字补上它：
+    # 必须回到带「按这些给建议」按钮的确认卡，而不是落成无卡片的闲聊。
+    body = _send(client, headers, "怎么把极度透明用到周会上", headers["_cid"])
+    card = _last_card(body)
+    assert card is not None, "补全最后一个槽位后不应落成无卡片的闲聊"
+    assert card["kind"] == "reading_intake"
+    assert card.get("sends"), "信息已齐，卡上应有「按这些给建议」按钮"
+    assert any(s.get("label") == "按这些给建议" for s in card["sends"])
+
+
 def test_end_to_end_skip_action_accepts_empty_target(client, session, provider_override):
     """「跳过这轮」没有目标对象，target_id 为空也必须能进。
 

@@ -65,6 +65,19 @@ def test_shared_assets_served(client):
     assert "javascript" in js.headers["content-type"]
 
 
+def test_books_page_references_compare_global_defined_by_script(client):
+    """书架页引用的对比渲染全局名，必须与 compare.js 实际定义的一致。
+
+    回归：compare.js 定义 `window.CCACompare`，books.html 却引 `window.CCCompare`——
+    接口返回 200、对比也真跑完了，界面却渲染成「渲染脚本没加载」。
+    """
+    compare_js = client.get("/assets/compare.js").text
+    books_html = client.get("/books.html").text
+    assert "window.CCACompare" in compare_js, "compare.js 应定义 window.CCACompare"
+    assert "CCACompare" in books_html, "书架页必须引用 compare.js 实际定义的全局名"
+    assert "window.CCCompare" not in books_html, "书架页引用了不存在的全局名 window.CCCompare"
+
+
 def test_static_assets_are_revalidated(client):
     """前端静态资源必须「先校验再使用」，否则用户会拿着旧版 JS 跑新后端——
     表现为「BUG 修了却没生效」。本项目已为此误判多次。"""

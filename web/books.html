@@ -211,7 +211,7 @@
   });
 
   /* ---- 选两本对比（C 模块）----
-     勾选 -> 记 id -> 点按钮 -> 调接口 -> 用 CCCompare.render 渲染。
+     勾选 -> 记 id -> 点按钮 -> 调接口 -> 用 CCACompare.render 渲染。
      渲染与对话卡片共用 assets/compare.js 同一份，不各自实现一遍表格。 */
   var picked = [];
 
@@ -254,8 +254,8 @@
         book_a_id: picked[0],
         book_b_id: picked[1]
       });
-      out.innerHTML = window.CCCompare
-        ? CCCompare.render(card)
+      out.innerHTML = window.CCACompare
+        ? CCACompare.render(card)
         : '<div class="notice">渲染脚本没加载，刷新页面再试。</div>';
     } catch (err) {
       out.innerHTML = '<div class="notice">对比失败：' + esc(err.message || err) + '</div>';
