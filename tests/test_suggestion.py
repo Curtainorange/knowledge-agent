@@ -535,6 +535,57 @@ def test_end_to_end_type_question_last_shows_generate_button(client, session, pr
     assert any(s.get("label") == "按这些给建议" for s in card["sends"])
 
 
+def test_end_to_end_model_misroute_question_still_captured(client, session, provider_override):
+    """模型把确认期的自由文本回答误判成 book_discuss → 仍应接管，回确认卡。
+
+    回归：确认门禁原本只在 chat 路由下触发。真实环境里模型会把
+    「怎么把它用到周会上」判成 book_discuss（「它」像指一本书），门禁被跳过，
+    用户等来一句「没确定要聊哪本书」——答非所问，看起来像系统完全没听懂。
+    """
+    user = sign_in(client, "sugg_misroute")
+    headers = dict(user.headers)
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
+        headers=headers,
+    )
+    start = client.post("/api/v1/agent/start", json={}, headers=headers).json()
+    headers["_cid"] = start["conversation_id"]
+    card = _last_card(start)
+    assert card is not None and card["kind"] == "reading_intake"
+
+    # 模拟模型分流把这句话误判成「聊书」
+    provider_override.rows.append(
+        '{"capability": "book_discuss", "args": {}, "confidence": 0.8}'
+    )
+    body = _send(client, headers, "怎么把它用到周会上", headers["_cid"])
+    card = _last_card(body)
+    assert card["kind"] == "reading_intake", f"确认期回答不应被 book_discuss 抢走：{card}"
+    assert card["digest"]["question"] == "怎么把它用到周会上"
+
+
+def test_suggestion_command_keeps_trailing_question(client, session, provider_override):
+    """「给我建议，怎么运用」里的后半句是内容，不该被当指令整句丢弃。
+
+    回归：`is_suggestion_command` 判定整句是指令后，原来把 question 一并 pop 掉，
+    用户明明说了「怎么运用」，系统却回头问「还想解决的问题」，等于让用户白说一遍。
+    """
+    user = sign_in(client, "sugg_lead")
+    headers = dict(user.headers)
+    client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
+        headers=headers,
+    )
+    start = client.post("/api/v1/agent/start", json={}, headers=headers).json()
+    headers["_cid"] = start["conversation_id"]
+
+    body = _send(client, headers, "给我建议，怎么把它用到周会上", headers["_cid"])
+    card = _last_card(body)
+    assert card["kind"] == "reading_intake"
+    assert card["digest"]["question"] == "怎么把它用到周会上"
+
+
 def test_end_to_end_skip_action_accepts_empty_target(client, session, provider_override):
     """「跳过这轮」没有目标对象，target_id 为空也必须能进。
 

@@ -54,7 +54,13 @@ from app.agent.cards import (
 from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
 from app.agent.orchestrator import Orchestrator
-from app.agent.router import CapabilityRoute, CapabilityRouter, is_suggestion_command, parse_note
+from app.agent.router import (
+    CapabilityRoute,
+    CapabilityRouter,
+    is_suggestion_command,
+    parse_note,
+    strip_suggestion_lead,
+)
 from app.agent.turns import SOURCE
 from app.core.config import settings
 from app.domain.repositories.conversation_repository import ConversationRepository
@@ -186,10 +192,16 @@ class Copilot:
             # 复述只能靠说话（卡片里的文本框要另开一套提交交互），
             # 所以这条路必须由对话入口接住，否则用户说完会被当成普通聊天。
             early = self._probe_recall(conversation, user_id=user_id, message=message)
-        elif route.capability == "chat" and self._intake_wants(message, conversation):
+        elif route.source != "local" and self._intake_wants(message, conversation):
             # 确认期接管：用户大概率是在回答「想解决什么 / 目标 / 水平」，而不是闲聊。
             # 判据见 `_intake_wants`——必须是"抽到了具体项"或"正缺那一项"，
             # 否则「今天天气不错」也会被当成答案塞进槽位，聊天就断了。
+            #
+            # 为什么是 `source != "local"` 而不是 `capability == "chat"`：
+            # 本地规则命中的都是明确命令（记一条 / 同步 / 对比 / 通读…），必须放行；
+            # 而模型分流可能把「怎么把它用到周会上」这种自由文本回答误判成
+            # book_discuss / book_digest 之类的能力——若不接管，确认流程被跳过，
+            # 用户等来的是一句「没确定要聊哪本书」，答非所问，看起来像系统没听懂。
             early = self._suggestion_gate(
                 conversation, user_id=user_id, message=message, route=route
             )
@@ -350,7 +362,13 @@ class Copilot:
 
         slots = intake.extract_slots(message)
         if is_suggestion_command(message):
-            slots.pop("question", None)
+            # 指令不是内容。但「给我建议，怎么运用」里的后半句是内容——
+            # 剥掉指令词，剩下的才该进 question，而不是整句丢弃（否则用户白说一遍）。
+            stripped = strip_suggestion_lead(message)
+            if stripped:
+                slots["question"] = stripped
+            else:
+                slots.pop("question", None)
         if slots:
             intake.merge_slots(ctx, slots)
 

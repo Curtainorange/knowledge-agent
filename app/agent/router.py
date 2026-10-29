@@ -221,6 +221,26 @@ def is_suggestion_command(text: str) -> bool:
     return len(t) <= 12 and _has_any(t, _SUGGEST_CONFIRM)
 
 
+def strip_suggestion_lead(text: str) -> str:
+    """从「给我建议，怎么运用」里剥掉指令词，返回剩余内容；纯指令返回空串。
+
+    用户常把指令和内容说在一句话里——「给我建议，怎么把它用到周会上」。
+    若整句当指令、把「想解决的问题」一并丢弃，用户等于白说了一遍问题，
+    系统还得回头再问一遍。剥掉指令词，剩下的才该进 question。
+
+    只剥明确的指令短语（`_SUGGEST_WORDS` / `_SKIP_CONFIRM_WORDS`），
+    不剥「确认 / 就这样」这类普通词——「确认一下这个概念」里的「确认」是内容。
+    """
+    body = (text or "").strip()
+    for word in sorted(_SUGGEST_WORDS + _SKIP_CONFIRM_WORDS, key=len, reverse=True):
+        body = body.replace(word, " ")
+    body = re.sub(r"[，,：:。.、；;！!？?\s]+", " ", body).strip()
+    # 剥完只剩纯确认词（或几乎没剩）→ 说明用户只是确认，没有新内容
+    if body in _SUGGEST_CONFIRM or len(body) < 2:
+        return ""
+    return body
+
+
 def parse_note(text: str) -> dict:
     """把「记一下：XXX #标签」拆成录入知识库需要的 title / content / tags。
 
