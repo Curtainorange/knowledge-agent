@@ -271,6 +271,12 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 }
 .book-info{flex:1;min-width:0}
 .book-info strong{font-size:14px;color:var(--text)}
+/* 导入书籍的书名常常很长（含译名、来源、z-library 后缀），会把右侧「删除」
+   压成一字宽、两个汉字上下摞。标题允许任意断行，按钮不参与收缩且不换行。 */
+.book-info .row strong{min-width:0;overflow-wrap:anywhere;line-height:1.45}
+.book-info .row button{flex:0 0 auto;white-space:nowrap}
+/* 勾选框是「选两本对比」的入口，16px 在手机上不好点 */
+.book-item .pick{width:22px;height:22px;flex:0 0 22px}
 
 /* ============ 阅读器 ============ */
 .reader-tools{display:flex;align-items:center;gap:8px}
@@ -811,17 +817,33 @@ a.ghost:hover{border-color:var(--accent);color:var(--accent);box-shadow:var(--sh
     display:flex;gap:2px;
     overflow-x:auto;overflow-y:hidden;
     scroll-snap-type:x proximity;-webkit-overflow-scrolling:touch;
-    padding:8px 10px calc(8px + env(safe-area-inset-bottom,0px));
+    padding:8px 14px calc(8px + env(safe-area-inset-bottom,0px));
     background:rgba(255,255,255,.92);
     -webkit-backdrop-filter:blur(14px);backdrop-filter:blur(14px);
     border-top:1px solid var(--border);
     box-shadow:0 -4px 16px rgba(26,32,51,.08);
+    /* 两侧渐隐：9 项在 375 宽下总宽 632px，且滚动条被隐藏——
+       没有这个提示，用户不会知道屏幕外还有 4 项。
+       遮罩挂在滚动容器上，位置固定、不随内容滚动；14px 边距保证文字不被削。 */
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);
+    mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 calc(100% - 18px),transparent 100%);
   }
   .nav::-webkit-scrollbar{display:none}
+  /* 滑到两端时撤掉对应一侧的渐隐（.at-start / .at-end 由 app.js 按 scrollLeft 切换），
+     否则最右一项永远半淡。两端都不溢出（桌面压成一条的矮窗口）时两侧都不渐变。 */
+  .nav.at-start{
+    -webkit-mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 18px),transparent 100%);
+    mask-image:linear-gradient(to right,#000 0,#000 calc(100% - 18px),transparent 100%);
+  }
+  .nav.at-end{
+    -webkit-mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 100%);
+    mask-image:linear-gradient(to right,transparent 0,#000 18px,#000 100%);
+  }
+  .nav.at-start.at-end{-webkit-mask-image:none;mask-image:none}
   .nav a{
     flex:0 0 auto;scroll-snap-align:center;
     display:inline-flex;align-items:center;justify-content:center;
-    min-height:44px;min-width:44px;padding:10px 15px;font-size:14px;
+    min-height:44px;min-width:44px;padding:10px 12px;font-size:13.5px;
   }
 
   /* 内容让出底部导航 */

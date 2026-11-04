@@ -359,6 +359,26 @@ window.CC = (function () {
   }
   dropCtrlEnterHint();
 
+  /* 底部导航在 375 宽下装不下 9 项（总宽 632px、可视 375px），两侧用 CSS 渐隐提示
+     「屏幕外还有」。但遮罩固定在容器上，滑到最右端时最后一项会一直半淡——看不清，
+     等于滑过去也没用。所以按滚动位置撤掉对应一侧的遮罩。
+     渐隐能否成立完全取决于这一处同步：只看 CSS 是「对的」，实际最右一项是花的。 */
+  function syncNavEdges() {
+    var nav = document.querySelector('.nav');
+    if (!nav) {
+      return;
+    }
+    function sync() {
+      var max = nav.scrollWidth - nav.clientWidth;
+      nav.classList.toggle('at-start', nav.scrollLeft <= 1);
+      nav.classList.toggle('at-end', max <= 1 || nav.scrollLeft >= max - 1);
+    }
+    nav.addEventListener('scroll', sync, { passive: true });
+    window.addEventListener('resize', sync);
+    sync();
+  }
+  syncNavEdges();
+
   return {
     $: $,
     esc: esc,

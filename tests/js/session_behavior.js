@@ -53,7 +53,10 @@ function makeEnv(opts) {
         calls.logoutBinds++;
         if (!elements.__logout) { elements.__logout = fn; }
       }
-    }
+    },
+    /* 底部导航：只有测「两侧渐隐」时才传（其余场景为 null，
+       syncNavEdges 直接返回，不干扰别的场景） */
+    '.nav': opts.nav || null
   };
   const document = {
     querySelector: (sel) => elements[sel] || null,
@@ -248,6 +251,42 @@ function makeEnv(opts) {
     await env.CC.requireAuth();
     check('active 照常标记', links[0].classList.added === true);
     check('scrollLeft 保持 0', nav.scrollLeft === 0, String(nav.scrollLeft));
+  });
+
+  await scenario('J. 底部导航两侧渐隐：滑到两端时撤掉对应一侧的遮罩', async () => {
+    /* 375 宽下 9 项总宽 632px，两侧用 mask 渐隐提示「还有内容」。
+       但遮罩固定在容器上：不按 scrollLeft 撤销，滑到最右端时最后一项永远半淡，
+       等于滑过去也看不清——这一条只有运行时能测出来。 */
+    const classes = {};
+    let onScroll = null;
+    const nav = {
+      clientWidth: 375, scrollWidth: 632, scrollLeft: 107,
+      classList: {
+        toggle(name, on) { classes[name] = !!on; },
+        add(name) { classes[name] = true; },
+        remove(name) { classes[name] = false; }
+      },
+      addEventListener(ev, fn) { if (ev === 'scroll') { onScroll = fn; } }
+    };
+    makeEnv({
+      page: 'app',
+      nav,
+      storage: { cc_access_token: 't', cc_refresh_token: 'r', cc_username: '111' },
+      route: (url) => (url === ME ? { status: 200, body: { username: '111' } } : { status: 404, body: {} })
+    });
+    check('初始（两边都还有内容）两侧都渐隐', !classes['at-start'] && !classes['at-end'],
+      JSON.stringify(classes));
+    check('scroll 监听已挂上（否则两端永不撤销）', typeof onScroll === 'function');
+
+    nav.scrollLeft = 0;
+    if (onScroll) { onScroll(); }
+    check('滑到最左：撤掉左侧遮罩', classes['at-start'] === true && classes['at-end'] === false,
+      JSON.stringify(classes));
+
+    nav.scrollLeft = nav.scrollWidth - nav.clientWidth;
+    if (onScroll) { onScroll(); }
+    check('滑到最右：撤掉右侧遮罩（最后一项不再半淡）',
+      classes['at-end'] === true && classes['at-start'] === false, JSON.stringify(classes));
   });
 
   console.log('');
