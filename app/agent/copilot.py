@@ -373,20 +373,22 @@ class Copilot:
             intake.merge_slots(ctx, slots)
 
         if ctx.is_ready:
-            # 槽位齐了。但「齐了」有两种来路，行为不同：
-            # - suggestion 路由（用户明确说「给我建议 / 确认」）→ 直接生成；
-            # - chat 路由（用户只是打字补全了最后一项）→ 给「按这些给建议」确认卡，
-            #   而不是落到通用对话——否则用户点完框框再打字，等来的是一句闲聊，
-            #   建议永远不会生成（看起来就像系统根本没输出）。
-            if route.capability != "suggestion":
-                card = turns.intake_card(
-                    ctx, note="信息齐了，确认没问题就生成；有不对的继续说。",
-                    with_generate=True,
-                )
-                intake.save(self._session, conversation=conversation, ctx=ctx)
-                return "信息齐了，点下面生成建议。", card
+            # 槽位齐了：前置条件已满足，**直接生成**，不再让用户点「生成建议」。
+            # 之前这里按路由分两支——suggestion 路由直接生成、chat 路由给确认卡，
+            # 结果用户点完框框、打完字，还得再点一下「生成」才出结果，体验上像
+            # 「系统明明懂了却不动手」。生成逻辑与 suggestion 路由共用
+            # turns.execute_capability，避免两处各写一份。
             intake.save(self._session, conversation=conversation, ctx=ctx)
-            return None
+            reply, card = turns.execute_capability(
+                "suggestion",
+                user_id=user_id,
+                session=self._session,
+                gateway=self._gateway,
+                key=str(uuid4()),
+                args=route.args or {},
+                conversation_id=conversation.id,
+            )
+            return reply, card
         reply, card = self._intake_reply(ctx)
         intake.save(self._session, conversation=conversation, ctx=ctx)
         return reply, card

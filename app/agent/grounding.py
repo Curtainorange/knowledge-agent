@@ -72,9 +72,18 @@ MAX_AGENT_SUMMARIES = 3
 AGENT_RELEVANCE_CAP = 0.5
 # 通读笔记召回的最低门槛：完全词面不相关的书不进池（与 keyword 路径同一口径）
 AGENT_MIN_RELEVANCE = 0.05
+# 书籍原文片段单次装配上限：它是「书里怎么说」的直接依据，比通读笔记更具体，
+# 但一次塞太多同样会稀释模型注意力
+MAX_BOOK_EXCERPTS = 4
+# 书籍原文片段的相关性封顶：原文是关键词检索（BM25 近似），不是向量语义召回，
+# 所以封在通读笔记（0.5）与关键词封顶（0.55）之间偏上——它比摘要更具体、比手记更弱
+BOOK_EXCERPT_RELEVANCE_CAP = 0.55
+# 单本书最多取几个原文片段：一本几十上百块，全塞进来会变成「照着这本书念」
+MAX_EXCERPTS_PER_BOOK = 2
 
 BASIS_LIBRARY = "library"
 BASIS_AGENT = "agent_summary"
+BASIS_BOOK = "book"  # 智能体通读书籍的原文片段（用户没划线/手记时仍可据此出建议）
 BASIS_EXTERNAL = "external"  # 仅占位：本模块不接受，用于让调用方显式区分
 
 LEVEL_L1 = "l1"
@@ -474,6 +483,102 @@ def build_agent_summaries(
     return out[:limit]
 
 
+def build_book_excerpts(
+    session: Session,
+    *,
+    user_id: str,
+    query: str,
+    limit: int = MAX_BOOK_EXCERPTS,
+    top_k_per_book: int = MAX_EXCERPTS_PER_BOOK,
+    min_relevance: float = AGENT_MIN_RELEVANCE,
+) -> list[Evidence]:
+    """把智能体已通读书里的原文片段装配成 `book` 依据。
+
+    这是「建议不只来自用户笔记」的落点：用户没划线 / 没手记时，仍能从智能体读过的
+    书里检索出原句作为依据——「介绍这本书」「这本书里怎么说的」这类诉求，不该因为
+    用户笔记为空就一句「查不到」。与 `build_agent_summaries` 的分工：那个是整本书的
+    总评脉络，这里是**具体到某一段的原句**（`basis=book`，可独立构成依据）。
+
+    检索复用 `app.books.chunking` 的书内 BM25（零成本、块已落库可复现）；
+    跨书的相关性用 `score_keyword` 重算到同一尺度再排序。读失败 / 空库返回 `[]`，
+    不让这条支线把建议链路带崩。
+    """
+    q = (query or "").strip()
+    if not q:
+        return []
+    try:
+        from app.books import chunking
+        from app.domain.models.book import Book
+        from app.domain.models.book_agent_reading import BookAgentReading
+
+        book_ids = session.execute(
+            select(BookAgentReading.book_id).where(
+                BookAgentReading.user_id == user_id,
+                BookAgentReading.status == "done",
+                BookAgentReading.is_deleted.is_(False),
+            )
+        ).scalars().all()
+    except Exception as exc:  # pragma: no cover - 防御性兜底
+        logger.warning("grounding: 读取已通读书籍失败，按无处理: %s", exc)
+        return []
+    if not book_ids:
+        return []
+
+    try:
+        books = session.scalars(
+            select(Book).where(Book.id.in_(book_ids), Book.is_deleted.is_(False))
+        ).all()
+    except Exception as exc:  # pragma: no cover - 防御性兜底
+        logger.warning("grounding: 读取书籍失败，按无处理: %s", exc)
+        return []
+
+    out: list[Evidence] = []
+    for book in books:
+        try:
+            chunking.ensure_chunks(session, book)
+            hits = chunking.search(session, book=book, query=q, top_k=top_k_per_book)
+        except Exception as exc:  # pragma: no cover - 单本书失败不阻断其余
+            logger.warning("grounding: 检索书内原文失败 book=%s err=%s", book.id, exc)
+            continue
+        for hit in hits:
+            text = (hit.get("text") or "").strip()
+            if not text:
+                continue
+            chapter_title = str(hit.get("chapter_title") or "")
+            # 跨书统一尺度：书内 BM25 分数跨书不可比，用关键词重叠重算
+            relevance = score_keyword(q, f"{book.title} {chapter_title}".strip(), text)
+            if relevance < min_relevance:
+                continue
+            quote = _clip(text, QUOTE_MAX)
+            if not quote:
+                continue
+            char_start = int(hit.get("char_start") or 0)
+            char_end = int(hit.get("char_end") or 0)
+            out.append(
+                Evidence(
+                    evidence_id=f"book:{book.id}:{char_start}",
+                    kind="book_excerpt",
+                    basis=BASIS_BOOK,
+                    source="book",
+                    title=f"《{book.title}》" + (f"·{chapter_title}" if chapter_title else ""),
+                    quote=quote,
+                    locator={
+                        "book_id": str(book.id),
+                        "char_start": char_start,
+                        "char_end": char_end,
+                        "chapter_title": chapter_title,
+                    },
+                    retrieval="book",
+                    relevance=min(BOOK_EXCERPT_RELEVANCE_CAP, relevance),
+                    item_id="",
+                    level=LEVEL_L3,
+                )
+            )
+
+    out.sort(key=lambda e: -e.relevance)
+    return out[:limit]
+
+
 # ---- 引用校验 ---------------------------------------------------------------
 
 
@@ -484,7 +589,9 @@ def verify_citations(items: list[dict], pool: list[Evidence]) -> tuple[list[dict
     1. `basis_item_ids` 非空；
     2. 每个 id 都在本次证据池内；
     3. 被引用的证据 `can_cite`（l3）；
-    4. 每条建议至少 1 条 `library` 级依据——通读笔记不得单独构成依据。
+    4. 每条建议至少 1 条 `library` 或 `book` 级依据——通读笔记（`agent_summary`）
+       不得单独构成依据；但智能体通读过的书原文（`book`）可以，因为它和用户摘录
+       一样可溯源、可跳回原句，不是「读了书写的总评」那种二手内容。
 
     为什么整条丢弃而不是删掉 id 保留文案：文案本身就是由那些"不存在的依据"支撑的，
     留下文案等于留下幻觉，只是把出处抹掉了。
@@ -502,7 +609,7 @@ def verify_citations(items: list[dict], pool: list[Evidence]) -> tuple[list[dict
         if any(r is None for r in refs) or any(not r.can_cite for r in refs):  # type: ignore[union-attr]
             dropped += 1
             continue
-        if not any(r.basis == BASIS_LIBRARY for r in refs):  # type: ignore[union-attr]
+        if not any(r.basis in (BASIS_LIBRARY, BASIS_BOOK) for r in refs):  # type: ignore[union-attr]
             dropped += 1
             continue
         kept.append(item)

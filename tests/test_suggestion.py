@@ -226,11 +226,11 @@ def test_partial_drop_keeps_valid_item(session):
 # ---- 通读笔记进证据池 -------------------------------------------------------
 
 
-def _book_and_reading(session, *, user_id="u1", title="原则", summary="极度透明意味着要能说真话。"):
+def _book_and_reading(session, *, user_id="u1", title="原则", summary="极度透明意味着要能说真话。",
+                      text="极度透明意味着组织里没有不能说的话。"):
     from app.domain.models.book import Book
     from app.domain.models.book_agent_reading import BookAgentReading
 
-    text = "极度透明意味着组织里没有不能说的话。"
     book = Book(
         user_id=user_id, title=title, author="瑞·达利欧",
         format="txt", file_path="x.txt",
@@ -264,12 +264,16 @@ def test_agent_summary_enters_evidence_pool(session):
         embedding=HashEmbedding(),
     )
     assert outcome.state == "ok"
-    assert {e.kind for e in outcome.evidence} == {"knowledge_item", "agent_summary"}
+    kinds = {e.kind for e in outcome.evidence}
+    assert {"knowledge_item", "agent_summary"} <= kinds
 
 
 def test_agent_only_evidence_skips_model(session):
-    """只有通读笔记、没有自己的内容 → 不调模型，直接依据不足。"""
-    book = _book_and_reading(session)
+    """只有通读笔记、没有自己的内容、书里原文也对不上 → 不调模型，直接依据不足。"""
+    book = _book_and_reading(
+        session, title="原则", summary="极度透明意味着要能说真话。",
+        text="三个番茄两个蛋，先炒蛋再炒番茄。",
+    )
     provider = _Scripted([_draft(f"agent:{book.id}")])
     outcome = sugg.generate(
         session, user_id="u1", ctx=_ready_ctx(), gateway=ModelGateway(provider=provider),
@@ -277,6 +281,20 @@ def test_agent_only_evidence_skips_model(session):
     )
     assert outcome.state == "insufficient_evidence"
     assert provider.calls == []
+
+
+def test_book_excerpt_only_evidence_generates(session):
+    """没有自己的笔记，只有智能体读过的书里能对上的原文 → 也能生成建议。"""
+    book = _book_and_reading(session)
+    provider = _Scripted([_draft(f"book:{book.id}:0")])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=_ready_ctx(), gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "ok"
+    assert outcome.items
+    assert outcome.items[0]["basis_item_ids"] == [f"book:{book.id}:0"]
+    assert {e.kind for e in outcome.evidence} == {"book_excerpt", "agent_summary"}
 
 
 # ---- 异常与边界 -------------------------------------------------------------
@@ -496,21 +514,22 @@ def test_end_to_end_confirm_then_generate(client, session, provider_override):
         assert set(it["basis_item_ids"]) <= pool
 
 
-def test_end_to_end_type_question_last_shows_generate_button(client, session, provider_override):
-    """先点完三个按钮项，最后打字补「想解决什么」→ 应给「按这些给建议」确认卡。
+def test_end_to_end_type_question_last_generates(client, session, provider_override):
+    """先点完三个按钮项，最后打字补「想解决什么」→ 槽位齐了自动生成，不再要求点「生成」。
 
     回归：goal / self_level / help_type 是按钮，点完即可；「想解决什么」是自由文本，
-    只能靠打字。当时 `_suggestion_gate` 抽满槽位后返回 None（ready），可这条消息走的
-    是 chat 路由，于是落进通用对话——用户点完框框再打字，等来的不是建议，而是一句
-    「没看到你要我输出的那部分」的闲聊，看起来就像系统根本没输出。
+    只能靠打字。原来槽位齐了还要再点一次「生成建议」才出结果——用户点完框框再打字，
+    等来的不是建议而是一张「点下面生成」的确认卡，看起来像系统明明懂了却不动手。
     """
     user = sign_in(client, "sugg_type_last")
     headers = dict(user.headers)
-    client.post(
+    saved = client.post(
         "/api/v1/knowledge/items",
         json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
         headers=headers,
     )
+    assert saved.status_code == 200, saved.text
+    item_id = saved.json()["item_id"]
 
     start = client.post("/api/v1/agent/start", json={}, headers=headers)
     conv = start.json()
@@ -525,14 +544,14 @@ def test_end_to_end_type_question_last_shows_generate_button(client, session, pr
         assert result.get("card"), result
         card = result["card"]
 
-    # 此时只剩「想解决什么」一个自由文本槽位。打字补上它：
-    # 必须回到带「按这些给建议」按钮的确认卡，而不是落成无卡片的闲聊。
+    # 只剩「想解决什么」一个自由文本槽位。打字补上它：应直接生成建议卡。
+    # 第一个 row 给模型分流（这句话是自由文本，本地规则不命中），第二个给建议生成。
+    provider_override.rows.append('{"capability": "chat", "args": {}, "confidence": 0.5}')
+    provider_override.rows.append(_draft(f"ki:{item_id}"))
     body = _send(client, headers, "怎么把极度透明用到周会上", headers["_cid"])
     card = _last_card(body)
-    assert card is not None, "补全最后一个槽位后不应落成无卡片的闲聊"
-    assert card["kind"] == "reading_intake"
-    assert card.get("sends"), "信息已齐，卡上应有「按这些给建议」按钮"
-    assert any(s.get("label") == "按这些给建议" for s in card["sends"])
+    assert card["kind"] == "suggestion", f"补全槽位后应自动生成建议：{card}"
+    assert card["state"] == "ok"
 
 
 def test_end_to_end_model_misroute_question_still_captured(client, session, provider_override):

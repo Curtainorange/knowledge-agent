@@ -690,11 +690,15 @@ window.CCA = (function () {
     return parts.join('');
   }
 
-  /* 依据来源标签：用户的笔记与智能体的通读笔记必须看得出差别 */
+  /* 依据来源标签：用户的笔记、书里原文与智能体的通读笔记必须看得出差别 */
   function basisBadge(basis) {
-    return basis === 'agent_summary'
-      ? '<span class="badge">通读笔记</span>'
-      : '<span class="badge">你的笔记</span>';
+    if (basis === 'agent_summary') {
+      return '<span class="badge">通读笔记</span>';
+    }
+    if (basis === 'book') {
+      return '<span class="badge">书里原文</span>';
+    }
+    return '<span class="badge">你的笔记</span>';
   }
 
   function evidenceJump(e) {

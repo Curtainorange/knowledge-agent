@@ -345,6 +345,48 @@ def test_agent_evidence_jumpable_by_book_id(session):
     assert evs[0].locator.get("book_id") == book.id
 
 
+# ---- 书籍原文装配（book）----------------------------------------------------
+
+
+def test_build_book_excerpts_returns_book_basis(session):
+    book = _book(session, title="原则")
+    _agent_reading(session, book)
+    evs = grounding.build_book_excerpts(session, user_id="u1", query="极度透明")
+    assert evs
+    ev = evs[0]
+    assert ev.kind == "book_excerpt"
+    assert ev.basis == grounding.BASIS_BOOK
+    assert ev.source == "book"
+    assert ev.evidence_id == f"book:{book.id}:0"
+    assert ev.can_cite is True
+    assert ev.jumpable is True
+    assert ev.locator.get("book_id") == str(book.id)
+
+
+def test_build_book_excerpts_empty_query(session):
+    book = _book(session, title="原则")
+    _agent_reading(session, book)
+    assert grounding.build_book_excerpts(session, user_id="u1", query="  ") == []
+
+
+def test_build_book_excerpts_requires_agent_reading(session):
+    """书在书架但没通读过 → 不检索原文（「智能体已读」是前置）。"""
+    _book(session, title="原则")
+    assert grounding.build_book_excerpts(session, user_id="u1", query="极度透明") == []
+
+
+def test_build_book_excerpts_filters_irrelevant(session):
+    book = _book(session, title="番茄炒蛋", text="三个番茄两个蛋，先炒蛋再炒番茄。")
+    _agent_reading(session, book, summary="三个番茄两个蛋")
+    assert grounding.build_book_excerpts(session, user_id="u1", query="走出舒适区") == []
+
+
+def test_build_book_excerpts_user_scoped(session):
+    book = _book(session, title="原则")
+    _agent_reading(session, book, user_id="u1")
+    assert grounding.build_book_excerpts(session, user_id="u2", query="极度透明") == []
+
+
 # ---- 引用校验 ---------------------------------------------------------------
 
 
@@ -383,10 +425,26 @@ def test_verify_citations_drops_l2_evidence():
 
 
 def test_verify_citations_rejects_agent_only_basis():
-    """通读笔记不得单独构成依据：每条建议至少 1 条 library 级。"""
+    """通读笔记（agent_summary）仍不得单独构成依据：它是二手总评，不是原句。"""
     pool = [_ev("bs:1", basis=grounding.BASIS_AGENT)]
     kept, dropped = grounding.verify_citations([{"action": "a", "basis_item_ids": ["bs:1"]}], pool)
     assert kept == [] and dropped == 1
+
+
+def test_verify_citations_accepts_book_only_basis():
+    """智能体通读书籍的原文（book）可以单独构成依据——它是可溯源的原句，不是二手总评。"""
+    pool = [_ev("bk:1", basis=grounding.BASIS_BOOK)]
+    kept, dropped = grounding.verify_citations([{"action": "a", "basis_item_ids": ["bk:1"]}], pool)
+    assert len(kept) == 1 and dropped == 0
+
+
+def test_verify_citations_accepts_agent_plus_book():
+    """book + agent 也成立（book 已能单独构成，agent 只是补充背景）。"""
+    pool = [_ev("bk:1", basis=grounding.BASIS_BOOK), _ev("bs:1", basis=grounding.BASIS_AGENT)]
+    kept, _ = grounding.verify_citations(
+        [{"action": "a", "basis_item_ids": ["bk:1", "bs:1"]}], pool
+    )
+    assert len(kept) == 1
 
 
 def test_verify_citations_accepts_agent_plus_library():
