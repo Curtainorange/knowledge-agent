@@ -679,12 +679,6 @@ window.CCA = (function () {
     if (card.note) {
       parts.push('<div class="meta">' + esc(card.note) + '</div>');
     }
-    /* 没有题了就不给「跳过」——那时该点的是「生成建议」 */
-    if ((card.questions || []).length) {
-      parts.push('<div class="cf-actions">' +
-        actionButton(card.key, 'intake.skip', '', '', '跳过这轮') +
-        '</div>');
-    }
     parts.push('</div>');
     parts.push(actionsRow(card));
     return parts.join('');

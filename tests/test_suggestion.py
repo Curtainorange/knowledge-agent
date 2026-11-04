@@ -464,7 +464,7 @@ def _answer(client, headers, card: dict, slot: str, value: str) -> dict:
 
 
 def test_end_to_end_confirm_then_generate(client, session, provider_override):
-    """走完：开局确认卡 → 答三项 → 生成建议（带依据）。"""
+    """走完：开局确认卡 → 答三项 → 点完最后一个按钮直接出建议（不再点「生成」）。"""
     user = sign_in(client, "sugg_e2e")
     headers = dict(user.headers)
 
@@ -489,7 +489,8 @@ def test_end_to_end_confirm_then_generate(client, session, provider_override):
     card = _last_card(after_q)
     assert card["kind"] == "reading_intake"
 
-    # 剩下三项用按钮点（动作响应直接返回新卡，无需重拉会话）
+    # 剩下三项用按钮点。最后一个按钮点完就会自动生成，先把模型产出备好。
+    provider_override.rows.append(_draft(f"ki:{item_id}"))
     for slot, value in (("goal", "problem"), ("self_level", "once"), ("help_type", "path")):
         if slot not in [q["slot"] for q in card.get("questions") or []]:
             continue
@@ -497,20 +498,14 @@ def test_end_to_end_confirm_then_generate(client, session, provider_override):
         assert result.get("card"), result
         card = result["card"]
 
-    # 信息齐了：卡上应有「生成建议」按钮
-    assert card.get("sends"), f"信息应已齐，但卡上没有生成按钮：{card}"
-
-    provider_override.rows.append(_draft(f"ki:{item_id}"))
-    body = _send(client, headers, "确认，给我建议", headers["_cid"])
-
-    result = _last_card(body)
-    assert result["kind"] == "suggestion"
-    assert result["state"] == "ok"
-    assert result["items"]
-    assert result["evidence"]
+    # 槽位齐了 → 直接是建议卡（不再是带「生成」按钮的确认卡）
+    assert card["kind"] == "suggestion", f"点完最后一个按钮应自动生成：{card}"
+    assert card["state"] == "ok"
+    assert card["items"]
+    assert card["evidence"]
     # 依据必须能对上：items 引用的 id 都在 evidence 池里
-    pool = {e["evidence_id"] for e in result["evidence"]}
-    for it in result["items"]:
+    pool = {e["evidence_id"] for e in card["evidence"]}
+    for it in card["items"]:
         assert set(it["basis_item_ids"]) <= pool
 
 
@@ -603,39 +598,6 @@ def test_suggestion_command_keeps_trailing_question(client, session, provider_ov
     card = _last_card(body)
     assert card["kind"] == "reading_intake"
     assert card["digest"]["question"] == "怎么把它用到周会上"
-
-
-def test_end_to_end_skip_action_accepts_empty_target(client, session, provider_override):
-    """「跳过这轮」没有目标对象，target_id 为空也必须能进。
-
-    回归：原来前端 `!target` 直接 return、后端 `target_id min_length=1` 直接 422，
-    这个按钮点下去完全没反应——UI 上有个按钮，功能却不存在。
-    """
-    user = sign_in(client, "sugg_skip_btn")
-    headers = dict(user.headers)
-    client.post(
-        "/api/v1/knowledge/items",
-        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
-        headers=headers,
-    )
-    start = client.post("/api/v1/agent/start", json={}, headers=headers).json()
-    headers["_cid"] = start["conversation_id"]
-    card = _last_card(start)
-    assert card is not None and card["kind"] == "reading_intake"
-
-    resp = client.post(
-        "/api/v1/agent/actions",
-        json={
-            "conversation_id": headers["_cid"],
-            "card_key": card["key"],
-            "action": "intake.skip",
-            "target_id": "",
-            "value": "",
-        },
-        headers=headers,
-    )
-    assert resp.status_code == 200, resp.text
-    assert resp.json()["card"]["kind"] == "reading_intake"
 
 
 def test_end_to_end_insufficient_evidence(client, session, provider_override):

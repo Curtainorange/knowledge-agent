@@ -1036,11 +1036,7 @@ def apply_action(
         if kind == "reading_intake" and action == "intake.answer":
             reply, new_card = _apply_intake_answer(
                 session, user_id=user_id, conversation_id=conversation_id,
-                card=card, slot=target_id, value=value,
-            )
-        elif kind == "reading_intake" and action == "intake.skip":
-            reply, new_card = _apply_intake_skip(
-                session, user_id=user_id, conversation_id=conversation_id, card=card
+                card=card, slot=target_id, value=value, gateway=gateway,
             )
         elif kind == "suggestion" and action == "suggestion.reject":
             reply, new_card = _reject_suggestion(
@@ -1254,7 +1250,7 @@ def intake_generate_phrase() -> str:
     return "确认，给我建议"
 
 
-def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value):
+def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value, gateway=None):
     from app.agent import intake
 
     conversation, ctx = _load_ctx(session, user_id=user_id, conversation_id=conversation_id)
@@ -1263,43 +1259,27 @@ def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value
     except ValueError as exc:
         raise ActionError(str(exc)) from exc
     _record_intake(session, user_id=user_id, slot=slot, skipped=False)
+    intake.save(session, conversation=conversation, ctx=ctx)
+
+    if ctx.is_ready and gateway is not None:
+        # 槽位齐了：直接生成建议。用户点完最后一个按钮就该看到结果，
+        # 不该再被要求点一次「生成建议」——那一步不带来任何判断价值。
+        # 生成要走模型，所以在这里同步跑完（与消息入口的 suggestion 同一条执行路径）。
+        return execute_capability(
+            "suggestion", user_id=user_id, session=session, gateway=gateway,
+            key=str(uuid4()), args={}, conversation_id=conversation_id,
+        )
 
     if ctx.is_ready:
-        card = intake_card(
-            ctx, note="确认没问题就生成；有不对的继续说。", with_generate=True
-        )
-        intake.save(session, conversation=conversation, ctx=ctx)
+        # 没有 gateway（只可能出现在直接调函数的测试里）：退回带生成按钮的卡，
+        # 至少还能让用户自己点一下，而不是卡在一张没有出口的确认卡上。
+        card = intake_card(ctx, note="确认没问题就生成。", with_generate=True)
         session.commit()
         return "信息齐了，点下面生成建议。", card
 
     card = intake_card(ctx)
-    intake.save(session, conversation=conversation, ctx=ctx)
     session.commit()
     return intake.confirm_text(ctx), card
-
-
-def _apply_intake_skip(session, *, user_id, conversation_id, card):
-    from app.agent import intake
-
-    conversation, ctx = _load_ctx(session, user_id=user_id, conversation_id=conversation_id)
-    intake.mark_skip(ctx)
-    _record_intake(session, user_id=user_id, slot="", skipped=True)
-
-    if ctx.is_ready:
-        card = intake_card(ctx, note="确认没问题就生成。", with_generate=True)
-        intake.save(session, conversation=conversation, ctx=ctx)
-        session.commit()
-        return "行，那就先这样。", card
-
-    note = (
-        "一直跳过也没关系，我只问最关键的那一句。"
-        if ctx.reduced_mode
-        else "不想答就跳过，按已知信息来。"
-    )
-    card = intake_card(ctx, note=note)
-    intake.save(session, conversation=conversation, ctx=ctx)
-    session.commit()
-    return "跳过这轮。", card
 
 
 def _record_intake(session, *, user_id, slot, skipped):

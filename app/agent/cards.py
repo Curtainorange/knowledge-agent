@@ -539,11 +539,14 @@ def reading_intake_card(
     *, key: str, round: int, inferred: dict, questions: list[dict],
     digest_payload: dict | None = None, note: str = "",
 ) -> dict:
-    """需求确认卡：一次最多两题，全部可点选，且都能跳过。
+    """需求确认卡：一次最多两题，全部可点选。
 
     `inferred` 是系统已经知道的（正在读哪本、读到哪），用户只需要确认或改——
     **能推断的不要问出口**。这是「最多 3 轮确认」能做到的前提：5 个确认项里，
     有 2 项是"我猜的，你确认下"，真正要用户打字/点选的只有 3 项。
+
+    卡上没有「跳过」按钮：点它只是把同一批问题再问一遍（槽位没被填，`missing`
+    不变），既没帮用户跳过什么，也没推进流程。用户想跳过时直接说话更省事。
     """
     return {
         "kind": "reading_intake",
@@ -572,8 +575,6 @@ def reading_intake_card(
             for q in (questions or [])
         ],
         "note": note,
-        # 跳过按钮走快操作（不调模型）
-        "actions": [{"action": "intake.skip", "label": "跳过这轮", "target_id": "", "value": ""}],
     }
 
 
