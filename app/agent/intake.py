@@ -188,7 +188,12 @@ class IntakeContext:
 
     def _filled(self, slot: str) -> bool:
         if slot == "question":
-            return bool(self.question.strip())
+            # 有正在读的书时，可以用书名兜底：「介绍这本书」本来就是最常见的一种诉求，
+            # 再强制用户打一遍问题只会让他以为「按钮都点完了怎么还不出结果」。
+            # 用户仍可随时说一句具体问题，那会覆盖成真正的 question（见 merge_slots）。
+            return bool(self.question.strip()) or bool(
+                str((self.book or {}).get("title") or "").strip()
+            )
         if slot == "goal":
             # other 必须带上自由描述才算填了：只选了"其他"什么也没说，等于没答
             return bool(self.goal) and (self.goal != "other" or bool(self.goal_note.strip()))

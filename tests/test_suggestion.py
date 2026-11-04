@@ -327,6 +327,79 @@ def test_reply_text_matches_state(session):
     assert "2" in text
 
 
+# ---- 「想搞清什么」可被书名代替（回归：点完按钮仍卡在问问题）-------------------
+
+
+def test_book_title_satisfies_question_slot():
+    """有正在读的书时，question 为空也算齐了——「介绍这本书」不需要再打一遍问题。
+
+    回归：用户点完目标/水平/帮助类型三个按钮后，`missing` 仍剩 question，
+    系统继续问「这次想搞清什么」，看起来像「按钮都点完了却不出结果」。
+    """
+    ctx = IntakeContext(
+        goal="problem", self_level="once", help_type=["path"], question="",
+        book={"book_id": "b1", "title": "时间管理（击退拖延症、处理多重任务）", "source": "reader"},
+    )
+    ctx.refresh_missing()
+    assert ctx.is_ready
+    query = sugg.build_query(ctx)
+    assert query
+    # 主标题进 query，括号里的推广语不进（否则检索会被营销词带偏）
+    assert "时间管理" in query
+    assert "击退拖延症" not in query
+
+
+def test_question_empty_but_book_present_generates(session):
+    """question 为空、但有书名 → 仍能生成建议，而不是卡在「依据不足」。"""
+    item = _seed(session)
+    ctx = IntakeContext(
+        goal="problem", self_level="once", help_type=["path"], question="",
+        book={"book_id": "b1", "title": "原则 · 第三章", "source": "reader"},
+    )
+    ctx.refresh_missing()
+    assert ctx.is_ready
+
+    provider = _Scripted([_draft(f"ki:{item.id}")])
+    outcome = sugg.generate(
+        session, user_id="u1", ctx=ctx, gateway=ModelGateway(provider=provider),
+        embedding=HashEmbedding(),
+    )
+    assert outcome.state == "ok"
+
+
+def test_replace_card_updates_latest_matching(session):
+    """多条 key=intake 的卡片时，替换的是**最新那条**。
+
+    回归：`_replace_card` 从前往后找、命中即返回，于是建议卡被塞到开场消息上，
+    用户正在看的那条仍停在旧状态——界面看起来就是「点了没反应」。
+    """
+    from app.agent import turns
+    from app.domain.repositories.conversation_repository import ConversationRepository
+
+    repo = ConversationRepository(session, user_id="u1")
+    conv = repo.create(user_id="u1")
+    repo.append_message(
+        conv, "assistant", "开场", source="agent",
+        card={"kind": "reading_intake", "key": "intake", "round": 0},
+    )
+    repo.append_message(
+        conv, "assistant", "追问", source="agent",
+        card={"kind": "reading_intake", "key": "intake", "round": 1},
+    )
+    session.commit()
+
+    ok = turns._replace_card(
+        session, user_id="u1", conversation_id=conv.id,
+        card_key="intake", card={"kind": "suggestion", "key": "sg1"},
+    )
+    session.commit()
+
+    assert ok is True
+    msgs = repo.get(conv.id).messages
+    assert msgs[0]["card"]["kind"] == "reading_intake"  # 开场那条不动
+    assert msgs[1]["card"]["kind"] == "suggestion"      # 最新那条被替换
+
+
 # ---- 跳过确认后仍能生成（回归：原来跳了也没用）-------------------------------
 
 

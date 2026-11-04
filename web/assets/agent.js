@@ -1214,12 +1214,16 @@ window.CCA = (function () {
     var action = button.getAttribute('data-agent-action');
     var target = button.getAttribute('data-target') || '';
     var value = button.getAttribute('data-value') || '';
-    /* target 允许为空：「跳过这轮」这类操作本来就没有目标对象。
-       之前这里要求 !target 也 return，导致跳过按钮点了完全没反应。 */
+    /* target 允许为空：有些操作本来就没有目标对象。
+       之前这里要求 !target 也 return，导致对应按钮点了完全没反应。 */
     if (!cardKey || !action || !state.convId) {
       return;
     }
+    /* 点完最后一个确认项会**同步等一次建议生成**（几秒）。原来的实现只把按钮置灰，
+       那几秒里界面一动不动，看起来就是「点了没反应」。这里给一个明确的等待文案。 */
+    var originalText = button.textContent;
     button.disabled = true;
+    button.textContent = '处理中…';
     try {
       var result = await CC.api('POST', '/api/v1/agent/actions', {
         conversation_id: state.convId,
@@ -1228,15 +1232,21 @@ window.CCA = (function () {
         target_id: target,
         value: value
       });
-      state.messages.forEach(function (message) {
+      /* 只替换**最后一条** key 匹配的消息：确认卡的 key 恒为 intake，
+         会话里会有多张（开场 + 每次追问）。全部替换会把开场那张也改成建议卡，
+         历史里于是出现两份一样的卡。 */
+      for (var i = state.messages.length - 1; i >= 0; i--) {
+        var message = state.messages[i];
         if (message.card && message.card.key === cardKey) {
           message.card = result.card;
+          break;
         }
-      });
+      }
       syncMessages();
       CC.toast(result.reply || '已处理');
     } catch (err) {
       button.disabled = false;
+      button.textContent = originalText;
       CC.toast('操作失败：' + ((err && err.message) || err));
     }
   }

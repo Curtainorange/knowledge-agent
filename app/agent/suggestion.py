@@ -22,6 +22,7 @@ id 却不存在的建议。那种建议最危险：它看起来有出处，用�
 from __future__ import annotations
 
 import logging
+import re
 from dataclasses import dataclass, field
 
 from pydantic import BaseModel, Field
@@ -119,17 +120,31 @@ def _evidence_block(evidence: list) -> str:
     return "\n".join(lines)
 
 
-def build_query(ctx: intake.IntakeContext) -> str:
-    """召回用的 query：以具体疑问为主，目标描述补语义。
+def _short_title(title: str) -> str:
+    """取书名主标题：去掉副标题 / 推广语。
 
-    只用 question 会漏掉"目标"里真正关键的词（比如"用到团队管理上"可能写在 goal_note 里）；
-    只用 goal 又太泛。两个拼起来最稳。
+    真实书名常见「时间管理（击退拖延症、处理多重任务……）」这种形态，
+    整串丢给检索只会让括号里的营销词也参与打分。
+    """
+    body = re.split(r"[（(:：]", (title or "").strip(), maxsplit=1)[0].strip()
+    return body or (title or "").strip()
+
+
+def build_query(ctx: intake.IntakeContext) -> str:
+    """召回用的 query：以具体疑问为主，书名 / 目标描述补语义。
+
+    question 允许为空（有书名时代替它）：此时书名就是 query 的主体，
+    对应「介绍这本书」这类不做额外限定的诉求。三者都空才返回空串，
+    调用方据此判「没有可检索的词」。
     """
     parts = [ctx.question.strip(), ctx.goal_note.strip()]
     book = ctx.book or {}
     if book.get("title"):
-        parts.append(str(book["title"]))
-    return " ".join(p for p in parts if p).strip()
+        parts.append(_short_title(str(book["title"])))
+    query = " ".join(p for p in parts if p).strip()
+    if not query:
+        query = intake._label_of(intake.GOAL_OPTIONS, ctx.goal) or ""
+    return query.strip()
 
 
 def _restrained_reason(session: Session, *, user_id: str, ctx: intake.IntakeContext) -> str:

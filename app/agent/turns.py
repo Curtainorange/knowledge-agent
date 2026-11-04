@@ -849,7 +849,11 @@ def _replace_card(
         return False
 
     messages = list(conversation.messages or [])
-    for index, raw in enumerate(messages):
+    # **从后往前找**：确认卡的 key 恒为 "intake"，一场会话里会出现多张（开场 + 每次追问）。
+    # 卡片状态永远属于最新那条；从前往后替换会把建议卡塞到开场消息上，
+    # 而用户正在看的那条仍停在旧状态——界面上看起来就是「点了没反应」。
+    for index in range(len(messages) - 1, -1, -1):
+        raw = messages[index]
         existing = raw.get("card") or {}
         if existing.get("key") and existing.get("key") == card_key:
             updated = dict(raw)
