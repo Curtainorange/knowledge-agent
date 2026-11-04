@@ -226,8 +226,17 @@ def test_partial_drop_keeps_valid_item(session):
 # ---- 通读笔记进证据池 -------------------------------------------------------
 
 
+# 夹具书正文的长度与内容都要像真书：书籍原文的召回门槛（grounding.BOOK_MIN_RELEVANCE）
+# 是按真实书籍的块（约 1200 字）实测出来的，用一句 19 字的话当「书」会被门槛挡掉——
+# 那样测的就不是业务逻辑，而是夹具太假。
+_BOOK_TEXT = (
+    "极度透明意味着组织里没有不能说的话。"
+    "把极度透明用到周会上，就是让每个人都能直接说出自己的判断，而不是会后再议论。"
+) * 10
+
+
 def _book_and_reading(session, *, user_id="u1", title="原则", summary="极度透明意味着要能说真话。",
-                      text="极度透明意味着组织里没有不能说的话。"):
+                      text=_BOOK_TEXT):
     from app.domain.models.book import Book
     from app.domain.models.book_agent_reading import BookAgentReading
 
@@ -295,6 +304,73 @@ def test_book_excerpt_only_evidence_generates(session):
     assert outcome.items
     assert outcome.items[0]["basis_item_ids"] == [f"book:{book.id}:0"]
     assert {e.kind for e in outcome.evidence} == {"book_excerpt", "agent_summary"}
+
+
+def test_last_slot_with_worker_returns_pending_then_worker_writes_result(
+    client, session, provider_override, monkeypatch
+):
+    """有 worker 时，点完最后一个按钮立刻返回 pending 卡，结果由后台写回。
+
+    回归：原来是同步等一次模型调用（真机 5–20 秒），浏览器一直挂在
+    `/agent/actions` 上、界面只有「处理中…」——用户看到的就是「点了没反应」。
+    """
+    from app.agent import turns as turns_mod
+    from app.core.config import settings
+    from app.llm.gateway import ModelGateway
+
+    queued: list[dict] = []
+    monkeypatch.setattr("app.workers.tasks.enqueue", lambda *a, **kw: queued.append(kw))
+    monkeypatch.setattr("app.workers.runner.nudge", lambda: None)
+    monkeypatch.setattr(settings, "worker_enabled", True, raising=False)
+
+    user = sign_in(client, "sugg_async_pending")
+    headers = dict(user.headers)
+    saved = client.post(
+        "/api/v1/knowledge/items",
+        json={"title": "原则 · 第三章", "content": "极度透明意味着组织里没有不能说的话。"},
+        headers=headers,
+    )
+    item_id = saved.json()["item_id"]
+
+    start = client.post("/api/v1/agent/start", json={}, headers=headers).json()
+    cid = start["conversation_id"]
+    headers["_cid"] = cid
+    card = _last_card(start)
+
+    # 「想搞清什么」是自由文本，只能打字；剩下三项点按钮。
+    # 没有书可推断时这条必须答，否则槽位永远不满（也就测不到出结果那一步）。
+    card = _last_card(_send(client, headers, "怎么把极度透明用到周会上", cid))
+    assert card["kind"] == "reading_intake"
+
+    provider_override.rows.append(_draft(f"ki:{item_id}"))
+    pending = None
+    for slot, value in (("goal", "problem"), ("self_level", "once"), ("help_type", "path")):
+        if slot not in [q["slot"] for q in card.get("questions") or []]:
+            continue
+        card = _answer(client, headers, card, slot, value)["card"]
+        if card.get("kind") == "pending":
+            pending = card
+
+    assert pending is not None, f"最后一个槽位应立刻返回 pending 卡，而不是等结果：{card}"
+    assert pending["key"] == "intake", "pending 卡必须原地替换确认卡（key 不变）"
+    assert queued and queued[-1]["payload"]["capability"] == "suggestion"
+
+    # 模拟 worker：跑能力并把结果写回那条 pending 消息
+    payload = queued[-1]["payload"]
+    session.expire_all()   # 请求走的是另一个 session，先丢掉本地缓存再读
+    reply, result_card = turns_mod.execute_capability(
+        "suggestion", user_id=user.user_id, session=session,
+        gateway=ModelGateway(provider=provider_override), key=payload["turn_id"],
+        args={}, conversation_id=cid,
+    )
+    assert result_card["kind"] == "suggestion" and result_card["state"] == "ok"
+    assert turns_mod.finish_turn(
+        session, user_id=user.user_id, conversation_id=cid,
+        turn_id=payload["turn_id"], reply=reply, card=result_card,
+    ), "结果写不回 pending 那条消息，用户会一直看到转圈"
+
+    latest = client.get(f"/api/v1/agent/conversation/{cid}", headers=headers).json()
+    assert _last_card(latest)["kind"] == "suggestion"
 
 
 # ---- 异常与边界 -------------------------------------------------------------

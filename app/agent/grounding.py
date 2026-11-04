@@ -31,6 +31,7 @@ from __future__ import annotations
 
 import logging
 import math
+import re
 from dataclasses import dataclass, field
 from typing import Literal
 
@@ -73,13 +74,54 @@ AGENT_RELEVANCE_CAP = 0.5
 # 通读笔记召回的最低门槛：完全词面不相关的书不进池（与 keyword 路径同一口径）
 AGENT_MIN_RELEVANCE = 0.05
 # 书籍原文片段单次装配上限：它是「书里怎么说」的直接依据，比通读笔记更具体，
-# 但一次塞太多同样会稀释模型注意力
+# 但一次塞太多同样会稀释模型注意力。
+# 4 = 「两本书 × 每本两段」。压成本不靠这个数：真正喂给模型的是
+# `QUOTE_MAX`（120 字）的引文，不是整块（1200 字），量级可忽略。
 MAX_BOOK_EXCERPTS = 4
 # 书籍原文片段的相关性封顶：原文是关键词检索（BM25 近似），不是向量语义召回，
-# 所以封在通读笔记（0.5）与关键词封顶（0.55）之间偏上——它比摘要更具体、比手记更弱
+# 所以封在通读笔记（0.5）与关键词封顶（0.55）之间偏上——它比摘要更具体、比手记更弱。
+# **实测会真的触发**（5 本真书 / 20 组查询）：相关命中原始分 0.20–0.667，
+# 其中「什么是心理表征」在 194 块里有 13 块 ≥0.55。不封顶的话，一段原句的
+# 分数会盖过用户自己划线的内容，排序就反过来压住了用户输入。
 BOOK_EXCERPT_RELEVANCE_CAP = 0.55
+# 书籍原文片段的最低相关度。
+# **实测取 0.14**（5 本真书 / 14 组查询，逐条人工核对前三条）。分数口径是
+# `score_keyword(问句去掉书名, 章节标题, 正文)`：
+#   无关问句的最高命中：0.109 / 0.133（拿「今天中午吃什么比较好」问一本讲通才的书）
+#   真实命中的最低值：0.145（「我该不该早点确定专业方向」）、其余 0.18–0.55
+# 分界就在 0.133 与 0.145 之间，**这条空档很窄**：`score_keyword` 是二字窗口命中率，
+# 量化本身就粗。所以这是「实测出来的折中」，不是精确科学；换成向量召回后应重测，
+# 而不是沿用此值。另注意：问句本身在书里没有对应内容时（如拿「刷手机」问一本
+# 只讲时间分配的小册子，最高 0.031），返回空是**正确**的，不该为了有内容而降低门槛。
+BOOK_MIN_RELEVANCE = 0.14
 # 单本书最多取几个原文片段：一本几十上百块，全塞进来会变成「照着这本书念」
 MAX_EXCERPTS_PER_BOOK = 2
+# 跨书的相对门槛：低于「最高分 × 这个比例」的一律不要。
+# 绝对门槛只能挡住「完全无关」，挡不住「随便沾到两个词」——实测「什么是心理表征」
+# 在拿到 0.55 / 0.33 两条真命中之后，后面跟的是 0.30 的无关段落。
+# 0.55 是实测出来的分界：保留 0.33（0.6 倍）同时滤掉 0.30（0.55 倍）。
+BOOK_RELATIVE_FLOOR = 0.55
+# 「介绍这本书」这类诉求的代表性段落权重。
+# 它不是精确命中，只是「我挑了几段能代表全书的位置」，所以固定给中位分，
+# 既不冒充高相关，也不会低于 BOOK_MIN_RELEVANCE 被自己滤掉。
+BOOK_OVERVIEW_RELEVANCE = 0.3
+
+# 「介绍这本书」这类 query 里除了书名，只剩这些没有检索价值的词。
+# 这类 query **不能走相关性检索**：它跟正文没有词面关系，实测在全书同分的情况
+# （书名命中 → 每块都 1.0）下，排出来的是版权页、前言、赞誉之辞。
+_OVERVIEW_WORDS = (
+    "介绍", "讲讲", "讲一讲", "说说", "聊聊", "看看", "讲什么", "说什么", "写了什么",
+    "讲啥", "主要内容", "大概", "概述", "概览", "简介", "总结", "这本书", "这本",
+    "本书", "怎么样", "好看吗", "值不值得", "是什么书", "讲的是什么", "主要讲",
+)
+# 版权页 / 丛书序这类块没有讨论价值，任何路径都不该把它当依据，分两档：
+# - 强标记：正常正文里基本不会出现，命中一个就丢；
+# - 弱标记：正文里出现一次「定价」「印刷」很正常，命中 ≥2 个才判定为出版信息。
+_FRONT_MATTER_STRONG = (
+    "图书在版编目", "CIP", "责任编辑", "版权所有", "ISBN",
+    "关于本丛书", "出版说明", "责任印制", "封面设计", "出品人",
+)
+_FRONT_MATTER_WEAK = ("书号", "出版发行", "印张", "开本", "印 数", "字数", "定价")
 
 BASIS_LIBRARY = "library"
 BASIS_AGENT = "agent_summary"
@@ -483,6 +525,99 @@ def build_agent_summaries(
     return out[:limit]
 
 
+def _short_book_title(title: str) -> str:
+    """书名主标题：去掉副标题 / 推广语（与 suggestion 侧同一口径）。
+
+    真实书名常见「时间管理（击退拖延症、处理多重任务……）」这种形态，
+    整串参与比对只会让括号里的营销词冒充「书名」。
+    """
+    body = re.split(r"[（(:：]", (title or "").strip(), maxsplit=1)[0].strip()
+    return body or (title or "").strip()
+
+
+def is_overview_query(query: str, book_title: str = "") -> bool:
+    """这句诉求是不是「概括讲讲这本书」，而不是问某个具体内容。
+
+    判据：把书名和 `_OVERVIEW_WORDS` 里的泛词全部剥掉，剩下没有实义内容。
+    例：「介绍这本书」「讲讲《刻意练习》」→ True；
+        「刻意练习和普通练习有什么区别」→ False（剩下「和普通有什么区别」）。
+    """
+    text = (query or "").strip()
+    if not text:
+        return False
+    title = _short_book_title(book_title)
+    if title:
+        text = text.replace(title, " ")
+    # 长词优先替换，避免「主要内容」被「内容」这类短词切碎后残留
+    for word in sorted(_OVERVIEW_WORDS, key=len, reverse=True):
+        text = text.replace(word, " ")
+    text = re.sub(r"[\s，。、？！：；·\-—…,.?!:;\"'“”‘’（）()《》\[\]]+", "", text)
+    return not text
+
+
+def _looks_like_front_matter(text: str) -> bool:
+    """版权页 / 扉页 / 出版信息——块里这类标记密集就判定为无讨论价值。"""
+    head = (text or "")[:200]
+    if any(marker in head for marker in _FRONT_MATTER_STRONG):
+        return True
+    return sum(1 for marker in _FRONT_MATTER_WEAK if marker in head) >= 2
+
+
+def _mentions_title(query: str, title: str) -> bool:
+    """这句话是不是明确点了这本书（用主标题比对，太短的标题不算）。"""
+    short = _short_book_title(title)
+    return len(short) >= 2 and short in (query or "")
+
+
+def _strip_title(query: str, title: str) -> str:
+    """把书名从 query 里去掉——书名不是「问题」，算进相关性只会把全书抬平。"""
+    short = _short_book_title(title)
+    if len(short) >= 2 and short in (query or ""):
+        return (query or "").replace(short, " ").strip()
+    return (query or "").strip()
+
+
+def _book_chunks(session: Session, book) -> list:
+    """按 seq 取这本书已落库的块（切块规则稳定，坐标可复现）。"""
+    from app.domain.models.book_chunk import BookChunk
+
+    return list(
+        session.scalars(
+            select(BookChunk)
+            .where(BookChunk.book_id == book.id, BookChunk.user_id == book.user_id)
+            .order_by(BookChunk.seq)
+        )
+    )
+
+
+def _spread_chunks(session: Session, book, *, limit: int) -> list:
+    """在全书里等距取样，供「介绍这本书」用。
+
+    为什么要等距而不是取最相关：书名型 query 对全书每块都同分（书名命中 → 1.0），
+    取「最相关」等于取「最前面」，而最前面往往是版权页和前言。
+    概括一本书需要的是覆盖面——开头、中段、结尾各取一段，比开头取两段有用得多。
+    """
+    rows = _book_chunks(session, book)
+    usable = [
+        row for row in rows
+        if len((row.text or "").strip()) >= 200 and not _looks_like_front_matter(row.text)
+    ]
+    if not usable:  # 短书 / 全是短块时不挑，宁可给几段短的也别给空
+        usable = rows
+    if not usable:
+        return []
+    if len(usable) <= limit:
+        return usable
+    # 每段取自身区间的中点，避免正好落在章节交界的空行上
+    step = len(usable) / limit
+    picked = []
+    for index in range(limit):
+        at = min(len(usable) - 1, int((index + 0.5) * step))
+        if usable[at] not in picked:
+            picked.append(usable[at])
+    return picked
+
+
 def build_book_excerpts(
     session: Session,
     *,
@@ -490,7 +625,7 @@ def build_book_excerpts(
     query: str,
     limit: int = MAX_BOOK_EXCERPTS,
     top_k_per_book: int = MAX_EXCERPTS_PER_BOOK,
-    min_relevance: float = AGENT_MIN_RELEVANCE,
+    min_relevance: float = BOOK_MIN_RELEVANCE,
 ) -> list[Evidence]:
     """把智能体已通读书里的原文片段装配成 `book` 依据。
 
@@ -499,9 +634,19 @@ def build_book_excerpts(
     用户笔记为空就一句「查不到」。与 `build_agent_summaries` 的分工：那个是整本书的
     总评脉络，这里是**具体到某一段的原句**（`basis=book`，可独立构成依据）。
 
-    检索复用 `app.books.chunking` 的书内 BM25（零成本、块已落库可复现）；
-    跨书的相关性用 `score_keyword` 重算到同一尺度再排序。读失败 / 空库返回 `[]`，
-    不让这条支线把建议链路带崩。
+    两条取法，判据是「这句诉求有没有具体内容」：
+
+    - 有具体问题 → 全书逐块打分，取最相关的几块。打分口径 = 去掉书名后的问句
+      与「章节标题 + 正文」的二字窗口重叠（`score_keyword`），跨书同一尺度可比。
+      书名既不参与检索也不参与打分：它是「这本书」的标记，不是问题的一部分，
+      带上它会让整本书的每一块同分（实测连无关问句都能让全部块过线）。
+    - 只问「介绍这本书」→ 全书等距取样（见 `_spread_chunks`）。相关性检索在这类
+      query 上会退化成「取最前面」，实测返回的是版权页。
+
+    另外两条硬规则：query 点名的书没通读过就直接返回空（不拿别的书顶替）；
+    版权页 / 丛书序这类块永远不当依据。
+
+    读失败 / 空库返回 `[]`，不让这条支线把建议链路带崩。
     """
     q = (query or "").strip()
     if not q:
@@ -525,58 +670,128 @@ def build_book_excerpts(
         return []
 
     try:
+        # 取**全部**书（含没通读的）：要判断「用户问的这本我是不是还没读」——
+        # 没读就该老实说没有，而不是拿别的书里「碰巧提到这个词」的段落顶上。
         books = session.scalars(
-            select(Book).where(Book.id.in_(book_ids), Book.is_deleted.is_(False))
+            select(Book).where(Book.user_id == user_id, Book.is_deleted.is_(False))
         ).all()
     except Exception as exc:  # pragma: no cover - 防御性兜底
         logger.warning("grounding: 读取书籍失败，按无处理: %s", exc)
         return []
 
+    read_ids = set(book_ids)
+    mentioned = [book for book in books if _mentions_title(q, book.title)]
+    if mentioned:
+        # 点名的书没通读 → 直接返回空：拿别的书凑依据是「有出处但出处不对」，
+        # 比一句「这本我还没读」更糟。
+        targets = [book for book in mentioned if book.id in read_ids]
+        if not targets:
+            logger.info("grounding: 点名的书尚未通读，不取原文依据")
+            return []
+    else:
+        targets = [book for book in books if book.id in read_ids]
+
     out: list[Evidence] = []
-    for book in books:
+    # 「介绍这本书」是**对着某一本**说的：只要某本书的书名能对上，就只取这本书，
+    # 不再去别的书里捞「碰巧提到这两个词」的段落——实测问《刻意练习》时，
+    # 另一本书里谈「刻意练习」的段落会以更高分挤掉这本自己的内容。
+    overview_books = [book for book in targets if is_overview_query(q, book.title)]
+    if overview_books:
+        targets = overview_books
+
+    for book in targets:
         try:
             chunking.ensure_chunks(session, book)
-            hits = chunking.search(session, book=book, query=q, top_k=top_k_per_book)
         except Exception as exc:  # pragma: no cover - 单本书失败不阻断其余
-            logger.warning("grounding: 检索书内原文失败 book=%s err=%s", book.id, exc)
+            logger.warning("grounding: 建块失败 book=%s err=%s", book.id, exc)
             continue
-        for hit in hits:
-            text = (hit.get("text") or "").strip()
-            if not text:
+
+        if overview_books:
+            for row in _spread_chunks(session, book, limit=top_k_per_book):
+                if _looks_like_front_matter(row.text):
+                    continue
+                out.append(
+                    _book_evidence(
+                        book,
+                        {
+                            "text": row.text or "",
+                            "chapter_title": row.chapter_title or "",
+                            "char_start": row.char_start,
+                            "char_end": row.char_end,
+                        },
+                        relevance=BOOK_OVERVIEW_RELEVANCE,
+                        retrieval="book_overview",
+                    )
+                )
+            continue
+
+        # 检索词只用「问题」本身：书名在这一步纯属噪音——实测带书名问
+        # 「什么是儿童自我状态」，BM25 的头两条是版权页和一段无关对话
+        # （版权页里书名出现了好几次）。范围本来就已经限定在这一本书内。
+        question = _strip_title(q, book.title) or q
+        # **全量打分而不是先让书内 BM25 选两条再打分**：两个打分器口径不同
+        # （BM25 带 IDF 与长度归一，关键词算覆盖率），BM25 选出来的两条常常
+        # 不是关键词口径下最相关的两条，实测「通才和专才哪个更好」因此直接变成 0 条。
+        # 代价是每次扫一本书的块（实测 200 块约 20ms），换来的是「选出来的就是报出的分」。
+        scored = []
+        for row in _book_chunks(session, book):
+            text = (row.text or "").strip()
+            if not text or _looks_like_front_matter(text):
                 continue
-            chapter_title = str(hit.get("chapter_title") or "")
-            # 跨书统一尺度：书内 BM25 分数跨书不可比，用关键词重叠重算
-            relevance = score_keyword(q, f"{book.title} {chapter_title}".strip(), text)
+            relevance = score_keyword(question, row.chapter_title or "", text)
             if relevance < min_relevance:
                 continue
-            quote = _clip(text, QUOTE_MAX)
-            if not quote:
-                continue
-            char_start = int(hit.get("char_start") or 0)
-            char_end = int(hit.get("char_end") or 0)
+            scored.append((relevance, row))
+        scored.sort(key=lambda pair: -pair[0])
+        for relevance, row in scored[:top_k_per_book]:
             out.append(
-                Evidence(
-                    evidence_id=f"book:{book.id}:{char_start}",
-                    kind="book_excerpt",
-                    basis=BASIS_BOOK,
-                    source="book",
-                    title=f"《{book.title}》" + (f"·{chapter_title}" if chapter_title else ""),
-                    quote=quote,
-                    locator={
-                        "book_id": str(book.id),
-                        "char_start": char_start,
-                        "char_end": char_end,
-                        "chapter_title": chapter_title,
+                _book_evidence(
+                    book,
+                    {
+                        "text": row.text or "",
+                        "chapter_title": row.chapter_title or "",
+                        "char_start": row.char_start,
+                        "char_end": row.char_end,
                     },
+                    relevance=relevance,
                     retrieval="book",
-                    relevance=min(BOOK_EXCERPT_RELEVANCE_CAP, relevance),
-                    item_id="",
-                    level=LEVEL_L3,
                 )
             )
 
+    if not out:
+        return []
+    # 相对门槛：绝对门槛拦不住「沾到两个词」的段落，靠与最高分的比值再切一刀。
+    # 只对内容型生效——概览型本来就是代表性取样，不该被最高分把自己裁掉。
+    if not overview_books:
+        floor = max(ev.relevance for ev in out) * BOOK_RELATIVE_FLOOR
+        out = [ev for ev in out if ev.relevance >= floor]
     out.sort(key=lambda e: -e.relevance)
     return out[:limit]
+
+
+def _book_evidence(book, hit: dict, *, relevance: float, retrieval: str) -> Evidence:
+    """把一条书内片段落成 `book` 依据。两条取法共用这一处，字段不会分叉。"""
+    chapter_title = str(hit.get("chapter_title") or "")
+    text = (hit.get("text") or "").strip()
+    char_start = int(hit.get("char_start") or 0)
+    return Evidence(
+        evidence_id=f"book:{book.id}:{char_start}",
+        kind="book_excerpt",
+        basis=BASIS_BOOK,
+        source="book",
+        title=f"《{book.title}》" + (f"·{chapter_title}" if chapter_title else ""),
+        quote=_clip(text, QUOTE_MAX),
+        locator={
+            "book_id": str(book.id),
+            "char_start": char_start,
+            "char_end": int(hit.get("char_end") or 0),
+            "chapter_title": chapter_title,
+        },
+        retrieval=retrieval,
+        relevance=min(BOOK_EXCERPT_RELEVANCE_CAP, relevance),
+        item_id="",
+        level=LEVEL_L3,
+    )
 
 
 # ---- 引用校验 ---------------------------------------------------------------

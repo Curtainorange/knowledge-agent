@@ -387,6 +387,123 @@ def test_build_book_excerpts_user_scoped(session):
     assert grounding.build_book_excerpts(session, user_id="u2", query="极度透明") == []
 
 
+# ---- 「介绍这本书」与点名取书（真实书籍实测出来的三条规则）-------------------
+
+
+def _multi_chapter_book(session, *, title="刻意练习", chapters=None, user_id="u1"):
+    """多章书：每章一段，足够长到能成块（块最小 200 字才可当依据）。"""
+    parts = chapters or [f"第{i + 1}章。" + "练习需要有目标有反馈。" * 30 for i in range(4)]
+    full, marks = "", []
+    for index, text in enumerate(parts):
+        marks.append({
+            "index": index, "title": f"第{index + 1}章",
+            "char_start": len(full), "char_end": len(full) + len(text),
+        })
+        full += text
+    book = Book(
+        user_id=user_id, title=title, author="", format="txt", file_path="x.txt",
+        chapters=marks, full_text=full, total_chars=len(full),
+    )
+    session.add(book)
+    session.commit()
+    return book
+
+
+@pytest.mark.parametrize(
+    "query,title,expected",
+    [
+        ("介绍这本书", "刻意练习：如何从新手到大师", True),
+        ("介绍这本书 刻意练习", "刻意练习：如何从新手到大师", True),
+        ("刻意练习", "刻意练习：如何从新手到大师", True),
+        ("刻意练习和普通练习有什么区别", "刻意练习：如何从新手到大师", False),
+        ("怎么管理自己的时间", "把时间当作朋友", False),
+    ],
+)
+def test_is_overview_query(query, title, expected):
+    assert grounding.is_overview_query(query, title) is expected
+
+
+def test_overview_query_uses_spread_and_skips_front_matter(session):
+    """「介绍这本书」不能走相关性检索。
+
+    回归（真实书实测）：书名型 query 对全书每块都同分（书名命中 → 1.0），
+    再被上限压成同一个 0.55，于是「最相关」等于「最前面」——《成长的边界》
+    返回的第一条是版权页「未知 成长的边界 [加]大卫·艾泼斯坦 著 范雪竹 译」，
+    《把时间当作朋友》返回的是再版前言。
+    """
+    book = _multi_chapter_book(
+        session,
+        title="刻意练习",
+        chapters=[
+            "图书在版编目（CIP）数据 刻意练习 安德斯·艾利克森 责任编辑 李四 "
+            "ISBN 978-7-出版发行 " + "版权信息。" * 30,
+            "第一章。" + "有目的的练习需要明确的特定目标。" * 30,
+            "第二章。" + "心理表征是长期记忆中的结构化知识。" * 30,
+            "第三章。" + "走出舒适区才能获得有效反馈。" * 30,
+        ],
+    )
+    _agent_reading(session, book)
+    evs = grounding.build_book_excerpts(session, user_id="u1", query="介绍这本书")
+    assert evs, "概括一本书必须给得出内容"
+    assert all(ev.retrieval == "book_overview" for ev in evs)
+    assert all("图书在版编目" not in ev.quote for ev in evs), "版权页不能当依据"
+    # 等距取样：两段应来自书的头部与尾部，而不是相邻两块
+    starts = sorted(ev.locator["char_start"] for ev in evs)
+    assert starts[-1] - starts[0] >= book.total_chars // 3
+
+
+def test_title_query_uses_only_the_named_book(session):
+    """问哪本书就只取哪本书。
+
+    回归：问《刻意练习》时，另一本书里「碰巧谈到刻意练习」的段落以 0.40 分
+    压在本书自己的内容（0.30）之上，用户点开依据跳到了别的书里。
+    """
+    named = _multi_chapter_book(session, title="刻意练习")
+    other = _multi_chapter_book(
+        session, title="成长的边界",
+        chapters=["这本书也谈刻意练习。" * 40 for _ in range(3)],
+    )
+    _agent_reading(session, named)
+    _agent_reading(session, other)
+
+    evs = grounding.build_book_excerpts(session, user_id="u1", query="刻意练习")
+    assert evs
+    assert {ev.locator["book_id"] for ev in evs} == {str(named.id)}
+
+
+def test_named_but_unread_book_returns_nothing(session):
+    """点名的书没通读过 → 老实返回空，不拿别的书顶替。
+
+    回归：问《把时间当作朋友》时（这本只上传没通读），装配出的是
+    《蛤蟆先生》《高效能人士的七个习惯》里 0.20 分的段落——有出处，但出处完全不对。
+    """
+    _multi_chapter_book(session, title="把时间当作朋友")
+    read = _multi_chapter_book(session, title="刻意练习")
+    _agent_reading(session, read)
+
+    assert grounding.build_book_excerpts(session, user_id="u1", query="把时间当作朋友") == []
+
+
+def test_weak_overlap_filtered_by_relative_floor(session):
+    """最强命中之外的「擦边段落」不该挤进依据池。
+
+    回归实测：问「什么是心理表征」拿到 0.55 / 0.33 两条真命中之后，
+    后面还跟着 0.30 的无关段落（因为 ABSOLUTE 门槛只挡完全无关）。
+    """
+    book = _multi_chapter_book(
+        session, title="刻意练习",
+        chapters=[
+            "心理表征有助于高效学习。" + "心理表征是结构化的知识。" * 30,
+            "蛤蟆先生说他不想谈这件事。" * 40,
+        ],
+    )
+    _agent_reading(session, book)
+    evs = grounding.build_book_excerpts(session, user_id="u1", query="心理表征")
+    assert evs
+    best = max(ev.relevance for ev in evs)
+    assert all(ev.relevance >= best * grounding.BOOK_RELATIVE_FLOOR for ev in evs)
+
+
 # ---- 引用校验 ---------------------------------------------------------------
 
 

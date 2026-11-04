@@ -121,7 +121,7 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "book_compare": ("正在对比这两本书", "先对齐主题、再逐条说差异，通常二十秒以内。"),
     "book_digest": ("正在通读这本书", "逐章读完再汇总，一本书要几分钟，读的过程不用你管。"),
     "book_recommend": ("正在挑书", "要结合你的知识库、书架和目标一起看，通常十几秒。"),
-    "suggestion": ("正在按你的依据想建议", "只在你同步进来的内容里找，通常十几秒。"),
+    "suggestion": ("正在按你的依据想建议", "在你同步进来的内容和你读过的书里找，通常十几秒到半分钟。"),
 }
 
 _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
@@ -1268,10 +1268,9 @@ def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value
     if ctx.is_ready and gateway is not None:
         # 槽位齐了：直接生成建议。用户点完最后一个按钮就该看到结果，
         # 不该再被要求点一次「生成建议」——那一步不带来任何判断价值。
-        # 生成要走模型，所以在这里同步跑完（与消息入口的 suggestion 同一条执行路径）。
-        return execute_capability(
-            "suggestion", user_id=user_id, session=session, gateway=gateway,
-            key=str(uuid4()), args={}, conversation_id=conversation_id,
+        return _start_inline_suggestion(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card=card, ctx=ctx, gateway=gateway,
         )
 
     if ctx.is_ready:
@@ -1284,6 +1283,57 @@ def _apply_intake_answer(session, *, user_id, conversation_id, card, slot, value
     card = intake_card(ctx)
     session.commit()
     return intake.confirm_text(ctx), card
+
+
+def _start_inline_suggestion(session, *, user_id, conversation_id, card, ctx, gateway):
+    """槽位齐了就出建议；有 worker 时交给后台，别让浏览器干等十几秒。
+
+    为什么必须异步：一次生成要召回 + 一次模型调用，真机 5–20 秒。同步跑的话
+    浏览器一直挂在 `/agent/actions` 上，界面只显示「处理中…」——用户看到的就是
+    「点了没反应」。这里把当张确认卡**原地**换成 pending 卡（key 不变，前端锚点不动），
+    后台跑完由 `finish_turn` 就地改成结果卡，前端轮询接上（`syncMessages` 自带）。
+    """
+    if settings.worker_enabled:
+        from app.workers import runner
+        from app.workers.tasks import enqueue
+
+        turn_id = str(uuid4())
+        label, note = _PENDING_COPY["suggestion"]
+        pending = pending_card(turn_id=turn_id, capability="suggestion", label=label, note=note)
+        card_key = str(card.get("key") or "intake")
+        pending["key"] = card_key           # 同一个 key：前端原地替换时锚点不变
+        # 失败时还原成「按这些给建议」，用户点一下就能重试——
+        # 不还原成原来那道题：用户已经答过了，再摆一次只会让人以为没生效。
+        pending["restore"] = intake_card(ctx, note="这次没生成成功，再点一次。", with_generate=True)
+
+        if _replace_card(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card_key=card_key, card=pending,
+        ):
+            session.commit()
+            enqueue(
+                session,
+                task_name=TASK_NAME,
+                user_id=user_id,
+                idempotency_key=task_key(turn_id),
+                payload={
+                    "kind": "capability",
+                    "turn_id": turn_id,
+                    "user_id": user_id,
+                    "conversation_id": conversation_id,
+                    "capability": "suggestion",
+                    "args": {},
+                },
+            )
+            runner.nudge()
+            return note, pending
+        # 卡片已经不在会话里（会话被删 / 换了会话）：退回同步，至少给出结果
+        logger.info("inline suggestion: 卡片已消失，退回同步执行 conv=%s", conversation_id)
+
+    return execute_capability(
+        "suggestion", user_id=user_id, session=session, gateway=gateway,
+        key=str(uuid4()), args={}, conversation_id=conversation_id,
+    )
 
 
 def _record_intake(session, *, user_id, slot, skipped):
