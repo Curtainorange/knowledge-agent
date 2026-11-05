@@ -33,14 +33,20 @@ from __future__ import annotations
 # 没坏。业务链**零调用方**。所以白名单里只有这一个诊断用工具，而不是空集：
 # 清单要写事实，不写让人安心的假象。
 TOOL_PURPOSE: dict[str, str] = {
-    "save_note": "仅 scripts/smoke_llm.py 的链路诊断使用；业务链零调用方，模型在真实对话里不会被给到任何工具",
+    "save_note": "仅 scripts/smoke_llm.py 的链路诊断使用；业务链零调用方",
+    # 2026-11-05 起业务链第一次真的给模型工具：资料研究能力（`app/agent/research.py`）。
+    # 两个工具都只是**只读检索**——不写库、不碰本地文件，结果直接作为建议返回给用户。
+    # 这是本轮放开工具的全部理由，扩大用途要重新走这一节。
+    "web_search": "资料研究：按 query 检索网页摘要（app/agent/research.py，只读）",
+    "web_fetch": "资料研究：抓取单个网页正文（app/agent/research.py，只读）",
 }
 ALLOWED_TOOLS: frozenset[str] = frozenset(TOOL_PURPOSE)
 
 # 允许传 tools 的文件。除此之外任何地方传工具，都是绕过白名单。
 TOOL_CALLSITE_ALLOWLIST: frozenset[str] = frozenset({
-    "app/llm/gateway.py",      # 唯一透传点
-    "scripts/smoke_llm.py",    # 诊断脚本（不是业务链）
+    "app/llm/gateway.py",       # 唯一透传点
+    "scripts/smoke_llm.py",     # 诊断脚本（不是业务链）
+    "app/agent/research.py",    # 资料研究能力（只读检索工具）
 })
 
 # ---- 任务类型（模型被要求做的事）--------------------------------------------
@@ -65,13 +71,18 @@ ALLOWED_TASK_TYPES: frozenset[str] = frozenset({
     "conflict_attribution",
     "probe_question",
     "book_compare",
+    # 资料研究（2026-11-05）：一次任务里可能连续多轮「检索 → 读正文 → 再检索」，
+    # 与其它任务的区别是它会带 tools 出网；单独记账才能看清联网建议这块花的钱。
+    "web_research",
 })
 
 # ---- 网络（出网主机）--------------------------------------------------------
 # 扫描范围：app/ 与 scripts/ 里的全部 http(s) 字面量（含注释里的文档链接——
 # 宁可多登记一个不可达的主机，也不要让注释里的斜体URL变成漏网的理由）。
 EGRESS_PURPOSE: dict[str, str] = {
-    "api.deepseek.com": "模型供应商（唯一在用）",
+    # 同一主机承担两件事：模型推理 + 官方 Search/Fetch（`/v1/tools/*`）。
+    # 搜索走 DeepSeek 自研引擎，用同一把 Bearer Key，因此**没有**新增出网主机。
+    "api.deepseek.com": "模型供应商（唯一在用）+ 官方搜索/抓取 API（只读检索）",
     "api.xiaomimimo.com": "模型供应商（已停用，Key 留空即摘链）",
     "i.weread.qq.com": "微信读书同步网关（非模型层）",
     "weread.qq.com": "微信读书授权页（注释中的文档链接，运行时不请求）",

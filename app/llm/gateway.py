@@ -69,6 +69,10 @@ STRATEGY_TABLE: dict[str, Strategy] = {
     "probe_question": Strategy("probe_question", False, ""),
     # 书籍对比（C 模块）：要对齐后的主题判断"一致/互补/冲突/各有侧重"，reasoning=on
     "book_compare": Strategy("book_compare", True, ""),
+    # 资料研究（2026-11-05）：带 tools 的检索-归纳回合。一次任务会连跑 2-3 轮，
+    # 每轮都开思考会把成本乘上去，而这一层的难点在「搜得准、说得实」，
+    # 不在推理深度——reasoning=off；若实测建议质量不足再单独调这一行。
+    "web_research": Strategy("web_research", False, ""),
 }
 
 

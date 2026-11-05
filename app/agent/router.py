@@ -1,21 +1,20 @@
 """统一对话入口的能力路由（「对话即入口」的分流层）。
 
-用户只用说话，这一层负责把这句话分派到某个已有能力上。三条路径：
+用户只用说话，这一层负责把这句话分派到某个已有能力上。两条路径：
 
-1. **本地命令式快路径**：整句就是一条命令（「生成周计划」「同步微信读书」
-   「记一下…」）时用确定性规则直接判，零模型调用。按钮发出来的话、用户照着提示
-   复述的话都属于这一类，判错了用户一眼能看出来——把确定性留给它们很划算。
-2. **模型分类**：句子里夹带了别的内容、或多分句多诉求时，本地规则**只当先验**，
-   由模型看整句判断意图并抽参数。一句话里既有「我想学人工智能」又有「制定学习计划」，
-   关键词只抓得到后半句；让它一票否决，用户明确说出的目标就被丢掉了。
-3. **兜底回落**：模型也给不出结论时退回通用对话。
+1. **模型判定（主路径）**：每次都由模型看整句判断意图并抽参数。本地规则
+   （`_match_local`）只作为一条**先验线索**随 prompt 送出，不是结论。
+2. **本地兜底**：两种情况下本地规则才成为结论——会话处于澄清态（这句话就是
+   对追问的回答，不是新意图），或模型不可用（调用失败 / 输出无法解析）。
 
-**判官是谁？** 本地规则只在「这句话没有别的可说」时独占，其余一律交给模型。
-这个方向上的代价不对等：多问一次模型是几十毫秒加一点点成本，
-判错能力却是去做一件用户没要求的事（甚至往知识库里写东西）。
+**为什么不再让关键词独占。** 规则只看得见它认识的那几个词，看不见句子里剩下的
+部分，也无法表达「我可能漏了」。把「命中」当成「看懂」，在「生成周计划」这种整句
+只有一条命令的说法上没问题；一旦句子夹带内容（「我想学人工智能，帮我收集整理
+材料，制定一个学习计划」），它就会把用户说出的目标整句丢掉。代价也不对等：
+多问一次模型是几十毫秒加一点点钱，判错能力却是去做一件用户没要求的事
+（甚至往知识库里写东西）。
 
-这与 L1/L4/L5 的既有约定一致：能本地判的绝不调模型，判不准就退到最保守的分支——
-但「能本地判」的前提是**整句确实只有一个动作**，而不是句子里恰好出现了某个词。
+这与 L1/L4/L5 的既有约定一致：判不准就退到最保守的分支。
 """
 from __future__ import annotations
 
@@ -27,6 +26,7 @@ from typing import Literal
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy.orm import Session
 
+from app.llm.exceptions import LLMError
 from app.llm.gateway import ModelGateway
 from app.llm.prompts import AGENT_ROUTE
 from app.llm.structure import JsonParseError, parse_structured
@@ -37,14 +37,16 @@ Capability = Literal[
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "suggestion", "chat",
 ]
 
 KNOWN_CAPABILITIES: tuple[str, ...] = (
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "suggestion", "chat",
 )
 
 # 未识别 / 判定不明确时的归宿。**所有兜底都落到这里**。
@@ -55,7 +57,8 @@ FALLBACK_CAPABILITY = "chat"
 WIRED_CAPABILITIES: frozenset[str] = frozenset({
     "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
     "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "suggestion", "chat",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "suggestion", "chat",
 })
 
 
@@ -91,6 +94,9 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("book_digest", "通读一本书", "通读《三体》"),
     CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
     CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
+    # 示例必须被本地规则命中（test_agent_router 会逐条验证）：
+    # "材料" + "找" 命中 _RESEARCH_WORDS / _RESEARCH_VERBS
+    CapabilitySpec("research", "找学习材料", "帮我找一些学人工智能的材料"),
     # example 命中 _COMPARE_WORDS 的「对比」且含「书」
     CapabilitySpec("book_compare", "对比两本书", "对比这两本书"),
     # example 必须被本地规则命中（test_agent_router 会逐条验证）：
@@ -218,6 +224,13 @@ _RECALL_MARKERS = ("那条", "那本", "那段", "那篇", "记得我存", "记�
 
 _BOOK_WORDS = ("书架", "阅读记录", "阅读日志", "读了什么", "读了哪些")
 _SYNC_WORDS = ("微信读书", "微信阅读", "weread")
+# 找外部材料（research）。与 L1 的分界是**有没有指向外部**：
+# 「找材料 / 找课程 / 找论文」是去网上找；「找回我以前存的那条」是在库里找。
+# 所以这里要求出现研究类名词，而不是只凭「找」这个动词——否则所有 L1 都会被它抢走。
+_RESEARCH_WORDS = (
+    "材料", "资料", "课程", "教材", "论文", "书单", "公开课", "网课", "学习资源", "文献",
+)
+_RESEARCH_VERBS = ("找", "收集", "整理", "推荐", "查", "搜", "有哪些", "有什么", "列一下")
 # 两本书对比（C 模块）：只认明确的比较说法，避免把「这本书和那本有什么区别」
 # 这类闲聊式提问也拉进来——那种时候用户往往还没让我读过其中一本。
 _COMPARE_WORDS = ("对比", "比较", "比一比", "差异", "区别")
@@ -239,22 +252,23 @@ _BOOK_TITLE_PATTERN = re.compile(r"《([^《》]{1,80})》")
 _TITLE_MAX = 40
 _GOAL_MAX = 256
 
-# ---- 本地规则能独占的边界 ---------------------------------------------------
+# ---- 本地规则的定位：先验，不是判官 -----------------------------------------
 #
-# 判据只有一条：**这句话除了这条命令，没有夹带别的内容**。两个信号：
-# 短到装不下第二个诉求；或者只有一个分句。冒号不切——「帮我定一个学习目标：X」
-# 里的后半段是参数，不是第二个诉求。
+# 这些规则现在只做两件事：
 #
-# 为什么阈值这么小（12 字）：宁可把一句长命令让给模型（多花几十毫秒，判得还更准），
-# 也不要把一句多诉求的话锁进某个能力（用户说了目标却被反问「你想学什么」）。
-_BARE_MAX_CHARS = 12
-_CLAUSE_SPLIT = re.compile(r"[，,。；;！!？?\n]+")
-
-# 引导词后面的部分**是参数、不是第二个诉求**的能力：分句多、句子长都正常。
-# 交给模型反而危险——它会把「记一下：…」的正文改写一遍，或把「给我建议，怎么用到周会上」
-# 里的后半句当成另一个意图。这类句式的边界很清楚：引导词是固定的指令短语，
-# 后面全部属于内容，规则剥离比模型猜准。
-_CONTENT_BEARING = frozenset({"knowledge_add", "book_discuss", "suggestion"})
+# 1. 给模型一条**先验**（「按字面词看像是 X」），让它有据可依地推翻或采纳；
+# 2. 模型不可用时兜底，避免一次调用失败就让整轮对话变成「看不懂」。
+#
+# 曾经这里还有一条 `_is_bare_command`：整句只有一条命令时让本地规则独占，
+# 零模型调用。它省下的是几十毫秒，代价是「命中」被当成「看懂」——
+# 句子一长，规则看不见的部分就被静默丢掉。现在这条独占规则已经移除，
+# 但那几条**豁免**的洞见保留下来，因为它们仍然成立：
+#
+#   「记一下：…」的引导词后面是正文，「给我建议，怎么用到周会上」后面是问题本身。
+#   这类句式的边界很清楚，交给模型重新组织反而会**改写原文**。
+#
+# 对应的做法不是让规则独占，而是让正文永远从原句里剥（`parse_note`），
+# 模型的 args 只在剥不出来时兜底（见 `copilot._note_args`）。
 
 
 def _has_any(text: str, words: tuple[str, ...]) -> bool:
@@ -373,6 +387,13 @@ def _match_local(text: str) -> CapabilityRoute | None:
     if _has_any(text, _SYNC_WORDS) and ("同步" in text or "拉取" in text):
         return hit("weread_sync", "识别到同步微信读书")
 
+    # 2.5 找外部学习材料（research）—— 必须排在 L1 与书籍之前：
+    #     「帮我找一些学人工智能的材料」开头是「帮我找」，会被 L1 的召回前缀截走；
+    #     而 L1 的语义是库里已有内容，两者方向相反。
+    #     研究类名词是这里的硬条件，光有「找」不算。
+    if _has_any(text, _RESEARCH_WORDS) and _has_any(text, _RESEARCH_VERBS):
+        return hit("research", "识别到找外部的学习材料")
+
     # 3. L2 冲突 —— 要求「扫描类动词 + 冲突类名词」同时出现，
     #    避免误伤「记一下：冲突检测的心得」这类只是提到冲突一词的说法
     if _has_any(text, _CONFLICT_WORDS) and _has_any(text, _SCAN_WORDS):
@@ -435,18 +456,6 @@ def _match_local(text: str) -> CapabilityRoute | None:
     return None
 
 
-def _is_bare_command(text: str, route: CapabilityRoute) -> bool:
-    """这句话是不是「整句就是这条命令」——是则本地规则可以独占，不必问模型。
-
-    只判「有没有夹带别的东西」，不判语义。判据见 `_BARE_MAX_CHARS` 那一段。
-    """
-    if route.capability in _CONTENT_BEARING:
-        return True
-    if len(text) <= _BARE_MAX_CHARS:
-        return True
-    return len([c for c in _CLAUSE_SPLIT.split(text) if c.strip()]) <= 1
-
-
 # 分流理解指代用的上下文预算。两个数字都是成本阀：分流是**每次对话都会跑**的链路，
 # 历史直接决定固定成本；给多了既慢又贵，给少了「那个呢」还是看不懂。
 #
@@ -499,20 +508,21 @@ class CapabilityRouter:
         allow_model: bool = True,
         history: list[dict] | None = None,
     ) -> CapabilityRoute:
-        """分流一次。
+        """分流一次。**唯一的判官是模型**，本地规则只提供先验线索。
 
         `allow_model=False` 用于「上一轮 L1 还在等补充」这种状态：此时用户的话极可能
-        就是对追问的回答，再花一次模型调用去猜意图是浪费，而且猜错会打断澄清。
-        命令式规则仍然生效——用户依然能中途插一条「记一下…」。
+        就是对追问的回答，不是新意图。这时由本地规则来判（命令式指令仍然生效），
+        判不出来就按补充回答处理。
 
-        `history` 是最近几轮对话（`[{role, content}]`，从旧到新），只用于**模型分流**
-        理解指代：没有它，「再来一次」「那个呢」这类话必然落到通用对话——分流只看当前句，
-        根本不知道上一轮在干什么。本地规则仍然先跑且不受历史影响：命令式指令
-        （「记一下…」）不该因为上一轮聊过别的而被改写。
+        `history` 是最近几轮对话（`[{role, content}]`，从旧到新），用于理解
+        「再来一次」「那个呢」这类指代——分流只看当前句，根本不知道上一轮在干什么。
 
-        **本地规则是否独占，取决于这句话有没有夹带别的内容**（见 `_is_bare_command`）：
-        「生成周计划」独占；「我想学习人工智能，帮我收集整理相关的材料，制定一个学习计划」
-        不独占——它有三个诉求，本地规则只抓得到最后那个词，模型看整句才判得准。
+        **为什么本地规则不再独占。** 关键词规则只看得见它认识的那几个词，看不见
+        句子里剩下的部分，也无法表达「我可能漏了」。把「命中」当成「看懂」，
+        在「生成周计划」这种整句只有一条命令的说法上没问题；一旦句子夹带内容
+        （「我想学人工智能，帮我收集整理材料，制定一个学习计划」），它就会把
+        用户说出的目标整句丢掉。而代价不对等：多问一次模型是几十毫秒加一点点钱，
+        判错能力却是去做一件用户没要求的事。
         """
         text = (message or "").strip()
         if not text:
@@ -522,21 +532,32 @@ class CapabilityRouter:
             )
 
         local = _match_local(text)
-        if local is not None:
-            # 澄清态下不调模型，本地命中就是最终结论（命令式指令仍然生效）
-            if not allow_model or _is_bare_command(text, local):
-                return local
-            return self._model_route(
-                text, user_id=user_id, history=history, hint=local
-            )
 
         if not allow_model:
+            if local is not None:
+                return local
             return CapabilityRoute(
                 capability=FALLBACK_CAPABILITY, confidence=0.0,
                 reason="会话处于澄清态且未命中命令式规则，按补充回答处理", source="local",
             )
 
-        return self._model_route(text, user_id=user_id, history=history)
+        try:
+            return self._model_route(
+                text, user_id=user_id, history=history, hint=local
+            )
+        except LLMError as exc:
+            # 模型挂了不等于整轮对话该失败。这时本地先验是唯一还能用的判断，
+            # 用它比退成「看不懂」对用户更有利；但必须标 fallback，
+            # 好让事件表统计到「这次其实没问成模型」。
+            logger.warning("capability routing unavailable, using local prior: %s", exc)
+            if local is not None:
+                local.source = "fallback"
+                local.reason = f"{local.reason}（模型不可用，按命令式先验执行）"
+                return local
+            return CapabilityRoute(
+                capability=FALLBACK_CAPABILITY, confidence=0.0,
+                reason="模型不可用，回落通用对话", source="fallback",
+            )
 
     def _model_route(
         self, text: str, *, user_id: str, history: list[dict] | None = None,
@@ -551,12 +572,12 @@ class CapabilityRouter:
             # 当成「上一条用户输入」答掉，而不是当成上下文来理解指代。
             parts.append(context)
         if hint is not None:
-            # 先验而不是结论：说清「这是按词匹配的初判」，模型才敢推翻它。
+            # 先验而不是结论：说清「这是按字面词匹配的初判」，模型才敢推翻它。
             # 不说「可能不对」这类空话——它需要的是判断依据，不是免责声明。
             parts.append(
-                f"本地按关键词的初判是 {hint.capability}（{hint.reason}），"
+                f"按字面词的初判是 {hint.capability}（{hint.reason}），"
                 f"依据只是句子里出现了相关词。请按整句的真实意图判断，"
-                f"整句主意图是别的就覆盖它。"
+                f"整句主意图是别的就覆盖它；没命中也不代表该归到 chat。"
             )
         parts.append(f"用户这句话是：\n{text}\n\n请输出路由 JSON。")
         messages.append({"role": "user", "content": "\n\n".join(parts)})
@@ -572,7 +593,13 @@ class CapabilityRouter:
         try:
             route = parse_structured(completion.text, validator=lambda d: CapabilityRoute(**d))
         except JsonParseError as exc:
-            logger.warning("capability routing parse failed, fallback to chat: %s", exc)
+            logger.warning("capability routing parse failed: %s", exc)
+            if hint is not None:
+                # 有明确命令式先验时，按它执行比退成闲聊更贴近用户意图；
+                # source 仍标 fallback，事件表能看出这次模型没给出可用输出。
+                hint.source = "fallback"
+                hint.reason = f"{hint.reason}（分流输出无法解析，按命令式先验执行）"
+                return hint
             return CapabilityRoute(
                 capability=FALLBACK_CAPABILITY, confidence=0.0,
                 reason="分流输出无法解析，回落通用对话", source="fallback",

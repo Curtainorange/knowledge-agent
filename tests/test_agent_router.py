@@ -134,6 +134,17 @@ def test_books_not_stolen_by_recall():
     assert _match_local("我的书架里有什么").capability == "books"
 
 
+def test_material_request_is_research_not_recall():
+    """「找材料」是去外面找，「找回那篇笔记」是在库里找——同一个「找」字方向相反。"""
+    assert _match_local("帮我找一些学人工智能的材料").capability == "research"
+    assert _match_local("帮我找那篇讲冲突的笔记").capability == "l1"
+
+
+def test_note_about_materials_is_still_a_note():
+    """「材料」出现在一条录入的正文里，不该被当成找材料的意图。"""
+    assert _match_local("记一下：学习材料要按主题分 #方法").capability == "knowledge_add"
+
+
 def test_ambiguous_text_has_no_local_rule():
     """判不出来必须返回 None，交给模型——绝不能在本地硬猜一个能力。"""
     for text in ("今天天气不错", "谢谢", "帮我看看这个", "最近怎么样"):
@@ -165,14 +176,64 @@ def test_composite_sentence_goes_to_model(session):
     assert route.args["goal"] == "学习人工智能"
 
 
-def test_bare_command_stays_local(session):
-    """整句就是一条命令时仍是零调用的快路径——按钮发出来的话不该花一次模型调用。"""
-    router, provider = _router(session, ['{"capability":"chat","args":{}}'])
+def test_command_phrase_also_goes_to_model(session):
+    """连「生成周计划」这种整句命令也交给模型——关键词不再一票定输赢。
+
+    本地规则省下的只是几十毫秒；一旦让它独占，句子一长它就会把看不见的那半句
+    静默丢掉。判断力的代价不对等，所以规则只当先验。
+    """
+    router, provider = _router(
+        session, ['{"capability":"l4_plan","args":{},"confidence":0.95}']
+    )
+    route = router.route("生成周计划", user_id="u1")
+
+    assert provider.task_types == ["capability_routing"]
+    assert route.source == "model"
+    assert route.capability == "l4_plan"
+
+
+def test_hint_is_offered_but_model_decides(session):
+    """本地初判进 prompt，但模型判成别的时以模型为准。"""
+    router, provider = _router(
+        session, ['{"capability":"chat","args":{},"confidence":0.6}']
+    )
+    route = router.route("生成周计划", user_id="u1")
+
+    assert route.capability == "chat"
+    sent = "\n".join(str(m.get("content") or "") for m in provider.seen[-1])
+    assert "l4_plan" in sent, "先验要送进去，模型才有推翻它的依据"
+
+
+def test_model_failure_falls_back_to_local_prior(session):
+    """模型不可用时按命令式先验执行：一次调用失败不该让用户只看到一句闲聊。"""
+    from app.llm.exceptions import NonRetryableLLMError
+
+    class Boom(LLMProvider):
+        def chat(self, *, model, reasoning, messages, tools=None, response_format=None,
+                 task_type="default"):
+            raise NonRetryableLLMError("模型挂了")
+
+    router = CapabilityRouter(ModelGateway(provider=Boom()), session)
     route = router.route("生成周计划", user_id="u1")
 
     assert route.capability == "l4_plan"
-    assert route.source == "local"
-    assert provider.task_types == []
+    # 仍然标 fallback：事件表要能看出「这次其实没问成模型」
+    assert route.source == "fallback"
+
+
+def test_model_failure_without_prior_falls_back_to_chat(session):
+    from app.llm.exceptions import NonRetryableLLMError
+
+    class Boom(LLMProvider):
+        def chat(self, *, model, reasoning, messages, tools=None, response_format=None,
+                 task_type="default"):
+            raise NonRetryableLLMError("模型挂了")
+
+    router = CapabilityRouter(ModelGateway(provider=Boom()), session)
+    route = router.route("最近怎么样", user_id="u1")
+
+    assert route.capability == "chat"
+    assert route.source == "fallback"
 
 
 def test_local_guess_is_passed_to_model_as_hint(session):

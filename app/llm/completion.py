@@ -1,7 +1,7 @@
 """模型完成结构：统一承载文本 + token 计数。"""
 from __future__ import annotations
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 
 @dataclass
@@ -15,3 +15,8 @@ class Completion:
     finish_reason: str = "stop"
     model: str = ""
     reasoning: bool = False
+    # 模型请求调用的工具（function calling）。空表示这一次只出了文本。
+    # 每项形如 {"id": "...", "name": "web_search", "arguments": "{...}"}——
+    # 参数保持**原始 JSON 字符串**不在这里解析：解析失败要由调用方决定怎么兜，
+    # 而不是让模型层替业务层吞掉一个坏参数。
+    tool_calls: list[dict] = field(default_factory=list)

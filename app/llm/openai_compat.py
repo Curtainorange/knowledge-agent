@@ -72,12 +72,14 @@ class OpenAICompatProvider(LLMProvider):
 
         choice = resp.choices[0] if resp.choices else None
         text = (choice.message.content if choice and choice.message else "") or ""
-        if not text and choice and getattr(choice.message, "tool_calls", None):
-            # 函数调用场景：把 tool_call 转成可读摘要，P0 阶段不执行工具
-            calls = ", ".join(
-                f"{tc.function.name}({tc.function.arguments})" for tc in choice.message.tool_calls
+        calls = self._tool_calls(choice)
+        if not text and calls:
+            # 只发了工具请求、没有任何文本：拼一句可读摘要。
+            # 这段有两个用处：老路径（smoke_llm 的连通性检查）据此判断「工具调用能解析」；
+            # 新路径（research）不用它，直接读 `tool_calls` 字段。
+            text = "[tool_request] " + ", ".join(
+                f"{c['name']}({c['arguments']})" for c in calls
             )
-            text = f"[tool_request] {calls}"
 
         usage = resp.usage
         return Completion(
@@ -88,7 +90,36 @@ class OpenAICompatProvider(LLMProvider):
             finish_reason=choice.finish_reason if choice else "stop",
             model=model,
             reasoning=reasoning,
+            tool_calls=calls,
         )
+
+    @staticmethod
+    def _tool_calls(choice) -> list[dict]:
+        """把 SDK 的 tool_calls 收敛成纯数据。
+
+        参数**不解析**成 dict：模型偶尔给半个 JSON，解析失败在这里抛错会把一次
+        正常的工具回合打成 500；坏参数该由调用方按「这一条工具结果不可用」处理，
+        模型下一轮还能自己纠正。
+        """
+        if choice is None:
+            return []
+        raw = getattr(choice.message, "tool_calls", None) if choice.message else None
+        if not raw:
+            return []
+        out: list[dict] = []
+        for item in raw:
+            fn = getattr(item, "function", None)
+            name = getattr(fn, "name", "") if fn else ""
+            if not name:
+                continue
+            out.append(
+                {
+                    "id": getattr(item, "id", "") or "",
+                    "name": name,
+                    "arguments": getattr(fn, "arguments", "") or "",
+                }
+            )
+        return out
 
     @staticmethod
     def _cached_tokens(usage) -> int:

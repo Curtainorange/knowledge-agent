@@ -37,7 +37,7 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
-from tests.helpers import auth_headers, sign_in
+from tests.helpers import auth_headers, business_calls, looks_like_route, route_stub, sign_in
 
 GOAL_TEXT = "帮我定一个学习目标：三个月掌握数据分析"
 PLAN_TEXT = "生成周计划"
@@ -53,7 +53,13 @@ class ScriptedProvider(LLMProvider):
         self, *, model, reasoning, messages, tools=None, response_format=None, task_type="default"
     ) -> Completion:
         self.task_types.append(task_type)
-        text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
+        if task_type == "capability_routing":
+            if self.rows and looks_like_route(self.rows[0]):
+                text = self.rows.pop(0)
+            else:
+                text = route_stub(messages)
+        else:
+            text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1, finish_reason="stop",
             model=model, reasoning=reasoning,
@@ -142,7 +148,7 @@ def test_l4_goal_creates_goal_and_offers_plan_button(client, session, provider):
     assert card["description"] == "三个月掌握数据分析"
     # 「再做一件事」类按钮用 sends（前端发一句话），不走 actions 端点
     assert card["sends"] == [{"label": "生成周计划", "message": "生成周计划"}]
-    assert provider.task_types == []          # 定目标不调模型
+    assert business_calls(provider.task_types) == []   # 定目标不调业务模型（分流那一次除外）
 
     session.flush()
     goals = session.scalars(select(LearningGoal)).all()
@@ -215,7 +221,7 @@ def test_l4_plan_without_goal_says_what_is_missing(client, session, provider):
     assert body["card"]["kind"] == "notice"
     assert body["card"]["title"] == "还没有学习目标"
     assert "先定一个目标" in body["reply"]
-    assert provider.task_types == []          # 前提不足就别浪费一次模型调用
+    assert business_calls(provider.task_types) == []   # 前提不足就别再调业务模型
 
 
 COMPOSITE_TEXT = "我想学习人工智能，帮我收集整理相关的材料，制定一个学习计划"
@@ -290,7 +296,7 @@ def test_l4_deviation_without_plan(client, session, provider):
 
     assert body["capability"] == "l4_deviation"
     assert body["card"]["state"] == "no_plan"
-    assert provider.task_types == []
+    assert business_calls(provider.task_types) == []
 
 
 def test_l4_deviation_ok_returns_signals_and_actions(client, session, provider):
@@ -307,7 +313,7 @@ def test_l4_deviation_ok_returns_signals_and_actions(client, session, provider):
     assert card["signals"]["reasons"], "应该带上本地算出的偏离信号"
     assert card["analysis"]["adjustment"]
     assert card["plan_id"]
-    assert provider.task_types == ["deep_reasoning"]
+    assert business_calls(provider.task_types) == ["deep_reasoning"]
     assert "偏离信号" in body["reply"]
 
 
@@ -322,7 +328,7 @@ def test_l4_deviation_no_deviation_skips_the_model(client, session, provider):
     body = _send(client, user.headers, DEVIATION_TEXT)
 
     assert body["card"]["state"] == "no_deviation"
-    assert provider.task_types == []
+    assert business_calls(provider.task_types) == []
 
 
 # ---- 卡片操作：保持原计划（快） ---------------------------------------------

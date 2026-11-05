@@ -285,6 +285,7 @@ class Copilot:
             "book_recommend": self._execute,
             "book_compare": self._execute,
             "book_discuss": self._book_discuss,
+            "research": self._execute,
             "suggestion": self._execute,
             "chat": self._chat,
         }
@@ -329,8 +330,9 @@ class Copilot:
             gateway=self._gateway,
             key=str(uuid4()),
             args=route.args,
-            # suggestion 要读会话里的确认结果；其它能力忽略这个参数
+            # suggestion 要读会话里的确认结果；research 要拿用户原话当检索问题
             conversation_id=conversation.id,
+            message=message,
         )
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
@@ -609,20 +611,24 @@ class Copilot:
     def _note_args(message: str, route: CapabilityRoute) -> dict:
         """取出要录入的 title / content / tags。
 
-        模型分流时可能已经把 args 抽好了，优先用它；本地规则只判出「这是要记东西」，
-        正文得自己剥。两条路径都必须能用——少一条就会在某条入口上记出空条目。
+        **正文永远以用户原句为准**：`parse_note` 剥出来的那段是原文，
+        模型给的 `args.content` 只在剥不出来时（用户没用引导词，但意图确实是记一条）
+        兜底。顺序不能反——模型很擅长「顺手润色」，而记一条的全部价值就在于
+        存下来的是他自己写的那句话，不是被改写过的版本。
         """
         args = route.args or {}
-        content = str(args.get("content") or "").strip()
-        title = str(args.get("title") or "").strip()
-        raw_tags = args.get("tags")
-        tags = [str(t) for t in raw_tags] if isinstance(raw_tags, list) else []
+        parsed = parse_note(message)
 
-        if not content:
-            parsed = parse_note(message)
-            content = parsed["content"]
-            title = title or parsed["title"]
-            tags = tags or list(parsed["tags"])
+        content = parsed["content"] or str(args.get("content") or "").strip()
+        title = parsed["title"] or str(args.get("title") or "").strip()
+        # 标签两处都要：原句里的 #标签 是用户显式写的，模型抽的标签是补充判断。
+        # 合并去重，保留先出现的（用户的在前）。
+        tags: list[str] = []
+        raw_tags = args.get("tags")
+        for item in [*parsed["tags"], *(raw_tags if isinstance(raw_tags, list) else [])]:
+            text = str(item).strip()
+            if text and text not in tags:
+                tags.append(text)
 
         fallback_title = (content or "").strip().splitlines()[0] if content else ""
         return {

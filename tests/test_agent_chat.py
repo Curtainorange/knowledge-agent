@@ -24,7 +24,7 @@ from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
 from app.agent.cards import guide_card
-from tests.helpers import auth_headers
+from tests.helpers import auth_headers, business_calls, looks_like_route, route_stub
 
 NOTE_TEXT = "记一下：B+树更适合范围查询 #数据库"
 LOCATE_TEXT = "之前存的那段讲查询优化的内容"
@@ -41,7 +41,14 @@ class ScriptedProvider(LLMProvider):
         self, *, model, reasoning, messages, tools=None, response_format=None, task_type="default"
     ) -> Completion:
         self.task_types.append(task_type)
-        text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
+        if task_type == "capability_routing":
+            # 预置了路由结论就用它；否则按本地先验造一条，不消耗脚本行
+            if self.rows and looks_like_route(self.rows[0]):
+                text = self.rows.pop(0)
+            else:
+                text = route_stub(messages)
+        else:
+            text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1, finish_reason="stop",
             model=model, reasoning=reasoning,
@@ -93,8 +100,9 @@ def test_note_creates_item_and_card(client, session, provider):
     body = _send(client, headers, NOTE_TEXT)
 
     assert body["capability"] == "knowledge_add"
-    assert body["decided_by"] == "local"          # 命令式说法不该花钱问模型
-    assert provider.task_types == []
+    # 分流现在每次都会问模型（本地规则只当先验），所以这里有且只有一条 routing 调用
+    assert body["decided_by"] == "model"
+    assert provider.task_types == ["capability_routing"]
     assert body["card"]["kind"] == "knowledge_created"
     assert body["card"]["title"] == "B+树更适合范围查询"
     assert body["card"]["tags"] == ["数据库"]
@@ -166,7 +174,7 @@ def test_l1_empty_knowledge_is_reported(client, provider):
     body = _send(client, headers, LOCATE_TEXT)
 
     assert body["card"]["kind"] == "l1_empty"
-    assert provider.task_types == []              # 空库不必浪费一次模型调用
+    assert business_calls(provider.task_types) == []   # 空库不必再调业务模型
 
 
 def test_l1_located_card_is_persisted_for_history(client, session, provider):
@@ -216,7 +224,7 @@ def test_l3_brief_returns_full_card(client, session, provider):
     body = _send(client, headers, BRIEF_TEXT)
 
     assert body["capability"] == "l3"
-    assert body["decided_by"] == "local"          # 命令式说法，不花分流调用
+    assert body["decided_by"] == "model"
     card = body["card"]
     assert card["kind"] == "l3_brief"
     assert card["state"] == "ok"
@@ -232,7 +240,7 @@ def test_l3_brief_on_empty_knowledge_skips_the_model(client, provider):
     body = _send(client, headers, BRIEF_TEXT)
 
     assert body["card"]["state"] == "empty"
-    assert provider.task_types == []
+    assert business_calls(provider.task_types) == []
 
 
 def test_l3_degraded_keeps_the_usable_part(client, session, provider):
@@ -318,14 +326,18 @@ def test_plain_chat_has_no_card(client, provider):
 
 
 def test_unclassifiable_text_falls_back_to_chat(client, provider):
-    """分流模型输出不可解析时回落通用对话——这是设计好的安全方向。"""
+    """判不出来就落到通用对话——这是设计好的安全方向。
+
+    「模型输出解析失败 → fallback」那条分支由 `test_agent_router` 直接覆盖；
+    这里测的是端到端的结果：一句话没有任何可归类的意图时，用户拿到的是聊天，
+    而不是被硬塞进某个能力去执行。
+    """
     headers = auth_headers(client, "agent_fallback")
-    provider.rows.append("我觉得你想找东西，但我不输出 JSON")
 
     body = _send(client, headers, "嗯……那个")
 
     assert body["capability"] == "chat"
-    assert body["decided_by"] == "fallback"
+    assert body["card"] is None
     assert provider.task_types == ["capability_routing", "multi_turn_dialogue"]
 
 
@@ -378,7 +390,7 @@ def test_capabilities_endpoint_lists_wired_flags(client):
         "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
         "knowledge_add", "weread_sync", "books",
         "book_digest", "book_discuss", "book_recommend", "suggestion",
-        "book_compare",
+        "book_compare", "research",
     }
     for item in items.values():
         assert item["label"] and item["example"]

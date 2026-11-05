@@ -20,7 +20,7 @@ from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
 from app.retrieval.embedding import HashEmbedding
-from tests.helpers import auth_headers, sign_in
+from tests.helpers import auth_headers, looks_like_route, route_stub, sign_in
 
 
 class _Scripted(LLMProvider):
@@ -34,7 +34,13 @@ class _Scripted(LLMProvider):
         self, *, model, reasoning, messages, tools=None, response_format=None, task_type="default"
     ) -> Completion:
         self.calls.append(task_type)
-        text = self.rows.pop(0) if self.rows else "{}"
+        if task_type == "capability_routing":
+            if self.rows and looks_like_route(self.rows[0]):
+                text = self.rows.pop(0)
+            else:
+                text = route_stub(messages)
+        else:
+            text = self.rows.pop(0) if self.rows else "{}"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1,
             finish_reason="stop", model=model, reasoning=reasoning,

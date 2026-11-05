@@ -4,7 +4,8 @@
 根本不知道上一轮在干什么。这里钉四件事：
 
 - 历史进了模型分流的 prompt，且与当前句**同一条** user 消息（分两条会被当成上一轮输入）；
-- 命令式本地规则依然优先，不受历史影响（「记一下…」不该因为上一轮聊过别的被改写）；
+- 命令式本地规则的判定作为**先验**一起送进去（它不再是零调用的独占路径，
+  但仍要能被模型看见，否则上一轮聊过别的就会把「记一下…」带偏）；
 - 预算从最近往回算：超了丢旧的，最近那句必须在；
 - 没有历史时 prompt 与改动前一致（向后兼容）。
 """
@@ -121,15 +122,20 @@ def test_long_item_is_clipped_with_ellipsis():
 # ---------- 本地规则优先 ----------
 
 
-def test_local_rule_wins_over_history(session):
-    """「记一下…」是命令式指令，不该因为上一轮聊过别的被改道。"""
-    router, provider = _router(session)
+def test_local_rule_reaches_the_model_as_prior(session):
+    """「记一下…」不再是零调用的快路径，但它的判断必须作为**先验**送进去。
+
+    上一轮聊过诊断，不该把这条明确的指令带偏：先验在那里，模型一眼就能确认。
+    """
+    router, provider = _router(session, {"capability": "knowledge_add", "confidence": 0.95})
     history = [{"role": "user", "content": "看看我的学习诊断"}]
     route = router.route("记一下：今天想明白了一件事", user_id="u1", history=history)
 
-    assert route.source == "local"
     assert route.capability == "knowledge_add"
-    assert provider.messages == []   # 根本没调模型
+    assert route.source == "model"
+    content = _user_content(provider)
+    assert "knowledge_add" in content, "本地判定要作为先验进 prompt"
+    assert "看看我的学习诊断" in content, "历史也要在"
 
 
 def test_refer_phrase_is_not_swallowed_by_local_rules(session):

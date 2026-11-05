@@ -8,9 +8,64 @@
 """
 from __future__ import annotations
 
+import json
 from dataclasses import dataclass
 
 DEFAULT_PASSWORD = "pw12345678"
+
+_ROUTE_MARK = "用户这句话是："
+_ROUTE_TAIL = "请输出路由 JSON"
+
+
+def looks_like_route(text: str) -> bool:
+    """这一行是不是一条预设的路由结论（含 capability 字段的 JSON）。"""
+    try:
+        data = json.loads(text)
+    except (TypeError, ValueError):
+        return False
+    return isinstance(data, dict) and "capability" in data
+
+
+def business_calls(task_types: list[str]) -> list[str]:
+    """去掉分流调用后的任务类型序列。
+
+    分流现在是每轮必经的一次调用，而多数端到端用例关心的是**业务层调了几次模型**。
+    直接断言 `task_types == [...]` 会把分流也算进去，读起来像是能力多调了一次。
+    """
+    return [name for name in task_types if name != "capability_routing"]
+
+
+def route_stub(messages: list[dict]) -> str:
+    """模拟「判得准的模型」，给端到端测试用。
+
+    分流现在是**每轮都会调模型**的链路。端到端用例关心的是能力本身的行为
+    （谁写了消息、卡片对不对、有没有副作用），不是分流质量——分流有专门用例。
+    如果这些测试也真调模型，它们预置的脚本行会被吃掉一格，后面的能力就会拿到
+    错位的返回，失败信息还指向完全无关的地方。
+
+    所以这里按本地先验回一份合法路由 JSON：脚本行一格不动，能力测试只测能力。
+    """
+    text = ""
+    for message in messages:
+        content = str(message.get("content") or "")
+        if _ROUTE_MARK in content:
+            text = content.split(_ROUTE_MARK, 1)[1].split(_ROUTE_TAIL, 1)[0].strip()
+            break
+
+    from app.agent.router import _match_local
+
+    route = _match_local(text)
+    if route is None:
+        return json.dumps({"capability": "chat", "args": {}, "confidence": 0.5}, ensure_ascii=False)
+    return json.dumps(
+        {
+            "capability": route.capability,
+            "args": route.args,
+            "confidence": 1.0,
+            "reason": "test stub",
+        },
+        ensure_ascii=False,
+    )
 
 
 @dataclass

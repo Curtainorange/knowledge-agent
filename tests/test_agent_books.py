@@ -30,7 +30,7 @@ from app.llm.completion import Completion
 from app.llm.gateway import ModelGateway
 from app.llm.provider import LLMProvider
 from app.main import app
-from tests.helpers import sign_in
+from tests.helpers import business_calls, sign_in
 
 SAMPLE_TXT = "第一章 起点\n这是第一章的内容。\n\n第二章 转折\n这是第二章的内容。"
 
@@ -47,7 +47,16 @@ class ScriptedProvider(LLMProvider):
     ) -> Completion:
         self.task_types.append(task_type)
         self.calls.append(messages)
-        text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
+        if task_type == "capability_routing":
+            # 分流走桩：不消耗书籍脚本行，否则通读/推荐会拿到错位的那一条
+            from tests.helpers import looks_like_route, route_stub
+
+            if self.rows and looks_like_route(self.rows[0]):
+                text = self.rows.pop(0)
+            else:
+                text = route_stub(messages)
+        else:
+            text = self.rows.pop(0) if self.rows else "（脚本已用尽）"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1, finish_reason="stop",
             model=model, reasoning=reasoning,
@@ -188,7 +197,7 @@ def test_digest_reuses_notes_when_book_unchanged(client, session, provider):
     body = _send(client, user.headers, "通读《测试书》")
     assert body["card"]["kind"] == "book_digest"
     assert body["card"]["state"] == "reused"
-    assert provider.task_types == [], "复用路径不允许再调模型"
+    assert business_calls(provider.task_types) == [], "复用路径不允许再调模型"
     assert "已经通读过" in body["reply"]
 
 
@@ -200,7 +209,7 @@ def test_digest_without_title_offers_shelf(client, provider):
     card = body["card"]
     assert card["kind"] == "notice"
     assert card["sends"] and card["sends"][0]["message"] == "通读《测试书》"
-    assert provider.task_types == [], "选书不需要模型"
+    assert business_calls(provider.task_types) == [], "选书不需要模型"
 
 
 def test_digest_with_unknown_title_offers_shelf(client, provider):
@@ -235,7 +244,7 @@ def test_digest_rejects_scanned_book(session):
     )
     assert out.state == "degraded"
     assert "正文" in out.note
-    assert provider.task_types == [], "扫描版不该调模型"
+    assert business_calls(provider.task_types) == [], "扫描版不该调模型"
 
 
 def test_digest_resumes_from_breakpoint(session):
@@ -285,7 +294,7 @@ def test_discuss_after_digest_answers_from_notes(client, session, provider):
     assert body["capability"] == "book_discuss"
     assert body["card"] is None, "讨论是自然语言回复，不带卡片"
     assert "主线" in body["reply"]
-    assert provider.task_types == ["multi_turn_dialogue"]
+    assert business_calls(provider.task_types) == ["multi_turn_dialogue"]
 
 
 def test_discuss_without_digest_prompts_to_read_first(client, provider):
@@ -296,7 +305,7 @@ def test_discuss_without_digest_prompts_to_read_first(client, provider):
     card = body["card"]
     assert card["kind"] == "notice"
     assert card["sends"] and card["sends"][0]["message"] == "通读《测试书》"
-    assert provider.task_types == []
+    assert business_calls(provider.task_types) == []
 
 
 # ---- 原文检索（A1）：讨论要能查到原句，而不是只有摘要 --------------------------
@@ -440,7 +449,7 @@ def test_recommend_empty_profile_says_so(client, provider):
     assert card["state"] == "empty"
     assert card["items"] == []
     assert "空" in card["note"]
-    assert provider.task_types == [], "画像为空时不该调模型"
+    assert business_calls(provider.task_types) == [], "画像为空时不该调模型"
 
 
 # ---- 切块 --------------------------------------------------------------------

@@ -647,6 +647,39 @@ window.CCA = (function () {
     return '<div class="brief">' + parts.join('') + '</div>';
   }
 
+  /* ---- 资料研究（联网检索，不入库）-----------------------------------------
+     这张卡片只做两件事：把出处摆出来让人能点开核对，把边界写在明面上
+     （这些材料没有进知识库）。少任何一件，一份搜来的书单看起来就和
+     「他自己摘录的内容」一样，用户会以为系统读过。 */
+  function safeHref(url) {
+    var text = String(url || '');
+    // 只认 http(s)：卡片内容来自搜索结果的第三方文本，别的一律不给可点的链接
+    return /^https?:\/\//i.test(text) ? text : '';
+  }
+
+  function researchHtml(card) {
+    var parts = [];
+    if (card.title) {
+      parts.push('<div class="sg-refs-title">' + esc(card.title) + '</div>');
+    }
+    parts.push((card.sources || []).map(function (source) {
+      var href = safeHref(source.url);
+      var head = href
+        ? '<a href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(source.title) + '</a>'
+        : esc(source.title);
+      return '<div class="cf-block">' + head +
+        (source.site ? '<span class="badge">' + esc(source.site) + '</span>' : '') + '</div>';
+    }).join(''));
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    var actions = actionsRow(card);
+    if (actions) {
+      parts.push(actions);
+    }
+    return '<div class="brief">' + parts.join('') + '</div>';
+  }
+
   /* ---- 需求确认卡（B 模块）-------------------------------------------------
 
      一次最多两题，全部是按钮（自由文本题直接让用户在下面输入框说）。
@@ -899,6 +932,7 @@ window.CCA = (function () {
     books: booksHtml,
     book_digest: bookDigestHtml,
     book_recommend: bookRecommendHtml,
+    research: researchHtml,
     pending: pendingHtml,
     failed: failedHtml,
     knowledge_created: createdHtml,

@@ -67,6 +67,7 @@ def agent_turn(payload: dict, session: Session) -> None:
         reply, card = turns.execute_capability(
             capability, user_id=user_id, session=session, gateway=ModelGateway(),
             key=turn_id, args=payload.get("args") or {}, conversation_id=conversation_id,
+            message=str(payload.get("message") or ""),
         )
 
     written = turns.finish_turn(

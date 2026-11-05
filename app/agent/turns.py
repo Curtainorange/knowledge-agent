@@ -35,6 +35,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.agent import cards as cards_mod
+from app.agent import research
 from app.agent.conflict_view import conflict_views
 from app.agent import book_orchestrator
 from app.agent.cards import (
@@ -64,6 +65,8 @@ from app.agent.cards import (
     plan_reply,
     reading_intake_card,
     recommend_reply,
+    research_card,
+    research_reply,
     scan_reply,
     suggestion_card,
     sync_reply,
@@ -105,6 +108,8 @@ ASYNC_CAPABILITIES: frozenset[str] = frozenset({
     "suggestion",
     # 书籍对比：要读两本书的分章要点 + 一次 reasoning 调用
     "book_compare",
+    # 资料研究：联网检索 + 多轮模型调用，实测量级与书籍推荐接近
+    "research",
 })
 
 # 慢的卡片操作：跑模型、要十几秒，走后台，不在请求里等。
@@ -122,6 +127,7 @@ _PENDING_COPY: dict[str, tuple[str, str]] = {
     "book_digest": ("正在通读这本书", "逐章读完再汇总，一本书要几分钟，读的过程不用你管。"),
     "book_recommend": ("正在挑书", "要结合你的知识库、书架和目标一起看，通常十几秒。"),
     "suggestion": ("正在按你的依据想建议", "在你同步进来的内容和你读过的书里找，通常十几秒到半分钟。"),
+    "research": ("正在找资料", "要去网上检索、挑出可靠的来源再给建议，通常二三十秒。"),
 }
 
 _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
@@ -161,6 +167,18 @@ def preflight(
     if capability == "weread_sync":
         if not (settings.weread_api_key or "").strip():
             card = weread_not_configured_card()
+            return card["note"], card
+
+    if capability == "research":
+        # 没有 Key 就搜不了。不先发 pending 卡：让用户等一个轮询周期才发现「没配好」
+        # 比直接说清楚更糟，而且这时也不能退化成「让模型凭记忆列书单」。
+        from app.llm import websearch
+
+        if not websearch.available():
+            card = notice_card(
+                title="联网检索没有配置",
+                note="找资料需要可用的模型 Key（检索走同一个凭据），配好之后再来。",
+            )
             return card["note"], card
 
     if capability == "l4_plan":
@@ -244,7 +262,7 @@ def task_key(turn_id: str) -> str:
 
 def execute_capability(
     capability: str, *, user_id: str, session: Session, gateway: ModelGateway, key: str,
-    args: dict | None = None, conversation_id: str = "",
+    args: dict | None = None, conversation_id: str = "", message: str = "",
 ) -> tuple[str, dict]:
     """跑一次能力，返回 (回复文案, 卡片)。
 
@@ -255,8 +273,11 @@ def execute_capability(
     分流模型若漏给了 intent，宁可给用户看现状，也不要凭猜建一个错的目标——
     这与「分流失败回落通用对话」是同一条保守原则。
 
-    `conversation_id` 给需要读会话状态的能力用（目前只有 `suggestion`：
-    它要读 `reading_context` 里的确认结果）。其余能力忽略它。
+    `conversation_id` 给需要读会话状态的能力用（目前 `suggestion` 与 `research`：
+    前者读 `reading_context` 里的确认结果，后者要把用户原话当成研究的问题）。
+
+    `message` 是用户那句话的**原文**。只有 `research` 需要它：路由抽出来的
+    `args.question` 可能被模型改写，而「他要找的到底是什么」必须以原话为准。
     """
     if capability == "l2":
         result = L2Orchestrator(gateway, session).scan(user_id=user_id)
@@ -324,6 +345,14 @@ def execute_capability(
             user_id=user_id, session=session, gateway=gateway, key=key,
             conversation_id=conversation_id, args=args or {},
         )
+
+    if capability == "research":
+        question = message or str((args or {}).get("question") or "")
+        result = research.advise(
+            gateway=gateway, session=session, user_id=user_id,
+            question=question, topic=str((args or {}).get("topic") or ""),
+        )
+        return research_reply(result), research_card(key=key, result=result)
 
     if capability == "book_compare":
         return _execute_book_compare(
@@ -809,6 +838,9 @@ def start_turn(
             "conversation_id": conversation.id,
             "capability": capability,
             "args": dict(args or {}),
+            # 原话随任务一起走：`research` 要拿它当检索问题，而 worker 拿到的是
+            # 一份 payload，读不到请求上下文。其余能力忽略这个字段。
+            "message": message,
         },
     )
     # 唤醒 worker：否则要等满一个轮询周期（默认 15s）才开工，

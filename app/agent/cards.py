@@ -304,6 +304,59 @@ def recommend_reply(result) -> str:
     return result.note or "这次没能给出推荐，稍后再试一次。"
 
 
+# ---- 资料研究（联网检索，不入库）--------------------------------------------
+#
+# 这张卡片的全部意义在于**把「这是外部资料」和「这是你的知识」分开**：
+# 来源带链接、可点开核对；卡片末尾明写没进知识库。
+# 少了这两样，一份搜来的书单看起来和他自己摘录的内容一模一样，
+# 用户会误以为系统读过、也会误以为冲突检测会把它们算进去。
+
+
+def research_card(*, key: str, result) -> dict:
+    sources = [
+        {
+            "title": (item.get("title") or item.get("url") or "")[:200],
+            "url": item.get("url") or "",
+            "site": (item.get("site") or "")[:60],
+        }
+        for item in (result.sources or [])
+        if item.get("url")
+    ]
+    sends = []
+    topic = (getattr(result, "topic", "") or "").strip()
+    if result.state in ("ok", "no_search") and topic:
+        # 「先拿材料再排计划」是最自然的下一步：这一句发出去就是一次 l4_plan。
+        sends.append(_send("把这些材料排成周计划", f"帮我制定学习计划：{topic}"))
+
+    return {
+        "kind": "research",
+        "key": key,
+        "state": result.state,          # ok | no_search | search_failed | failed
+        "title": "参考来源" if sources else "",
+        "sources": sources,
+        "queries": list(result.queries or [])[:5],
+        "tool_calls": result.tool_calls,
+        # 这句必须留在卡上：它是「外部资料 ≠ 你的知识」的唯一提示，
+        # 只写在正文里会被一段长建议盖过去。
+        "note": result.note or "这些材料没有进你的知识库",
+        "sends": sends,
+    }
+
+
+def research_reply(result) -> str:
+    """回复正文由模型写，这里只负责**在降级时把话说在前面**。
+
+    搜不到却照样给一段自信的建议，是这类功能最容易犯的错：用户没法从文字本身
+    分辨「查过」和「凭记忆」。前缀不解释原因（原因在卡片上），只说清这次的性质。
+    """
+    body = (result.text or "").strip()
+    if result.state == "search_failed":
+        return "这次没搜到可用的外部资料，下面是凭已有知识说的，别当核实过的结论。\n\n" + body
+    if result.state == "no_search":
+        return "这次没有联网检索。\n\n" + body
+    return body
+
+
 # ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
 #
 # L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。
