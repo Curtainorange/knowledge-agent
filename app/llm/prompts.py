@@ -186,13 +186,13 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v5",
+    version="v6",
     text=(
         "你是「认知副驾」对话入口的意图分流器。读整句，判断用户真正想做的那件事，"
         "并抽出这件事需要的参数。输出严格 JSON："
         '{"capability":"l1|l2|l3|l4_goal|l4_plan|l4_deviation|l5|knowledge_add|weread_sync|books|'
         'book_digest|book_discuss|book_recommend|chat",'
-        '"args":{},"confidence":0..1,"reason":""}。'
+        '"args":{},"confidence":0..1,"reason":"","unhandled":[]}。'
         "各能力语义："
         "l1=用模糊线索找回知识库里某条已有内容，args 留空；"
         "l2=检测知识之间的矛盾或冲突，args 留空；"
@@ -234,6 +234,13 @@ AGENT_ROUTE = PromptSpec(
         "它只看到句子里出现了某个词，可能与整句的真实意图不符，不符就覆盖它。"
         "判定不明确、或只是提问、闲聊、道谢 → chat，**不要**硬塞进某个能力。"
         "args 只填该能力真正用得到的字段，用不到就给空对象。"
+        "**unhandled 写「用户提了、但你选的那个能力办不到」的诉求**，每条是一句"
+        "可以直接说给用户听的话（不超过 40 字），最多两条："
+        "写成「从网上帮你收集人工智能的学习材料」这种，让他知道这半句被听见了、"
+        "只是接不住；不要写内部术语，不要写成「抱歉」或「暂不支持该功能」这类客套，"
+        "不要在里面承诺系统没有的能力。"
+        "没有这样的诉求就给空数组——绝大多数情况下都是空数组，"
+        "不要为了显得周到而把用户没说的事列进去。"
     ),
 )
 

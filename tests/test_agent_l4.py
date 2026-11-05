@@ -243,6 +243,32 @@ def test_composite_request_creates_goal_then_plan(client, session, provider):
     assert goals[0].description == "学习人工智能"
 
 
+def test_unhandled_request_is_answered_not_dropped(client, session, provider):
+    """做不到的那半句要明说。静默丢掉＝用户以为自己说了、系统当作没说。"""
+    headers = auth_headers(client, "l4p_unhandled")
+    provider.rows.append(json.dumps({
+        "capability": "l4_plan", "args": {"goal": "学习人工智能"},
+        "unhandled": ["从网上收集人工智能的学习材料"],
+        "confidence": 0.9,
+    }))
+    provider.rows.append(_plan_payload())
+
+    body = _send(client, headers, COMPOSITE_TEXT)
+    conv = _read(client, headers, body["conversation_id"])
+    messages = conv["messages"]
+    said = [m["content"] for m in messages if m["role"] == "assistant"]
+
+    assert any("从网上收集人工智能的学习材料" in text for text in said), said
+    # 顺序：说明必须跟在用户那句话之后。写在前面等于「你还没说完我就先解释」，
+    # 读起来像系统自说自话（第一版就是插到了用户消息前面）。
+    aside_at = next(
+        i for i, m in enumerate(messages)
+        if m["role"] == "assistant" and "从网上收集人工智能的学习材料" in m["content"]
+    )
+    user_at = next(i for i, m in enumerate(messages) if m["role"] == "user")
+    assert aside_at > user_at, "未承接说明排到了用户消息之前"
+
+
 def test_l4_plan_degraded_keeps_user_informed(client, session, provider):
     user = sign_in(client, "l4p_bad")
     _seed_goal(session, user.user_id)

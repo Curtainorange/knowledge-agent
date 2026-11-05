@@ -111,12 +111,18 @@ class CapabilityRoute(BaseModel):
     """一次分流的结论。
 
     `source` 由路由层填写，不属于模型输出契约；模型若漏给或乱给都会被 `_coerce` 收拾干净。
+
+    `unhandled` 是**用户提了、但这次接不住的诉求**，每条是一句可以直接给用户看的话
+    （不是内部标签）。它的存在理由很实际：路由的产物只有一个能力名，天生装不下
+    第二件事；装不下如果就静默丢掉，用户看到的是「我说了收集材料，它只回我拆好了计划」。
+    让模型把没接住的那半句**说成一句人话**带回，比另开一次调用去组织语言便宜得多。
     """
 
     capability: Capability = FALLBACK_CAPABILITY
     args: dict = Field(default_factory=dict)
     confidence: float = 0.0
     reason: str = ""
+    unhandled: list[str] = Field(default_factory=list)
     source: str = "model"  # local | model | fallback
 
     @model_validator(mode="before")
@@ -141,7 +147,33 @@ class CapabilityRoute(BaseModel):
         fixed["capability"] = name if name in KNOWN_CAPABILITIES else FALLBACK_CAPABILITY
         if not isinstance(fixed.get("reason"), str):
             fixed["reason"] = ""
+        fixed["unhandled"] = _clean_unhandled(fixed.get("unhandled"))
         return fixed
+
+
+_UNHANDLED_MAX_ITEMS = 2
+_UNHANDLED_MAX_CHARS = 80
+
+
+def _clean_unhandled(raw) -> list[str]:
+    """收拾「没接住的诉求」。
+
+    三种脏数据都会出现：单个字符串（模型偷懒没包成数组）、超长（它把整段解释塞进来）、
+    重复（两句话说同一件事）。除了收拾，还要**限条数**——一次对话里冒出一堆
+    「这件事我也做不了」，比不说更像推卸。
+
+    单个字符串直接丢：`reason` 已经是一句话了，再收一条只会让回复重复。
+    """
+    if not isinstance(raw, list):
+        return []
+    items: list[str] = []
+    for item in raw:
+        if not isinstance(item, str):
+            continue
+        text = item.strip()[:_UNHANDLED_MAX_CHARS]
+        if text and text not in items:
+            items.append(text)
+    return items[:_UNHANDLED_MAX_ITEMS]
 
 
 # ---- 本地命令式规则 --------------------------------------------------------

@@ -55,6 +55,7 @@ from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
 from app.agent.orchestrator import Orchestrator
 from app.agent.router import (
+    FALLBACK_CAPABILITY,
     CapabilityRoute,
     CapabilityRouter,
     is_suggestion_command,
@@ -179,6 +180,12 @@ class Copilot:
             history=self._recent_dialogue(conversation),
         )
 
+        # 用户提了、这次接不住的诉求：**说一句**，而不是让它在执行分支里静默消失。
+        # 静默丢掉是这类误解最难查的形态——系统每一步都对，只有用户说的第三件事不见了。
+        # 插入点不能在这里：此时用户那句话还没落库，先写会排到用户消息前面去。
+        # 统一放到 commit 之前（见 `_insert_unhandled`），按「用户消息之后」定位。
+        before = len(conversation.messages or [])
+
         # 阅读建议的**确认门禁**：缺项 / 用户在纠正 → 直接回一张确认卡，不开回合。
         # 放在这里而不是 preflight，是因为它不是「前提不满足」（那是失败），
         # 而是流程的下一步——用户答完这几项，自然就往下走了。
@@ -234,6 +241,7 @@ class Copilot:
                     repo, conversation, user_id=user_id, message=message, route=route
                 )
 
+        self._insert_unhandled(conversation, route, before)
         self._session.commit()
         self._emit_turn(user_id, route, card)
         return CopilotTurn(
@@ -557,6 +565,45 @@ class Copilot:
             if found is not None:
                 return found
         return repo.create(user_id=user_id)
+
+    @staticmethod
+    def _unhandled_note(route: CapabilityRoute) -> str:
+        """把「没接住的诉求」说成一句人话；没有就返回空串。
+
+        不解释原因、不道歉：原因取决于具体能力，一句通用解释只会变成套话；
+        用户真想知道会追问，那一轮通用对话会好好回答。
+        """
+        items = [str(s).strip().rstrip("。.；;，, ") for s in (route.unhandled or [])]
+        items = [s for s in items if s]
+        if not items or route.capability == FALLBACK_CAPABILITY:
+            return ""
+        quoted = "、".join(f"「{s}」" for s in items)
+        what = "这件事" if len(items) == 1 else "这两件事"
+        return f"另外，{quoted}{what}我暂时做不了。"
+
+    @staticmethod
+    def _insert_unhandled(conversation, route: CapabilityRoute, before: int) -> None:
+        """把「没接住的诉求」插在**用户那句话之后**。
+
+        `before` 是本轮开始前的消息数：本轮新写的消息都在它之后。
+        定位用「第一条新 user 消息」而不是直接 append——异步回合会先写
+        user + pending 两条，append 会插到结果后面，读起来像事后补的备注。
+
+        找不到新 user 消息（理论上不会）就追加到末尾：说明宁可晚一步，也不能丢。
+
+        `messages` 是 JSON 列，必须整体重新赋值才会落库——原地 insert 会被静默忽略。
+        """
+        note = Copilot._unhandled_note(route)
+        if not note:
+            return
+        messages = list(conversation.messages or [])
+        at = len(messages)
+        for index in range(max(0, before), len(messages)):
+            if messages[index].get("role") == "user":
+                at = index + 1
+                break
+        messages.insert(at, {"role": "assistant", "content": note, "source": SOURCE})
+        conversation.messages = messages
 
     @staticmethod
     def _note_args(message: str, route: CapabilityRoute) -> dict:

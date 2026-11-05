@@ -261,6 +261,41 @@ def test_unknown_capability_is_coerced_to_chat():
     assert route.confidence == 0.0
 
 
+# ---- 未承接的诉求：模型要说出来，而不是丢掉 ---------------------------------
+#
+# 一句话里有三件事、系统只做得了两件时，第三件的下场决定了产品像不像「听懂了」。
+# 路由的产物原本只有一个能力名，天生装不下第二件事——装不下就被静默丢掉，
+# 用户看到的是「我说了收集材料，它只回我拆好了计划」。
+# 所以让模型把没接住的那部分**说成一句给用户看的话**，随路由一起回来。
+
+
+def test_unhandled_is_coerced_into_short_strings():
+    """模型给什么形状都要收拾干净：非列表、超长、重复、非字符串。"""
+    route = CapabilityRoute(
+        capability="l4_plan",
+        unhandled=["去网上收集人工智能的材料", "去网上收集人工智能的材料", "x" * 200, "", 42],
+    )
+    assert len(route.unhandled) <= 2
+    assert all(isinstance(s, str) and len(s) <= 80 for s in route.unhandled)
+    assert len(set(route.unhandled)) == len(route.unhandled)
+
+
+def test_unhandled_absent_means_empty():
+    """模型不提「没接住」时不能凭空造一条——那会变成每次对话都在道歉。"""
+    assert CapabilityRoute(capability="l3").unhandled == []
+    assert CapabilityRoute(capability="chat", unhandled="随便写点").unhandled == []
+
+
+def test_model_route_keeps_unhandled(session):
+    router, _ = _router(
+        session,
+        ['{"capability":"l4_plan","args":{"goal":"学习人工智能"},'
+         '"unhandled":["帮你从网上收集材料"],"confidence":0.9}'],
+    )
+    route = router.route(COMPOSITE, user_id="u1")
+    assert route.unhandled == ["帮你从网上收集材料"]
+
+
 def test_confidence_is_clamped():
     assert CapabilityRoute(capability="l1", confidence=3.5).confidence == 1.0
     assert CapabilityRoute(capability="l1", confidence=-2).confidence == 0.0
