@@ -36,11 +36,24 @@ def test_card_renderer_reuses_shared_escaping():
     assert "escapeHtml" not in js
 
 
-def test_user_message_does_not_use_innerhtml():
-    """用户输入的那一行必须走 textContent——它是唯一完全未经过过滤的内容。"""
+def test_bubble_text_goes_through_the_escaping_renderer():
+    """气泡允许用 innerHTML，但只允许经 `CCA.bubbleHtml`——它第一步就是 esc。
+
+    这条原来钉的是「气泡必须用 textContent」，因为气泡里当时只有纯文本。
+    后来发现模型写长回答会用 Markdown（`**加粗**`、`### 小标题`、裸链接），
+    纯文本渲染会把标记原样露出来，一屏星号。所以改成由 `bubbleHtml` 产出
+    **受控的** HTML。
+
+    守卫不能因此撤掉，只能收紧（复盘第 18 条：删功能时别把守卫一起删）：
+    正文里可能有模型转述的网页原文，属于第三方不可信内容，
+    一旦有人绕过那个函数直接拼字符串，这里就是个注入口。
+    """
     js = _agent_js()
-    assert "bubble.textContent =" in js
-    assert "bubble.innerHTML" not in js
+    assert "bubble.innerHTML = CCA.bubbleHtml(" in js
+    assert "bubble.innerHTML = message.content" not in js
+    # 渲染函数自身必须先转义：光有「必须经过它」这一条，函数里不转义等于没设防
+    assert "function bubbleHtml(text) {" in js
+    assert "var safe = esc(text);" in js
 
 
 def test_send_is_mutually_exclusive():

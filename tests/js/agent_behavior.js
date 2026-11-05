@@ -443,6 +443,45 @@ check('小数取整', CCA.keyboardGap(800, 499.4) === 301);
    所以这里用 length 拦住第三个参数。 */
 check('只吃 (innerHeight, vvHeight) 两个参数，不许把 offsetTop 减进来', CCA.keyboardGap.length === 2);
 
+console.log('\n气泡极简排版（bubbleHtml）：Markdown 标记不许裸露，也不许变成注入口');
+check('导出 bubbleHtml', typeof CCA.bubbleHtml === 'function');
+
+const bh = CCA.bubbleHtml;
+// 用户看到的那一屏星号就长这样：模型把加粗、小标题、列表一起用了
+const sample = '先给结论：路线是 **一门系统课打底** ，不要一开始就啃论文。\n\n' +
+  '### 第一阶段（0-6 周）\n- **Machine Learning Specialization**——\n' +
+  'https://www.coursera.org/specializations/machine-learning-introduction\n' +
+  '中文授课，可以二选一。';
+const out = bh(sample);
+check('不留**任何**裸星号', out.indexOf('**') === -1);
+check('粗体变成 <strong>', out.indexOf('<strong>一门系统课打底</strong>') !== -1);
+check('行首 ### 变成加粗，井号消失', out.indexOf('<strong>第一阶段（0-6 周）</strong>') !== -1 && out.indexOf('###') === -1);
+check('行首列表变成圆点', out.indexOf('• <strong>Machine Learning Specialization</strong>') !== -1);
+check('裸链接变成可点链接', out.indexOf('<a href="https://www.coursera.org/specializations/machine-learning-introduction"') !== -1);
+check('链接带 noopener', out.indexOf('rel="noopener noreferrer"') !== -1);
+check('正文文字没有被吃掉', out.indexOf('不要一开始就啃论文') !== -1 && out.indexOf('中文授课，可以二选一。') !== -1);
+check('换行原样保留（气泡靠 pre-wrap 排版）', out.split('\n').length === sample.split('\n').length);
+
+// 转义必须先于拼标签：模型会把网页原文转述进来，那是第三方不可信内容
+const bhXss = bh('看这个 ' + XSS + ' 还有 **粗体**');
+check('HTML 被转义（不产生真标签）', bhXss.indexOf('&lt;img') !== -1 && bhXss.indexOf('<img') === -1);
+check('转义后仍然完成加粗', bhXss.indexOf('<strong>粗体</strong>') !== -1);
+check('javascript: 链接不给可点', bh('javascript:alert(1)').indexOf('<a ') === -1);
+check('非 http(s) 的协议不变成链接', bh('ftp://x.com/a').indexOf('<a ') === -1);
+
+// 链接边界：句末标点、查询串里的 &、中文括号
+const tail = bh('见 https://a.com/x。');
+check('句末句号不进链接', tail.indexOf('href="https://a.com/x"') !== -1 && tail.indexOf('。') !== -1);
+const amp = bh('https://a.com/?a=1&b=2');
+check('查询串的 & 保留成 &amp;（href 里解码回 &）', amp.indexOf('href="https://a.com/?a=1&amp;b=2"') !== -1);
+check('中文右括号终止链接', bh('（https://a.com/x）后面').indexOf('href="https://a.com/x"') !== -1);
+
+// 不是 Markdown 的文本必须原样通过（避免「顺手」把正常文本改坏）
+check('空值不报错', bh('') === '' && bh(null) === '');
+check('普通句子原样通过', bh('今天心情不错，随便聊聊') === '今天心情不错，随便聊聊');
+check('单个星号不当粗体', bh('2 * 3 = 6') === '2 * 3 = 6');
+check('没闭合的 ** 原样保留', bh('**没写完') === '**没写完');
+
 console.log('');
 if (failed) {
   console.log('失败 ' + failed + ' 项');

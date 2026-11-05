@@ -509,6 +509,13 @@ mark.flash{outline:2px solid var(--accent);outline-offset:1px}
 .msg.user .bubble{background:var(--accent-grad);color:#fff;border-bottom-right-radius:4px}
 .msg.bot .bubble{background:#fff;border:1px solid var(--border);border-bottom-left-radius:4px}
 .msg.sys .bubble{background:var(--warn-weak);color:var(--warn);font-size:13px;border-bottom-left-radius:4px}
+/* 气泡里的极简排版（agent.js 的 CCA.bubbleHtml 产出 <strong>/<a>）。
+   只给这两样东西上色：粗体略轻于默认 700，链接用强调色 + 悬停下划线。
+   不引入块级元素，行距与纯文本气泡完全一致。 */
+.bubble strong{font-weight:600}
+.bubble a{color:var(--accent);text-decoration:none}
+.bubble a:hover{text-decoration:underline}
+.msg.user .bubble a{color:#fff;text-decoration:underline}
 /* 副驾消息带头像 —— 「谁在说话」一眼可见。
    用绝对定位 + 左内边距，而不是把头像塞进 flex 行：消息节点里还挂着结果卡片
    （.card-slot 是 width:100%），改 flex 会连带把卡片挤窄。 */

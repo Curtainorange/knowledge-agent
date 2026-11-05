@@ -1014,6 +1014,43 @@ window.CCA = (function () {
       '</div>';
   }
 
+  /* ---- 气泡里的极简排版 ----------------------------------------------------
+     模型写长回答时会用 Markdown（`**加粗**`、`### 小标题`、`- 列表`、裸链接）。
+     气泡是纯文本容器（内容走 textContent，靠 `white-space:pre-wrap` 保留换行），
+     标记会原样露出来，一屏星号看起来像乱码。
+
+     这里只认四种最常见的写法，其余一律当文本：
+       **粗体** / 行首 ### 小标题 / 行首 - 列表 / 裸 http(s) 链接。
+     不引第三方解析器（项目约定前端零外部依赖）；也不生成块级元素——
+     气泡的排版依赖 pre-wrap 的换行，塞进 <ul>/<h3> 会把行距和缩进全打乱。
+
+     **先转义、再替换**：正文里可能有模型转述的网页原文，属于第三方不可信内容。
+     转义必须在任何标签拼接之前完成，否则这里就是一个注入口。
+     后面插进去的 <strong>/<a> 都由这一层生成，属于白名单。 */
+  function bubbleHtml(text) {
+    var safe = esc(text);
+    // 行首小标题：最多 4 个 #，整行加粗并去掉井号
+    safe = safe.replace(/^[ \t]*#{1,4}[ \t]+(.+)$/gm, '<strong>$1</strong>');
+    // 行首列表符号：- * • 统一成圆点，保留逐行结构
+    safe = safe.replace(/^[ \t]*[-*•][ \t]+/gm, '• ');
+    // 粗体：**x**，且不跨行——跨行会把中间整段吞进标签里
+    safe = safe.replace(/\*\*([^*\n]+?)\*\*/g, '<strong>$1</strong>');
+    // 裸链接：只有 http(s) 才给可点的。
+    // 字符类里把 & 排除、只放行 &amp;：转义后 `"` 已经变成 &quot;，
+    // 若放行裸 & 会把结尾的引号实体一起吞进 href；而查询串里的 & 一律是 &amp;。
+    safe = safe.replace(/(https?:\/\/(?:[^\s<>"'&）)」】，。；、*]|&amp;)+)/g, function (raw) {
+      var tail = '';
+      var url = raw.replace(/[.,;:!?]+$/, function (t) { tail = t; return ''; });
+      var href = safeHref(url);
+      if (!href) {
+        return raw;
+      }
+      return '<a href="' + href + '" target="_blank" rel="noopener noreferrer">' +
+        url + '</a>' + tail;
+    });
+    return safe;
+  }
+
   return {
     renderCard: renderCard,
     candidatesHtml: candidatesHtml,
@@ -1021,7 +1058,8 @@ window.CCA = (function () {
     pct: pct,
     relTime: relTime,
     historyRow: historyRow,
-    keyboardGap: keyboardGap
+    keyboardGap: keyboardGap,
+    bubbleHtml: bubbleHtml
   };
 })();
 
@@ -1092,7 +1130,9 @@ window.CCA = (function () {
 
     var bubble = document.createElement('div');
     bubble.className = 'bubble';
-    bubble.textContent = message.content || '';
+    // 走极简排版而不是 textContent：模型会在长回答里写 Markdown，
+    // 直接当纯文本贴上去就是一屏 `**`。转义在 CCA.bubbleHtml 里先做了。
+    bubble.innerHTML = CCA.bubbleHtml(message.content || '');
     node.appendChild(bubble);
 
     if (cardHtml) {
