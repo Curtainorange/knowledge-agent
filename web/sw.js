@@ -13,6 +13,20 @@
 
 var CACHE = 'cc-shell-v1';
 
+/* 本 SW 可能挂在子路径下（如 /cognition/sw.js），此时 scope 就是那个前缀。
+   判断「这是不是接口请求」前必须先按 scope 剥掉前缀——否则子路径部署时
+   pathname 是 /cognition/api/v1/chat，startsWith('/api/') 落空，
+   带 JWT 的接口响应会被写进缓存，违反本文件开头的铁律。 */
+var SCOPE_PATH = new URL(self.registration.scope).pathname;
+
+function relativePath(url) {
+  var path = url.pathname;
+  if (SCOPE_PATH !== '/' && path.indexOf(SCOPE_PATH) === 0) {
+    return '/' + path.slice(SCOPE_PATH.length);
+  }
+  return path;
+}
+
 self.addEventListener('install', function () {
   // 新 SW 装上就接管，不等旧页面关闭
   self.skipWaiting();
@@ -38,7 +52,7 @@ self.addEventListener('fetch', function (event) {
   if (url.origin !== self.location.origin) {
     return;
   }
-  if (url.pathname.indexOf('/api/') === 0) {
+  if (relativePath(url).indexOf('/api/') === 0) {
     return; // API 直连网络，不缓存
   }
 

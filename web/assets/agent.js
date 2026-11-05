@@ -152,7 +152,7 @@ window.CCA = (function () {
     var isBook = typeof itemId === 'string' && itemId.indexOf('book:') === 0;
     var who = isBook
       ? '<div class="cf-who">' + esc(title) + '</div>'
-      : '<div class="cf-who"><a href="/knowledge.html?item=' + esc(itemId) + '">' + esc(title) + '</a></div>';
+      : '<div class="cf-who"><a href="knowledge.html?item=' + esc(itemId) + '">' + esc(title) + '</a></div>';
     return '<div class="cf-side">' +
       who +
       '<div>' + esc(claim || '（该条主张已不存在）') + '</div>' +
@@ -737,13 +737,13 @@ window.CCA = (function () {
       return '<a href="' + esc(loc.deep_link) + '" target="_blank" rel="noopener">看原文</a>';
     }
     if (e.source === 'book' && loc.book_id && loc.char_start !== undefined && loc.char_start !== null) {
-      return '<a href="/reader.html?book=' + esc(loc.book_id) + '&char=' + esc(loc.char_start) + '">看原文</a>';
+      return '<a href="reader.html?book=' + esc(loc.book_id) + '&char=' + esc(loc.char_start) + '">看原文</a>';
     }
     if (e.source === 'agent' && loc.book_id) {
-      return '<a href="/reader.html?book=' + esc(loc.book_id) + '">看这本书</a>';
+      return '<a href="reader.html?book=' + esc(loc.book_id) + '">看这本书</a>';
     }
     if (e.item_id) {
-      return '<a href="/knowledge.html?item=' + esc(e.item_id) + '">看这条</a>';
+      return '<a href="knowledge.html?item=' + esc(e.item_id) + '">看这条</a>';
     }
     return '';
   }
@@ -1202,7 +1202,7 @@ window.CCA = (function () {
     }
     state.polls += 1;
     try {
-      var data = await CC.api('GET', '/api/v1/agent/conversation/' + encodeURIComponent(state.convId));
+      var data = await CC.api('GET', 'api/v1/agent/conversation/' + encodeURIComponent(state.convId));
       state.messages = data.messages || [];
       syncMessages();
     } catch (err) {
@@ -1229,7 +1229,7 @@ window.CCA = (function () {
   async function startConversation() {
     var saved = savedConversation();
     try {
-      var data = await CC.api('POST', '/api/v1/agent/start', {
+      var data = await CC.api('POST', 'api/v1/agent/start', {
         conversation_id: saved || null
       });
       rememberConversation(data.conversation_id);
@@ -1257,7 +1257,7 @@ window.CCA = (function () {
     syncMessages();
     setStatus('处理中…');
     try {
-      var result = await CC.api('POST', '/api/v1/agent/chat', {
+      var result = await CC.api('POST', 'api/v1/agent/chat', {
         message: message,
         conversation_id: state.convId
       });
@@ -1299,7 +1299,7 @@ window.CCA = (function () {
     button.disabled = true;
     button.textContent = '处理中…';
     try {
-      var result = await CC.api('POST', '/api/v1/agent/actions', {
+      var result = await CC.api('POST', 'api/v1/agent/actions', {
         conversation_id: state.convId,
         card_key: cardKey,
         action: action,
@@ -1336,7 +1336,7 @@ window.CCA = (function () {
   async function loadHistory(append) {
     try {
       var offset = append ? historyLoaded : 0;
-      var data = await CC.api('GET', '/api/v1/agent/conversations?limit=' + HISTORY_PAGE + '&offset=' + offset);
+      var data = await CC.api('GET', 'api/v1/agent/conversations?limit=' + HISTORY_PAGE + '&offset=' + offset);
       var items = data.items || [];
       historyTotal = Number(data.total || 0);
       historyLoaded = append ? historyLoaded + items.length : items.length;
@@ -1430,7 +1430,7 @@ window.CCA = (function () {
       return;
     }
     try {
-      await CC.api('PATCH', '/api/v1/agent/conversations/' + encodeURIComponent(id), { title: title });
+      await CC.api('PATCH', 'api/v1/agent/conversations/' + encodeURIComponent(id), { title: title });
       CC.toast('已重命名');
       loadHistory();
     } catch (err) {
@@ -1443,7 +1443,7 @@ window.CCA = (function () {
       return;
     }
     try {
-      await CC.api('DELETE', '/api/v1/agent/conversations/' + encodeURIComponent(id));
+      await CC.api('DELETE', 'api/v1/agent/conversations/' + encodeURIComponent(id));
       CC.toast('已删除');
       if (id === state.convId) {
         // 删掉的正是当前会话：落回全新会话，副驾重新开场

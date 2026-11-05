@@ -101,7 +101,7 @@ def test_high_confidence_conflict_enqueues_notification(session):
     # payload 是通知页「去查看」的落点，也是审计时回溯冲突的凭据
     assert job.payload["conflict_id"] == result.conflict_ids[0]
     assert job.payload["conflict_type"] == "立场对立"
-    assert job.payload["href"] == "/conflicts.html"
+    assert job.payload["href"] == "conflicts.html"
     # 正文明细 + 建议动作都要进通知，否则用户只看到「有冲突」还得自己回去找
     assert "坚守三年" in job.body
     assert "生成决策哲学对比表" in job.body

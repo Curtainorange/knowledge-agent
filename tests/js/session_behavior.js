@@ -23,8 +23,8 @@ const APP_JS = process.argv[2] || path.join(__dirname, '..', '..', 'web', 'asset
 const code = fs.readFileSync(APP_JS, 'utf8');
 console.log('被测文件: ' + APP_JS + '\n');
 
-const ME = '/api/v1/auth/me';
-const REFRESH = '/api/v1/auth/refresh';
+const ME = 'api/v1/auth/me';
+const REFRESH = 'api/v1/auth/refresh';
 
 let failed = 0;
 function check(name, cond, extra) {
@@ -107,7 +107,7 @@ function makeEnv(opts) {
       storage: { cc_access_token: 'old', cc_refresh_token: 'r1', cc_username: '111' },
       route: (url, o, bearer) => {
         if (url === REFRESH) { return { status: 200, body: { access_token: 'new' } }; }
-        if (url.indexOf('/api/v1/knowledge/items') === 0) {
+        if (url.indexOf('api/v1/knowledge/items') === 0) {
           return bearer === 'old'
             ? { status: 401, body: { detail: 'token 已过期' } }
             : { status: 200, body: { items: [], total: 0 } };
@@ -115,7 +115,7 @@ function makeEnv(opts) {
         return { status: 404, body: {} };
       }
     });
-    const data = await env.CC.api('GET', '/api/v1/knowledge/items?limit=3');
+    const data = await env.CC.api('GET', 'api/v1/knowledge/items?limit=3');
     check('请求最终成功', data && data.total === 0);
     check('access token 已换新', env.store.cc_access_token === 'new', env.store.cc_access_token);
     check('未跳转（用户无感）', env.calls.replace.length === 0, JSON.stringify(env.calls.replace));
@@ -151,7 +151,7 @@ function makeEnv(opts) {
       }
     });
     await env.CC.requireAuth();
-    check('跳转到登录页', env.calls.replace.length === 1 && env.calls.replace[0].indexOf('/login.html') === 0,
+    check('跳转到登录页', env.calls.replace.length === 1 && env.calls.replace[0].indexOf('login.html') === 0,
       JSON.stringify(env.calls.replace));
     check('带上原因提示', env.calls.replace[0].indexOf('msg=') > 0, env.calls.replace[0]);
     check('带回来路（登录后回到这一页）', env.calls.replace[0].indexOf('next=') > 0, env.calls.replace[0]);
@@ -161,7 +161,7 @@ function makeEnv(opts) {
   await scenario('D. 登录失败 401 → 不跳转、原样报错', async () => {
     const env = makeEnv({ storage: {}, route: () => ({ status: 401, body: { detail: '用户名或密码不正确' } }) });
     let err = null;
-    try { await env.CC.api('POST', '/api/v1/auth/login', { username: 'a', password: 'b' }); } catch (e) { err = e; }
+    try { await env.CC.api('POST', 'api/v1/auth/login', { username: 'a', password: 'b' }); } catch (e) { err = e; }
     check('错误信息原样透出', !!err && err.message === '用户名或密码不正确', err && err.message);
     check('没有跳转登录页', env.calls.replace.length === 0);
     check('没有尝试刷新令牌', env.calls.fetch.length === 1, env.calls.fetch.map((f) => f.url).join(' , '));
@@ -172,7 +172,7 @@ function makeEnv(opts) {
     const me = await env.CC.requireAuth();
     check('返回 null', me === null);
     check('跳到登录页并带回跳目标',
-      env.calls.replace.length === 1 && env.calls.replace[0].indexOf('/login.html?next=') === 0,
+      env.calls.replace.length === 1 && env.calls.replace[0].indexOf('login.html?next=') === 0,
       JSON.stringify(env.calls.replace));
   });
 
@@ -187,7 +187,7 @@ function makeEnv(opts) {
     env.store.cc_access_token = 'again';
     const clicked = env.clickLogout();
     check('点击退出成功触发', clicked);
-    check('退出后跳登录页', env.calls.replace.length === 1 && env.calls.replace[0] === '/login.html',
+    check('退出后跳登录页', env.calls.replace.length === 1 && env.calls.replace[0] === 'login.html',
       JSON.stringify(env.calls.replace));
     check('退出后清空会话', !env.store.cc_access_token && !env.store.cc_username);
   });

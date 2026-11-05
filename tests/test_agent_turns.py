@@ -162,7 +162,7 @@ def test_dead_task_becomes_a_failed_card(client, session, monkeypatch):
     card = conversation["messages"][-1]["card"]
     assert card["kind"] == "failed"
     assert card["key"] == turn_id
-    assert card["href"] == "/conflicts.html"      # 给出原页面作为重试落点
+    assert card["href"] == "conflicts.html"      # 给出原页面作为重试落点
 
 
 def test_running_task_still_reads_as_pending(client, session, monkeypatch):

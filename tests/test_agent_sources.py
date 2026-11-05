@@ -103,7 +103,7 @@ def test_missing_key_is_reported_before_queueing(client, session, monkeypatch):
     assert body["capability"] == "weread_sync"
     assert body["card"]["kind"] == "notice"
     assert body["card"]["title"] == "还没配置微信读书的 API Key"
-    assert body["card"]["href"] == "/books.html"
+    assert body["card"]["href"] == "books.html"
     session.flush()
     assert session.query(TaskRun).filter(TaskRun.task_name == turns.TASK_NAME).count() == 0
 
@@ -242,7 +242,7 @@ def test_books_lists_the_shelf_with_progress_and_reader_link(client, session):
     assert card["books"][0]["title"] == "剑来"
     assert card["books"][0]["read_progress"] == 0.42
     # 阅读器的入口参数是 ?book=，写错就点不进去
-    assert card["books"][0]["href"] == f"/reader.html?book={book_id}"
+    assert card["books"][0]["href"] == f"reader.html?book={book_id}"
     assert card["books"][0]["chapter_count"] == 1
     assert "1 本在读" in body["reply"]
 

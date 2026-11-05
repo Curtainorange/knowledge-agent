@@ -80,7 +80,7 @@ def test_workbench_has_no_capability_buttons():
     # 查「函数定义」而不是名字本身：注释里提一句它的来历是有价值的，
     # 但那不构成把快捷入口加回来。真正要拦的是代码。
     assert "function loadChips" not in js
-    assert "/api/v1/agent/capabilities" not in js
+    assert "api/v1/agent/capabilities" not in js
 
 
 def test_workbench_opens_with_proactive_greeting():
@@ -90,7 +90,7 @@ def test_workbench_opens_with_proactive_greeting():
     迟早出现「开场重复插入」或「刷新后历史丢卡片」，而且都不报错。
     """
     js = _agent_js()
-    assert "/api/v1/agent/start" in js
+    assert "api/v1/agent/start" in js
     assert "function startConversation()" in js
     # 开场消息必须来自服务端返回值，前端不许自己编一句问候
     assert "state.messages = data.messages" in js
@@ -142,7 +142,7 @@ def test_conversation_id_is_persisted_for_reload():
     """会话 id 落 localStorage：刷新页面才能把历史连卡片一起恢复。"""
     js = _agent_js()
     assert "cc_agent_conversation" in js
-    assert "/api/v1/agent/conversation/" in js
+    assert "api/v1/agent/conversation/" in js
 
 
 def test_messages_array_is_the_single_source_of_truth():
@@ -162,7 +162,7 @@ def test_history_sidebar_uses_its_own_endpoints():
     不许另写一个 restoreConversation：两条恢复路径迟早对不上（开场重复插、历史丢卡片）。
     """
     js = _agent_js()
-    assert "/api/v1/agent/conversations" in js
+    assert "api/v1/agent/conversations" in js
     assert "function loadHistory" in js
     assert "function switchConversation" in js
     assert "function startConversation()" in js  # 切换会话复用它，不新开恢复函数

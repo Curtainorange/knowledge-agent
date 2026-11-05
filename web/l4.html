@@ -4,26 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>路径修正 · 认知副驾</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="l4">
 
 <header class="topbar">
   <div class="brand">认知副驾<span class="sub">L4 路径修正</span></div>
   <nav class="nav">
-    <a href="/app.html" data-nav="app">对话</a>
-    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
-    <a href="/books.html" data-nav="books">书籍</a>
-    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
-    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
-    <a href="/brief.html" data-nav="brief">认知简报</a>
-    <a href="/l4.html" data-nav="l4">路径修正</a>
-    <a href="/l5.html" data-nav="l5">健康诊断</a>
-    <a href="/notify.html" data-nav="notify">通知</a>
+    <a href="app.html" data-nav="app">对话</a>
+    <a href="knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="books.html" data-nav="books">书籍</a>
+    <a href="mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="brief.html" data-nav="brief">认知简报</a>
+    <a href="l4.html" data-nav="l4">路径修正</a>
+    <a href="l5.html" data-nav="l5">健康诊断</a>
+    <a href="notify.html" data-nav="notify">通知</a>
   </nav>
   <div class="who">
     <span class="who-name" id="who-name"></span>
@@ -93,7 +93,7 @@
 </main>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
+<script src="assets/app.js"></script>
 <script>
 (function () {
   'use strict';
@@ -216,7 +216,7 @@
 
   async function decide(planId, accepted) {
     try {
-      var res = await CC.api('POST', '/api/v1/l4/deviation/' + planId + '/decision', { accepted: accepted });
+      var res = await CC.api('POST', 'api/v1/l4/deviation/' + planId + '/decision', { accepted: accepted });
       CC.toast(res.message);
       if (accepted && res.plan) {
         renderPlan(res.plan);
@@ -228,7 +228,7 @@
 
   async function loadGoals() {
     try {
-      var res = await CC.api('GET', '/api/v1/l4/goals');
+      var res = await CC.api('GET', 'api/v1/l4/goals');
       $('#goal-count').textContent = res.total;
       $('#goal-list').innerHTML = goalRows(res.items || []);
       var buttons = document.querySelectorAll('#goal-list [data-gen]');
@@ -244,7 +244,7 @@
 
   async function loadPlan() {
     try {
-      var res = await CC.api('GET', '/api/v1/l4/plan');
+      var res = await CC.api('GET', 'api/v1/l4/plan');
       renderPlan(res);
     } catch (err) {
       $('#plan-note').textContent = '加载失败：' + err.message;
@@ -253,7 +253,7 @@
 
   async function generatePlan(goalId) {
     try {
-      var res = await CC.api('POST', '/api/v1/l4/goals/' + goalId + '/plan');
+      var res = await CC.api('POST', 'api/v1/l4/goals/' + goalId + '/plan');
       renderPlan(res);
       CC.toast(res.state === 'ok' ? '计划已生成' : '生成失败：' + res.note);
     } catch (err) {
@@ -265,7 +265,7 @@
     $('#dev-note').textContent = '检测中…（本地统计行为，若有偏离才调用模型归因）';
     try {
       var res = await CC.withLoading($('#dev-check'), function () {
-        return CC.api('POST', '/api/v1/l4/deviation/check');
+        return CC.api('POST', 'api/v1/l4/deviation/check');
       }, '检测中…');
       renderDeviation(res);
       $('#dev-note').textContent = res.note || '检测完成。';
@@ -281,7 +281,7 @@
       return;
     }
     try {
-      await CC.api('POST', '/api/v1/l4/goals', {
+      await CC.api('POST', 'api/v1/l4/goals', {
         description: desc,
         priority: $('#goal-priority').value
       });
@@ -322,7 +322,7 @@
 
   async function loadParams() {
     try {
-      var data = await CC.api('GET', '/api/v1/preferences');
+      var data = await CC.api('GET', 'api/v1/preferences');
       fillParams(data.plan_params || {});
     } catch (err) {
       $('#param-note').textContent = '参数加载失败：' + err.message;
@@ -331,7 +331,7 @@
 
   async function saveParams(body, okText) {
     try {
-      var data = await CC.api('PUT', '/api/v1/preferences', body);
+      var data = await CC.api('PUT', 'api/v1/preferences', body);
       fillParams(data.plan_params || {});
       $('#param-note').textContent = okText + '（下次生成计划生效）';
       CC.toast(okText);

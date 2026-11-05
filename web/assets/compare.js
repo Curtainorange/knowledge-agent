@@ -22,7 +22,7 @@ window.CCACompare = (function () {
     if (!book || !book.book_id || typeof charPos !== 'number' || charPos < 0) {
       return '';
     }
-    return ' <a href="/reader.html?book=' + esc(book.book_id) + '&char=' + charPos + '">看原文</a>';
+    return ' <a href="reader.html?book=' + esc(book.book_id) + '&char=' + charPos + '">看原文</a>';
   }
 
   function render(card) {

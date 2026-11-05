@@ -22,11 +22,11 @@ window.CC = (function () {
      结束——界面渲染成一个空壳：列表空、用户名空、退出按钮没绑事件
      （用户看到的就是「记录全没了 + 账号不显示 + 退不掉」）。 */
   var NO_AUTH_REDIRECT_PATHS = [
-    '/api/v1/auth/login',
-    '/api/v1/auth/register',
-    '/api/v1/auth/password',
-    '/api/v1/auth/account',
-    '/api/v1/auth/refresh'
+    'api/v1/auth/login',
+    'api/v1/auth/register',
+    'api/v1/auth/password',
+    'api/v1/auth/account',
+    'api/v1/auth/refresh'
   ];
 
   var _topbarBound = false;
@@ -94,7 +94,7 @@ window.CC = (function () {
     if (!isLoginPage()) {
       params.push('next=' + encodeURIComponent(location.pathname + location.search));
     }
-    location.replace('/login.html' + (params.length ? '?' + params.join('&') : ''));
+    location.replace('login.html' + (params.length ? '?' + params.join('&') : ''));
   }
 
   /* 把错误响应转成能直接显示给人看的短句。
@@ -151,7 +151,7 @@ window.CC = (function () {
     if (!rt) {
       return Promise.resolve(false);
     }
-    _refreshInFlight = fetch('/api/v1/auth/refresh', {
+    _refreshInFlight = fetch('api/v1/auth/refresh', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ refresh_token: rt })
@@ -231,7 +231,7 @@ window.CC = (function () {
     if (logout) {
       logout.addEventListener('click', function () {
         clearSession();
-        location.replace('/login.html');
+        location.replace('login.html');
       });
       _topbarBound = true;
     }
@@ -278,7 +278,7 @@ window.CC = (function () {
       return null;
     }
     try {
-      var me = await api('GET', '/api/v1/auth/me');
+      var me = await api('GET', 'api/v1/auth/me');
       localStorage.setItem(NAME_KEY, me.username);
       renderTopbar();
       return me;
@@ -299,7 +299,7 @@ window.CC = (function () {
      不再打扰；注册/提示失败都不影响正常使用（file:// 或非安全上下文直接跳过）。 */
   if ('serviceWorker' in navigator) {
     window.addEventListener('load', function () {
-      navigator.serviceWorker.register('/sw.js').catch(function () { /* 无碍使用 */ });
+      navigator.serviceWorker.register('sw.js').catch(function () { /* 无碍使用 */ });
     });
   }
 

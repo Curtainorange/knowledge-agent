@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>认知副驾 · 个人知识学习智能体</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="home">
 
@@ -19,7 +19,7 @@
 
 <main class="single home">
   <section class="hero">
-    <img class="hero-avatar" src="/assets/avatar-lg.png" alt="认知副驾" width="88" height="88">
+    <img class="hero-avatar" src="assets/avatar-lg.png" alt="认知副驾" width="88" height="88">
     <h1>把散落的知识，连成你的认知网络</h1>
     <p class="lead">一个对话入口，覆盖录入、阅读、挖掘、辨冲突、问自己该问的问题——围绕「你」的知识学习智能体。</p>
     <div class="hero-actions">
@@ -29,47 +29,47 @@
   </section>
 
   <section id="features" class="feature-grid">
-    <div class="feature" data-path="/app.html" data-icon="话">
+    <div class="feature" data-path="app.html" data-icon="话">
       <div class="feature-icon"></div>
       <h3>对话工作台</h3>
       <p>说一句话就行，系统自己判断该用哪个能力——找回、记录、辨析、诊断都在这里。</p>
     </div>
-    <div class="feature" data-path="/knowledge.html" data-icon="知">
+    <div class="feature" data-path="knowledge.html" data-icon="知">
       <div class="feature-icon"></div>
       <h3>知识库</h3>
       <p>录入与管理你的知识条目，自动向量化、关键词兜底检索。</p>
     </div>
-    <div class="feature" data-path="/books.html" data-icon="书">
+    <div class="feature" data-path="books.html" data-icon="书">
       <div class="feature-icon"></div>
       <h3>书籍阅读</h3>
       <p>上传电子书，边读边划词存知识，插图随正文展示。</p>
     </div>
-    <div class="feature" data-path="/mine.html" data-icon="寻">
+    <div class="feature" data-path="mine.html" data-icon="寻">
       <div class="feature-icon"></div>
       <h3>L1 挖掘</h3>
       <p>给一条模糊线索，从知识库里精准定位你要找的那条。</p>
     </div>
-    <div class="feature" data-path="/conflicts.html" data-icon="辨">
+    <div class="feature" data-path="conflicts.html" data-icon="辨">
       <div class="feature-icon"></div>
       <h3>冲突检测</h3>
       <p>自动比对观点，找出你知识里立场不可兼容的地方。</p>
     </div>
-    <div class="feature" data-path="/brief.html" data-icon="思">
+    <div class="feature" data-path="brief.html" data-icon="思">
       <div class="feature-icon"></div>
       <h3>认知简报</h3>
       <p>指出你「该问但没问」的问题，每条都带数据依据。</p>
     </div>
-    <div class="feature" data-path="/l4.html" data-icon="径">
+    <div class="feature" data-path="l4.html" data-icon="径">
       <div class="feature-icon"></div>
       <h3>路径修正</h3>
       <p>拆目标为周计划，行为偏离时归因并给出调整。</p>
     </div>
-    <div class="feature" data-path="/l5.html" data-icon="诊">
+    <div class="feature" data-path="l5.html" data-icon="诊">
       <div class="feature-icon"></div>
       <h3>健康诊断</h3>
       <p>从行为统计推断学习病根，给一条能立刻执行的建议。</p>
     </div>
-    <div class="feature" data-path="/notify.html" data-icon="铃">
+    <div class="feature" data-path="notify.html" data-icon="铃">
       <div class="feature-icon"></div>
       <h3>通知与偏好</h3>
       <p>查看系统提醒，并设置推送频率（每周 / 每日 / 免打扰）。</p>
@@ -78,7 +78,7 @@
 </main>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
+<script src="assets/app.js"></script>
 <script>
 (function () {
   'use strict';
@@ -94,7 +94,7 @@
     if (hasToken()) {
       location.href = path;
     } else {
-      location.href = '/login.html?next=' + encodeURIComponent(path);
+      location.href = 'login.html?next=' + encodeURIComponent(path);
     }
   }
 
@@ -104,13 +104,13 @@
       box.innerHTML = '<span class="who-name">' + esc(CC.username()) + '</span>' +
         '<button id="btn-enter" class="primary sm">进入工作台</button>' +
         '<button id="btn-logout" class="sm">退出</button>';
-      $('#btn-enter').addEventListener('click', function () { location.href = '/app.html'; });
+      $('#btn-enter').addEventListener('click', function () { location.href = 'app.html'; });
       $('#btn-logout').addEventListener('click', function () { CC.clearSession(); location.reload(); });
     } else {
-      box.innerHTML = '<a href="/login.html" class="login-link">登录</a>' +
+      box.innerHTML = '<a href="login.html" class="login-link">登录</a>' +
         '<button id="btn-register" class="primary sm">免费注册</button>';
       $('#btn-register').addEventListener('click', function () {
-        location.href = '/login.html?mode=register&next=' + encodeURIComponent('/app.html');
+        location.href = 'login.html?mode=register&next=' + encodeURIComponent('app.html');
       });
     }
   }
@@ -127,9 +127,9 @@
 
   $('#btn-start').addEventListener('click', function () {
     if (hasToken()) {
-      location.href = '/app.html';
+      location.href = 'app.html';
     } else {
-      location.href = '/login.html?mode=register&next=' + encodeURIComponent('/app.html');
+      location.href = 'login.html?mode=register&next=' + encodeURIComponent('app.html');
     }
   });
 

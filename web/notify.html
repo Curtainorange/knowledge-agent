@@ -4,26 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>通知与偏好 · 认知副驾</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="notify">
 
 <header class="topbar">
   <div class="brand">认知副驾<span class="sub">通知与推送偏好</span></div>
   <nav class="nav">
-    <a href="/app.html" data-nav="app">对话</a>
-    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
-    <a href="/books.html" data-nav="books">书籍</a>
-    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
-    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
-    <a href="/brief.html" data-nav="brief">认知简报</a>
-    <a href="/l4.html" data-nav="l4">路径修正</a>
-    <a href="/l5.html" data-nav="l5">健康诊断</a>
-    <a href="/notify.html" data-nav="notify">通知</a>
+    <a href="app.html" data-nav="app">对话</a>
+    <a href="knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="books.html" data-nav="books">书籍</a>
+    <a href="mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="brief.html" data-nav="brief">认知简报</a>
+    <a href="l4.html" data-nav="l4">路径修正</a>
+    <a href="l5.html" data-nav="l5">健康诊断</a>
+    <a href="notify.html" data-nav="notify">通知</a>
   </nav>
   <div class="who">
     <span class="who-name" id="who-name"></span>
@@ -56,7 +56,7 @@
 </main>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
+<script src="assets/app.js"></script>
 <script>
 (function () {
   'use strict';
@@ -105,7 +105,7 @@
 
   async function loadJobs() {
     try {
-      var data = await CC.api('GET', '/api/v1/push/jobs');
+      var data = await CC.api('GET', 'api/v1/push/jobs');
       renderList(data.items || []);
     } catch (err) {
       $('#notify-list').innerHTML = '<div class="empty">加载失败：' + esc(err.message) + '</div>';
@@ -114,7 +114,7 @@
 
   async function loadPrefs() {
     try {
-      var data = await CC.api('GET', '/api/v1/preferences');
+      var data = await CC.api('GET', 'api/v1/preferences');
       $('#pref-frequency').value = data.push_frequency || 'weekly';
     } catch (err) {
       $('#pref-hint').textContent = '偏好加载失败：' + err.message;
@@ -123,7 +123,7 @@
 
   async function markRead(jobId) {
     try {
-      await CC.api('POST', '/api/v1/push/jobs/' + encodeURIComponent(jobId) + '/delivered');
+      await CC.api('POST', 'api/v1/push/jobs/' + encodeURIComponent(jobId) + '/delivered');
       CC.toast('已标记为已读');
       await loadJobs();
     } catch (err) {
@@ -135,7 +135,7 @@
     event.preventDefault();
     var value = $('#pref-frequency').value;
     try {
-      await CC.api('PUT', '/api/v1/preferences', { push_frequency: value });
+      await CC.api('PUT', 'api/v1/preferences', { push_frequency: value });
       $('#pref-hint').textContent = '已保存。';
       CC.toast('推送偏好已更新');
     } catch (err) {

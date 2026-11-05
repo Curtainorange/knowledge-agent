@@ -532,7 +532,7 @@ def _execute_book_digest(
             card = notice_card(
                 title="书架还是空的",
                 note="先去书架页上传一本电子书，回来再说「通读《书名》」。",
-                href="/books.html",
+                href="books.html",
             )
             return card["note"], card
         card = notice_card(
@@ -552,7 +552,7 @@ def _execute_book_digest(
             card = notice_card(
                 title=f"书架里没有《{title}》",
                 note="先去书架页上传这本电子书，再来通读。",
-                href="/books.html",
+                href="books.html",
             )
         else:
             card = notice_card(
@@ -591,7 +591,7 @@ def execute_book_discuss(
         card = notice_card(
             title="没确定要聊哪本书",
             note="带上书名再说一次，例如「聊聊《三体》」；也可以先「通读《书名》」。",
-            href="/books.html",
+            href="books.html",
         )
         return card["note"], card
 
@@ -765,7 +765,7 @@ def _execute_books(*, user_id: str, session: Session, key: str) -> tuple[str, di
             "chapter_count": len(book.chapters or []),
             "read_progress": round(float(book.read_progress or 0.0), 4),
             # 阅读器的入口参数是 ?book=（books.html 就是这么跳的），别写成 ?id=
-            "href": f"/reader.html?book={book.id}",
+            "href": f"reader.html?book={book.id}",
         }
         for book in rows
     ]

@@ -4,26 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>知识库 · 认知副驾</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="knowledge">
 
 <header class="topbar">
   <div class="brand">认知副驾<span class="sub">知识库</span></div>
   <nav class="nav">
-    <a href="/app.html" data-nav="app">对话</a>
-    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
-    <a href="/books.html" data-nav="books">书籍</a>
-    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
-    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
-    <a href="/brief.html" data-nav="brief">认知简报</a>
-    <a href="/l4.html" data-nav="l4">路径修正</a>
-    <a href="/l5.html" data-nav="l5">健康诊断</a>
-    <a href="/notify.html" data-nav="notify">通知</a>
+    <a href="app.html" data-nav="app">对话</a>
+    <a href="knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="books.html" data-nav="books">书籍</a>
+    <a href="mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="brief.html" data-nav="brief">认知简报</a>
+    <a href="l4.html" data-nav="l4">路径修正</a>
+    <a href="l5.html" data-nav="l5">健康诊断</a>
+    <a href="notify.html" data-nav="notify">通知</a>
   </nav>
   <div class="who">
     <span class="who-name" id="who-name"></span>
@@ -99,7 +99,7 @@
 </main>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
+<script src="assets/app.js"></script>
 <script>
 (function () {
   'use strict';
@@ -187,7 +187,7 @@
       if (state.query) {
         params += '&q=' + encodeURIComponent(state.query);
       }
-      var data = await CC.api('GET', '/api/v1/knowledge/items?' + params);
+      var data = await CC.api('GET', 'api/v1/knowledge/items?' + params);
       state.total = data.total;
       state.items = data.items;
       state.selected = null;
@@ -204,7 +204,7 @@
 
   /** 概览统计：总数 / 向量化状态 / 来源分布 / 高频标签。 */
   async function loadStats() {
-    var stats = await CC.api('GET', '/api/v1/knowledge/stats');
+    var stats = await CC.api('GET', 'api/v1/knowledge/stats');
     $('#st-total').textContent = stats.total;
     var embedded = stats.by_embed_status.embedded || 0;
     var failed = stats.by_embed_status.embed_failed || 0;
@@ -234,7 +234,7 @@
     state.selected = itemId;
     if (!state.detail[itemId]) {
       renderItems();
-      state.detail[itemId] = await CC.api('GET', '/api/v1/knowledge/items/' + itemId);
+      state.detail[itemId] = await CC.api('GET', 'api/v1/knowledge/items/' + itemId);
     }
     renderItems();
     var node = document.querySelector('.item[data-id="' + itemId + '"]');
@@ -262,7 +262,7 @@
         return;
       }
       try {
-        await CC.api('DELETE', '/api/v1/knowledge/items/' + itemId);
+        await CC.api('DELETE', 'api/v1/knowledge/items/' + itemId);
         state.selected = null;
         delete state.detail[itemId];
         await Promise.all([loadItems(state.page), loadStats()]);
@@ -298,7 +298,7 @@
     var itemId = el.getAttribute('data-id');
     var value = Number(el.value) / 100;
     try {
-      await CC.api('PATCH', '/api/v1/knowledge/items/' + itemId, { read_progress: value });
+      await CC.api('PATCH', 'api/v1/knowledge/items/' + itemId, { read_progress: value });
       var item = state.items.find(function (x) { return x.item_id === itemId; });
       if (item) {
         item.read_progress = value;
@@ -326,7 +326,7 @@
     hint.textContent = '录入中：首次调用会加载本地向量模型，可能需要几十秒…';
     try {
       var result = await CC.withLoading($('#k-submit'), function () {
-        return CC.api('POST', '/api/v1/knowledge/items', { title: title, content: content, tags: tags });
+        return CC.api('POST', 'api/v1/knowledge/items', { title: title, content: content, tags: tags });
       }, '录入中…');
       $('#k-title').value = '';
       $('#k-content').value = '';
@@ -373,7 +373,7 @@
      （普通 <a href> 由浏览器直发、带不了 Authorization，所以走 fetch） */
   async function exportKnowledge(format) {
     try {
-      var resp = await fetch('/api/v1/knowledge/export?format=' + format, {
+      var resp = await fetch('api/v1/knowledge/export?format=' + format, {
         headers: { Authorization: 'Bearer ' + CC.token() }
       });
       if (!resp.ok) {
@@ -407,7 +407,7 @@
     }
     try {
       var result = await CC.withLoading($('#pw-submit'), function () {
-        return CC.api('POST', '/api/v1/auth/password', {
+        return CC.api('POST', 'api/v1/auth/password', {
           current_password: current,
           new_password: next
         });
@@ -433,11 +433,11 @@
     }
     try {
       await CC.withLoading($('#del-submit'), function () {
-        return CC.api('DELETE', '/api/v1/auth/account', { password: password });
+        return CC.api('DELETE', 'api/v1/auth/account', { password: password });
       }, '注销中…');
       CC.clearSession();
       CC.toast('账号已注销');
-      location.replace('/login.html');
+      location.replace('login.html');
     } catch (err) {
       CC.toast('注销失败：' + err.message);
     }

@@ -4,11 +4,11 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>阅读器 · 认知副驾</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="books" class="reader-page">
 
@@ -142,7 +142,7 @@
 </div>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
+<script src="assets/app.js"></script>
 <script>
 (function () {
   'use strict';
@@ -207,7 +207,7 @@
   };
 
   if (!bookId) {
-    location.replace('/books.html');
+    location.replace('books.html');
   }
 
   function chapterByIndex(index) {
@@ -314,7 +314,7 @@
       var name = match[1];
       // 图片由浏览器直接加载，带不了 Authorization 头，故用 ?token= 兜底。
       // 不用 loading="lazy"：位置恢复要在图片加载完成后校准（lazy 会让 complete 长期为假）。
-      var imgUrl = '/api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) +
+      var imgUrl = 'api/v1/books/' + bookId + '/images/' + encodeURIComponent(name) +
         '?token=' + encodeURIComponent(CC.token() || '');
       events.push({
         at: match.index,
@@ -380,7 +380,7 @@
   }
 
   async function loadChapter(index, scrollRatio) {
-    var data = await CC.api('GET', '/api/v1/books/' + bookId + '/chapter/' + index);
+    var data = await CC.api('GET', 'api/v1/books/' + bookId + '/chapter/' + index);
     state.chapter = data.index;
     var body = $('#reader-body');
     $('#chapter-title').textContent = data.title;
@@ -530,7 +530,7 @@
 
   async function reloadNotes() {
     try {
-      var data = await CC.api('GET', '/api/v1/books/' + bookId + '/notes');
+      var data = await CC.api('GET', 'api/v1/books/' + bookId + '/notes');
       state.notes = data.items || [];
     } catch (err) {
       state.notes = [];
@@ -612,7 +612,7 @@
       char_start: chapter.char_start + localStart,
       char_end: chapter.char_start + localEnd
     };
-    await CC.api('POST', '/api/v1/books/' + bookId + '/notes', payload);
+    await CC.api('POST', 'api/v1/books/' + bookId + '/notes', payload);
     // 重新渲染以显示高亮，但要保住当前阅读位置（否则每存一次就跳回顶部）
     var body = $('#reader-body');
     var keepTop = body.scrollTop;
@@ -803,7 +803,7 @@
     var span = chapter.char_end - chapter.char_start;
     var globalChar = chapter.char_start + Math.floor(ratio * span);
     var progress = state.book.total_chars ? Math.min(1, globalChar / state.book.total_chars) : 0;
-    CC.api('PATCH', '/api/v1/books/' + bookId + '/progress', {
+    CC.api('PATCH', 'api/v1/books/' + bookId + '/progress', {
       current_char: globalChar,
       read_progress: progress
     }).catch(function () { /* 后台行为，失败不打断阅读 */ });
@@ -816,7 +816,7 @@
 
   $('#btn-back').addEventListener('click', function () {
     saveProgress();
-    location.href = '/books.html';
+    location.href = 'books.html';
   });
 
   /* 目录面板 */
@@ -1197,10 +1197,10 @@
       return;
     }
     try {
-      state.book = await CC.api('GET', '/api/v1/books/' + bookId);
+      state.book = await CC.api('GET', 'api/v1/books/' + bookId);
     } catch (err) {
       CC.toast('加载书籍失败：' + err.message);
-      setTimeout(function () { location.replace('/books.html'); }, 1500);
+      setTimeout(function () { location.replace('books.html'); }, 1500);
       return;
     }
     renderBookInfo();

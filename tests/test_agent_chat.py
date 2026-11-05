@@ -151,7 +151,7 @@ def test_l1_located_returns_card_with_link(client, session, provider):
     card = body["card"]
     assert card["kind"] == "l1_located"
     assert card["items"][0]["item_id"] == item_id
-    assert card["items"][0]["href"] == f"/knowledge.html?item={item_id}"
+    assert card["items"][0]["href"] == f"knowledge.html?item={item_id}"
 
 
 def test_l1_clarify_question_is_written_once(client, session, provider):
@@ -230,7 +230,7 @@ def test_l3_brief_returns_full_card(client, session, provider):
     assert card["state"] == "ok"
     assert card["topics"] == [{"topic": "数据库", "count": 1, "levels": {"进阶": 1}}]
     assert card["questions"][0]["evidence"] == "1 篇里 0 篇是实战层"
-    assert card["href"] == "/brief.html"          # 卡片上留一条回原页面的深链
+    assert card["href"] == "brief.html"          # 卡片上留一条回原页面的深链
     assert "值得想的问题" in body["reply"]
 
 
@@ -300,7 +300,7 @@ def test_guide_fallback_still_produces_a_usable_card():
     """安全网本身要没坏：引导卡必须带得出原页面地址，否则是个死胡同。"""
     card = guide_card("books")
     assert card["kind"] == "guide"
-    assert card["href"] == "/books.html"
+    assert card["href"] == "books.html"
     assert card["label"] and card["note"]
 
 

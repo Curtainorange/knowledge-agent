@@ -1015,7 +1015,7 @@ class L2Orchestrator:
                     "conflict_id": conflict.id,
                     "conflict_type": conflict_type or "矛盾",
                     "confidence": round(float(confidence), 3),
-                    "href": "/conflicts.html",
+                    "href": "conflicts.html",
                 },
                 subject=conflict.id,
                 conflict_type=conflict_type or "",

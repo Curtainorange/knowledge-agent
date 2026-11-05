@@ -32,7 +32,7 @@ def test_entry_is_public_landing_page(client):
     resp = client.get("/")
     assert "feature-grid" in resp.text
     assert "开始使用" in resp.text
-    assert "/assets/app.js" in resp.text
+    assert "assets/app.js" in resp.text
     assert "auth-submit" not in resp.text  # 登录表单不应出现在首页
 
 
@@ -99,7 +99,7 @@ def test_workbench_page_is_conversational_only(client):
     assert "agent-input" in body          # 输入框
     assert "agent-send" in body
     assert "agent-chips" not in body      # 能力快捷入口已移除（见 agent.js 的说明）
-    assert "/assets/agent.js" in body
+    assert "assets/agent.js" in body
     # 别的能力各自的表单不该出现在这里（否则又变成「一页堆所有功能」）
     assert "k-submit" not in body
     assert "auth-submit" not in body
@@ -109,7 +109,7 @@ def test_workbench_page_is_conversational_only(client):
 
 def test_workbench_is_the_landing_after_login(client):
     """登录后落到对话工作台，而不是散落的功能页。"""
-    assert "/app.html" in client.get("/login.html").text
+    assert "app.html" in client.get("/login.html").text
 
 
 def test_every_feature_page_links_back_to_workbench(client):
@@ -118,11 +118,11 @@ def test_every_feature_page_links_back_to_workbench(client):
         "/knowledge.html", "/mine.html", "/books.html", "/reading_log.html",
         "/conflicts.html", "/brief.html", "/l4.html", "/l5.html", "/notify.html",
     ):
-        assert "/app.html" in client.get(path).text, path
+        assert "app.html" in client.get(path).text, path
 
 
 def test_landing_offers_the_workbench(client):
-    assert "/app.html" in client.get("/").text
+    assert "app.html" in client.get("/").text
 
 
 def test_conflicts_page_is_isolated(client):
@@ -138,7 +138,7 @@ def test_conflicts_page_is_isolated(client):
 def test_nav_links_to_conflicts_everywhere(client):
     """业务页导航都要能进冲突检测页（否则新能力不可达）。"""
     for path in ("/knowledge.html", "/mine.html", "/books.html"):
-        assert "/conflicts.html" in client.get(path).text, path
+        assert "conflicts.html" in client.get(path).text, path
 
 
 def test_account_settings_present(client):
@@ -161,7 +161,7 @@ def test_brief_page_is_isolated(client):
 
 def test_nav_links_to_brief_everywhere(client):
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html"):
-        assert "/brief.html" in client.get(path).text, path
+        assert "brief.html" in client.get(path).text, path
 
 
 def test_l4_page_is_isolated(client):
@@ -178,7 +178,7 @@ def test_l4_page_is_isolated(client):
 
 def test_nav_links_to_l4_everywhere(client):
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):
-        assert "/l4.html" in client.get(path).text, path
+        assert "l4.html" in client.get(path).text, path
 
 
 def test_l5_page_is_isolated(client):
@@ -217,8 +217,8 @@ def test_nav_links_to_l5_and_notify_everywhere(client):
     """L5 与通知的后端早已就绪，导航入口必须有落点（缺入口等于没有）。"""
     for path in ("/knowledge.html", "/mine.html", "/books.html", "/conflicts.html", "/brief.html"):
         body = client.get(path).text
-        assert "/l5.html" in body, path
-        assert "/notify.html" in body, path
+        assert "l5.html" in body, path
+        assert "notify.html" in body, path
 
 
 # ---------- 移动端骨架（阶段 1 · M1）----------
@@ -247,7 +247,7 @@ def test_pages_declare_ios_home_icon(client):
     for path in PAGES:
         body = client.get(path).text
         assert 'rel="apple-touch-icon"' in body, path
-        assert "/assets/icons/apple-touch-icon-180.png" in body, path
+        assert "assets/icons/apple-touch-icon-180.png" in body, path
     icon = client.get("/assets/icons/apple-touch-icon-180.png")
     assert icon.status_code == 200
     assert "image/png" in icon.headers["content-type"]
@@ -427,18 +427,19 @@ def test_pwa_manifest_is_installable(client):
     data = resp.json()
     assert data["name"] == "认知副驾"
     assert data["display"] == "standalone"
-    assert data["start_url"] == "/app.html"
+    assert data["start_url"] == "app.html"
     sizes = {icon["sizes"] for icon in data["icons"]}
     assert "192x192" in sizes and "512x512" in sizes
     purposes = {icon.get("purpose") for icon in data["icons"]}
     assert "maskable" in purposes
     for icon in data["icons"]:
-        assert client.get(icon["src"]).status_code == 200, icon["src"]
+        assert client.get("/" + icon["src"]).status_code == 200, icon["src"]
 
 
 def test_service_worker_is_network_first(client):
     """SW 必须网络优先——缓存旧 JS 跑新后端是本项目踩过的坑；
-    /api/ 响应含 JWT，绝不进缓存。SW 还要挂根路径（scope 才覆盖全站）。"""
+    /api/ 响应含 JWT，绝不进缓存。SW 与页面同层注册，
+    scope 由浏览器按脚本所在目录给出（子路径部署时自动就是那一段）。"""
     resp = client.get("/sw.js")
     assert resp.status_code == 200
     assert "javascript" in resp.headers["content-type"]
@@ -446,8 +447,9 @@ def test_service_worker_is_network_first(client):
     sw = resp.text
     assert "fetch(req)" in sw                          # 先走网络
     assert "caches.match" in sw                        # 网络失败才兜底
-    assert "url.pathname.indexOf('/api/')" in sw       # API 直连不缓存
-    assert "register('/sw.js')" in client.get("/assets/app.js").text  # 根路径注册
+    # 判断前先按 scope 剥掉前缀：否则子路径下 /cognition/api/... 判不出来
+    assert "relativePath(url).indexOf('/api/')" in sw  # API 直连不缓存
+    assert "register('sw.js')" in client.get("/assets/app.js").text  # 同层注册
 
 
 def test_all_pages_link_manifest(client):
@@ -464,3 +466,23 @@ def test_install_prompt_is_dismissible(client):
     assert "beforeinstallprompt" in js
     assert "pwa_install_dismissed" in js
     assert "pwa-install" in client.get("/assets/style.css").text
+
+
+def test_app_does_not_rely_on_root_path():
+    """本站子路径部署不靠 FastAPI 的 root_path，靠的是「前端全用相对路径」。
+
+    历史上这里断言过 `app.root_path == settings.root_path`（配合一个 .env 配置项）。
+    现在不引入的原因：它只影响 `/docs` 与 `RedirectResponse` 生成的 URL，而本站
+    没有任何服务端重定向，路由前缀由 Nginx 的 `proxy_pass .../` 剥掉——多一个
+    配置项只会多一处「填了没生效 / 没填却以为生效」的歧义。
+
+    这条改成反向断言，是为了让「有人悄悄把 root_path 接回来」时立刻报红：
+    接了就必须同时补配置、改文档、说明它与样式的因果关系，而不是顺手加一行。
+    """
+    from app.main import app
+
+    assert app.root_path == "", (
+        "app.root_path 被设上了。本站不依赖它做子路径部署（前端已全部相对路径，"
+        "前缀由 Nginx 剥掉）；若确实要引入，请同时补 .env.example、deploy/README "
+        "与一条正向断言，别只改这一处。"
+    )

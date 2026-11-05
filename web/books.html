@@ -4,26 +4,26 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
 <meta name="theme-color" content="#4f46e5">
-<link rel="apple-touch-icon" href="/assets/icons/apple-touch-icon-180.png">
+<link rel="apple-touch-icon" href="assets/icons/apple-touch-icon-180.png">
 <meta name="apple-mobile-web-app-title" content="认知副驾">
-<link rel="manifest" href="/manifest.webmanifest">
+<link rel="manifest" href="manifest.webmanifest">
 <title>书架 · 认知副驾</title>
-<link rel="stylesheet" href="/assets/style.css">
+<link rel="stylesheet" href="assets/style.css">
 </head>
 <body data-page="books">
 
 <header class="topbar">
   <div class="brand">认知副驾<span class="sub">书架</span></div>
   <nav class="nav">
-    <a href="/app.html" data-nav="app">对话</a>
-    <a href="/knowledge.html" data-nav="knowledge">知识库</a>
-    <a href="/books.html" data-nav="books">书籍</a>
-    <a href="/mine.html" data-nav="mine">L1 挖掘</a>
-    <a href="/conflicts.html" data-nav="conflicts">冲突检测</a>
-    <a href="/brief.html" data-nav="brief">认知简报</a>
-    <a href="/l4.html" data-nav="l4">路径修正</a>
-    <a href="/l5.html" data-nav="l5">健康诊断</a>
-    <a href="/notify.html" data-nav="notify">通知</a>
+    <a href="app.html" data-nav="app">对话</a>
+    <a href="knowledge.html" data-nav="knowledge">知识库</a>
+    <a href="books.html" data-nav="books">书籍</a>
+    <a href="mine.html" data-nav="mine">L1 挖掘</a>
+    <a href="conflicts.html" data-nav="conflicts">冲突检测</a>
+    <a href="brief.html" data-nav="brief">认知简报</a>
+    <a href="l4.html" data-nav="l4">路径修正</a>
+    <a href="l5.html" data-nav="l5">健康诊断</a>
+    <a href="notify.html" data-nav="notify">通知</a>
   </nav>
   <div class="who">
     <span class="who-name" id="who-name"></span>
@@ -54,8 +54,8 @@
 </main>
 
 <div id="toast"></div>
-<script src="/assets/app.js"></script>
-<script src="/assets/compare.js"></script>
+<script src="assets/app.js"></script>
+<script src="assets/compare.js"></script>
 <script>
 (function () {
   'use strict';
@@ -93,7 +93,7 @@
   }
 
   async function loadBooks() {
-    var data = await CC.api('GET', '/api/v1/books');
+    var data = await CC.api('GET', 'api/v1/books');
     renderBooks(data.items || []);
   }
 
@@ -104,7 +104,7 @@
     btn.disabled = true;
     btn.textContent = '解析中…';
     try {
-      var res = await fetch('/api/v1/books', {
+      var res = await fetch('api/v1/books', {
         method: 'POST',
         headers: {
           'Authorization': 'Bearer ' + token,
@@ -132,7 +132,7 @@
   async function loadWereadStatus() {
     var btn = $('#btn-weread');
     try {
-      var data = await CC.api('GET', '/api/v1/weread/status');
+      var data = await CC.api('GET', 'api/v1/weread/status');
       if (!data.configured) {
         btn.textContent = '同步微信读书（未配置）';
         btn.title = '需要先在 .env 里配置 WEREAD_API_KEY 才能同步';
@@ -151,7 +151,7 @@
     btn.disabled = true;
     btn.textContent = '同步中…';
     try {
-      var r = await CC.api('POST', '/api/v1/weread/sync');
+      var r = await CC.api('POST', 'api/v1/weread/sync');
       var parts = ['新增 ' + r.created + ' 条'];
       if (r.skipped) { parts.push('跳过 ' + r.skipped + ' 条（已存在）'); }
       if (r.failed_books) { parts.push(r.failed_books + ' 本读取失败'); }
@@ -172,7 +172,7 @@
   });
 
   $('#btn-log').addEventListener('click', function () {
-    location.href = '/reading_log.html';
+    location.href = 'reading_log.html';
   });
 
   $('#file-input').addEventListener('change', function (event) {
@@ -199,7 +199,7 @@
         return;
       }
       try {
-        await CC.api('DELETE', '/api/v1/books/' + id);
+        await CC.api('DELETE', 'api/v1/books/' + id);
         CC.toast('已删除');
         await loadBooks();
       } catch (err) {
@@ -207,7 +207,7 @@
       }
       return;
     }
-    location.href = '/reader.html?book=' + encodeURIComponent(id);
+    location.href = 'reader.html?book=' + encodeURIComponent(id);
   });
 
   /* ---- 选两本对比（C 模块）----
@@ -250,7 +250,7 @@
     var out = $('#compare-out');
     out.innerHTML = '<div class="meta">正在对比这两本书，通常十秒左右……</div>';
     try {
-      var card = await CC.api('POST', '/api/v1/books/compare', {
+      var card = await CC.api('POST', 'api/v1/books/compare', {
         book_a_id: picked[0],
         book_b_id: picked[1]
       });

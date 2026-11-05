@@ -77,7 +77,7 @@ def guide_card(capability: str) -> dict:
     """
     spec = capability_spec(capability)
     label = spec.label if spec else "这个能力"
-    href = spec.href if spec else "/"
+    href = spec.href if spec else "index.html"
     note = (
         f"「{label}」还没接进对话，先去原页面用；接进来之后这里可以直接操作。"
         if href
@@ -179,7 +179,7 @@ def weread_not_configured_card() -> dict:
     return notice_card(
         title="还没配置微信读书的 API Key",
         note="同步需要先在微信读书官方页面获取 Key，再填到本地配置里。这一步要扫码，对话里做不了。",
-        href=spec.href if spec else "/books.html",
+        href=spec.href if spec else "books.html",
     )
 
 
@@ -193,7 +193,7 @@ def books_card(*, key: str, books: list[dict]) -> dict:
     并把用户送到书架页——这比假装「说了就能传」诚实，也省得他反复尝试。
     """
     spec = capability_spec("books")
-    href = spec.href if spec else "/books.html"
+    href = spec.href if spec else "books.html"
     return {
         "kind": "books",
         "key": key,
@@ -497,7 +497,7 @@ def l1_located_card(result: L1Result) -> dict:
                 "snippet": item.snippet,
                 "read_progress": round(float(item.read_progress or 0.0), 4),
                 "embed_status": item.embed_status,
-                "href": f"/knowledge.html?item={item.item_id}",
+                "href": f"knowledge.html?item={item.item_id}",
             }
             for item in result.located_items
         ],
@@ -523,7 +523,7 @@ def l1_empty_card() -> dict:
         "kind": "l1_empty",
         "title": "知识库还是空的",
         "note": "先录入几条知识再来挖掘——没有素材就没法按线索找回。",
-        "href": "/knowledge.html",
+        "href": "knowledge.html",
     }
 
 
@@ -807,7 +807,7 @@ def book_compare_card(
         "only_a": [str(x.get("title") or "") for x in (only_a or [])][:6],
         "only_b": [str(x.get("title") or "") for x in (only_b or [])][:6],
         "note": str(note or ""),
-        "href": "/books.html",
+        "href": "books.html",
         "sends": [_send("重新对比", "重新对比这两本书")] if state in ("ok", "cached") else [],
     }
 
@@ -909,5 +909,5 @@ def knowledge_created_card(item) -> dict:
         # 用户看到的标签应该是内容相关的（数据库 / 划线），不是"你从哪录的"。
         "tags": [str(tag) for tag in (item.tags or []) if str(tag) != CHANNEL_TAG_CHAT],
         "embed_status": item.embed_status,
-        "href": f"/knowledge.html?item={item.id}",
+        "href": f"knowledge.html?item={item.id}",
     }

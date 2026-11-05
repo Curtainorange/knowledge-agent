@@ -46,15 +46,15 @@ def test_session_probe_401_must_relogin():
     所以这里必须是**白名单**（只排除真正「凭证本身不对」的端点）。
     """
     paths = _no_auth_redirect_paths()
-    assert "/api/v1/auth/me" not in paths, (
+    assert "api/v1/auth/me" not in paths, (
         "会话探针的 401 就是「登录已过期」，必须跳登录页——"
         "不能出现在不跳转白名单里"
     )
     # 这些端点的 401 表示「你给的凭证不对」，跳登录会把「密码错误」误报成「登录过期」
-    assert "/api/v1/auth/login" in paths
-    assert "/api/v1/auth/register" in paths
-    assert "/api/v1/auth/password" in paths
-    assert "/api/v1/auth/account" in paths
+    assert "api/v1/auth/login" in paths
+    assert "api/v1/auth/register" in paths
+    assert "api/v1/auth/password" in paths
+    assert "api/v1/auth/account" in paths
 
 
 def test_frontend_actually_uses_refresh_token():
@@ -65,7 +65,7 @@ def test_frontend_actually_uses_refresh_token():
     """
     js = _app_js()
     assert "'cc_refresh_token'" in js, "refresh token 的存储键不见了"
-    assert "/api/v1/auth/refresh" in js, "没有调用刷新端点"
+    assert "api/v1/auth/refresh" in js, "没有调用刷新端点"
     assert "tryRefresh" in js, "没有续期逻辑"
 
 
@@ -78,7 +78,7 @@ def test_topbar_bound_before_auth_check():
     js = _app_js()
     body = js[js.index("async function requireAuth()"):]
     body = body[: body.index("return me;")]
-    assert body.index("renderTopbar()") < body.index("api('GET', '/api/v1/auth/me')"), (
+    assert body.index("renderTopbar()") < body.index("api('GET', 'api/v1/auth/me')"), (
         "renderTopbar() 要先于会话探针调用"
     )
 
