@@ -24,6 +24,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import re
 import sys
 from pathlib import Path
 
@@ -101,6 +102,65 @@ def check_code() -> None:
             "code",
             "前端 agent.js 含 research 卡片渲染器与 safeHref" if has_renderer else "前端 agent.js 是旧版（无 research 渲染器）",
         )
+
+    # 站内链接必须是相对路径。这条与 tests/test_web_relative_paths.py 是同一条规则，
+    # 但那个要装 pytest 才能跑，上线现场只会跑本脚本——所以这里独立判一次。
+    # 10-27 踩过：前端写 /assets/style.css，挂在 /cognition/ 子路径下时浏览器把它解析到
+    # 域名根，样式与接口全 404，而本机根路径开发下一切正常。
+    offenders = _absolute_links()
+    _record(
+        OK if not offenders else FAIL,
+        "code",
+        "前端站内链接全为相对路径（子路径部署的前提）"
+        if not offenders
+        else f"前端仍有 {len(offenders)} 处根绝对路径（子路径部署会 404）：{', '.join(offenders[:5])}",
+    )
+
+
+# 属性式 href="/assets/x"，以及 JS 字符串式 '/api/v1/…'、'/app.html'。
+_ABS_LINK = re.compile(r"""(?:href|src)="/[A-Za-z]|['"]/(?:api/|assets/|[a-z0-9_]+\.html)""")
+
+_BLOCK_COMMENT = re.compile(r"/\*.*?\*/", re.S)
+_LINE_COMMENT = re.compile(r"//[^\n]*")
+_HTML_COMMENT = re.compile(r"<!--.*?-->", re.S)
+
+
+def _blank(match: re.Match[str]) -> str:
+    """把注释替换成等量换行——直接删会让后面的行号全错位。"""
+    return "\n" * match.group(0).count("\n")
+
+
+def _strip_comments(path: Path, text: str) -> str:
+    """注释里的路径不产生请求，先剥掉再判，才贴近真实行为。
+
+    （`sw.js` 的注释里就写着 `/cognition/api/v1/chat` 举例，不剥会误报。）
+    """
+    text = _HTML_COMMENT.sub(_blank, text)
+    if path.suffix == ".js":
+        text = _BLOCK_COMMENT.sub(_blank, text)
+        text = _LINE_COMMENT.sub("", text)
+    return text
+
+
+def _absolute_links() -> list[str]:
+    """扫描前端文件，返回仍指向站内根的绝对路径位置。"""
+    targets = [
+        *sorted((ROOT / "web").glob("*.html")),
+        *sorted((ROOT / "web" / "assets").glob("*.js")),
+        ROOT / "web" / "sw.js",
+    ]
+    offenders: list[str] = []
+    for path in targets:
+        if not path.exists():
+            continue
+        text = _strip_comments(path, path.read_text(encoding="utf-8", errors="ignore"))
+        for lineno, line in enumerate(text.splitlines(), 1):
+            # sw.js 里这个字面量是用来比较的（判断是不是接口），不是要跳转的链接
+            if path.name == "sw.js" and "indexOf('/api/')" in line:
+                continue
+            if _ABS_LINK.search(line):
+                offenders.append(f"{path.name}:{lineno}")
+    return offenders
 
 
 # --------------------------------------------------------------------------- 2. 配置
