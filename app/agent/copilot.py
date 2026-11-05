@@ -212,7 +212,9 @@ class Copilot:
         elif self._runs_async(route.capability):
             # 开跑前先确认这事现在做得成：前提不满足就同步回提示卡，
             # 别先发 pending 卡、让后台跑一趟才发现做不了（用户会白等一个轮询周期）
-            ready = turns.preflight(route.capability, user_id=user_id, session=self._session)
+            ready = turns.preflight(
+                route.capability, user_id=user_id, session=self._session, args=route.args
+            )
             if ready is not None:
                 reply, card = ready
                 self._append_exchange(repo, conversation, message, reply, card)

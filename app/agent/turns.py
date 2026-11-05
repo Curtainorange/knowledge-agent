@@ -135,19 +135,40 @@ _ACTION_PENDING_COPY: dict[str, tuple[str, str]] = {
 # 而不是先发 pending 卡、让后台跑一趟才发现做不了——那样用户会白等一个轮询周期，
 # 先看到「正在同步…」再被告知「没配 Key」。
 
+_GOAL_ARG_MAX = 256
 
-def preflight(capability: str, *, user_id: str, session: Session) -> tuple[str, dict] | None:
-    """返回 (回复, 卡片) 表示「前提不满足，别开回合」；返回 None 表示可以开跑。"""
+
+def _goal_arg(args: dict | None) -> str:
+    """从路由参数里取目标描述。
+
+    模型抽出来的可能是超长字符串、空串或非字符串（`args` 本身不被 `CapabilityRoute`
+    约束字段类型），这里统一收拾成一个可直接建目标的口径——目标描述超长会让卡片撑坏，
+    而且它本来也不该是一整段话。
+    """
+    raw = (args or {}).get("goal")
+    return str(raw).strip()[:_GOAL_ARG_MAX] if raw else ""
+
+
+def preflight(
+    capability: str, *, user_id: str, session: Session, args: dict | None = None
+) -> tuple[str, dict] | None:
+    """返回 (回复, 卡片) 表示「前提不满足，别开回合」；返回 None 表示可以开跑。
+
+    `args` 要给：`l4_plan` 的前提是「有一个学习目标」，而目标可能就在这句话里
+    （「我想学人工智能，制定一个学习计划」）——执行层会先用它建目标再拆，
+    这里若还按「库里没有目标」拦下，就正好拦掉了唯一能建出目标的那个请求。
+    """
     if capability == "weread_sync":
         if not (settings.weread_api_key or "").strip():
             card = weread_not_configured_card()
             return card["note"], card
 
     if capability == "l4_plan":
-        goals = LearningGoalRepository(session, user_id=user_id).list_active(user_id)
-        if not goals:
-            card = no_goal_card()
-            return card["note"], card
+        if not _goal_arg(args):
+            goals = LearningGoalRepository(session, user_id=user_id).list_active(user_id)
+            if not goals:
+                card = no_goal_card()
+                return card["note"], card
 
     if capability == "l5":
         # E 模块：诊断前先做理解度探查。
@@ -275,7 +296,10 @@ def execute_capability(
         return _execute_l4_goal(user_id=user_id, session=session, key=key, args=args)
 
     if capability == "l4_plan":
-        return _execute_l4_plan(user_id=user_id, session=session, gateway=gateway, key=key)
+        return _execute_l4_plan(
+            user_id=user_id, session=session, gateway=gateway, key=key,
+            goal_text=_goal_arg(args),
+        )
 
     if capability == "l4_deviation":
         return _execute_l4_deviation(user_id=user_id, session=session, gateway=gateway, key=key)
@@ -594,14 +618,23 @@ def _execute_l4_goal(*, user_id: str, session: Session, key: str, args: dict | N
 
 
 def _execute_l4_plan(
-    *, user_id: str, session: Session, gateway: ModelGateway, key: str
+    *, user_id: str, session: Session, gateway: ModelGateway, key: str, goal_text: str = ""
 ) -> tuple[str, dict]:
     """拆解周计划。作用于**最近创建的那个目标**。
 
     不做「问用户是哪个目标」：多目标场景下追问一轮的价值远低于直接作用于最新的那个，
     而卡上带着目标描述，拆错了用户一眼能看出来并重说一句。
+
+    `goal_text` 是这个请求**自带**的目标（「我想学人工智能，帮我排个计划」）。
+    库里一个目标都没有时先用它落库再拆：用户已经把要学什么说清楚了，
+    再回一句「还没有学习目标」等于把他刚说的话丢掉。
     """
-    goals = LearningGoalRepository(session, user_id=user_id).list_active(user_id)
+    repo = LearningGoalRepository(session, user_id=user_id)
+    goals = repo.list_active(user_id)
+    if not goals and goal_text.strip():
+        # 与 l4_goal 走同一个入口建目标，保证两张入口落库的字段口径一致
+        L4Orchestrator(session=session).create_goal(user_id=user_id, description=goal_text.strip())
+        goals = repo.list_active(user_id)
     if not goals:
         card = no_goal_card()
         return card["note"], card

@@ -218,6 +218,31 @@ def test_l4_plan_without_goal_says_what_is_missing(client, session, provider):
     assert provider.task_types == []          # 前提不足就别浪费一次模型调用
 
 
+COMPOSITE_TEXT = "我想学习人工智能，帮我收集整理相关的材料，制定一个学习计划"
+
+
+def test_composite_request_creates_goal_then_plan(client, session, provider):
+    """同一句里既给了目标又要求排计划 → 直接建目标再拆，不再反问「你想学什么」。
+
+    用户已经说了要学什么，再问他一遍，本质上就是「没听懂关键词以外的话」。
+    """
+    headers = auth_headers(client, "l4p_composite")
+    provider.rows.append(json.dumps({
+        "capability": "l4_plan", "args": {"goal": "学习人工智能"},
+        "confidence": 0.92, "reason": "用户给了目标并要求排计划",
+    }))
+    provider.rows.append(_plan_payload())
+
+    body = _send(client, headers, COMPOSITE_TEXT)
+
+    assert body["capability"] == "l4_plan"
+    assert body["card"]["kind"] == "l4_plan", body["card"]
+    session.flush()
+    goals = session.query(LearningGoal).all()
+    assert len(goals) == 1
+    assert goals[0].description == "学习人工智能"
+
+
 def test_l4_plan_degraded_keeps_user_informed(client, session, provider):
     user = sign_in(client, "l4p_bad")
     _seed_goal(session, user.user_id)

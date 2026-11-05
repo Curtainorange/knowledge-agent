@@ -1,7 +1,7 @@
 {
   "agent_route": {
-    "version": "v4",
-    "sha256": "3c2a84dd0f673b751df65433f2eff66005197065995e2cd809899febd9402938"
+    "version": "v5",
+    "sha256": "ac04fd359043c2d3cfa18a82669946dae162ca68650ac74a33a171380b2d8dbe"
   },
   "l1_route": {
     "version": "v1",

@@ -35,11 +35,13 @@ class FakeProvider(LLMProvider):
     def __init__(self, rows: list[str]) -> None:
         self.rows = list(rows)
         self.task_types: list[str] = []
+        self.seen: list[list[dict]] = []
 
     def chat(
         self, *, model, reasoning, messages, tools=None, response_format=None, task_type="default"
     ) -> Completion:
         self.task_types.append(task_type)
+        self.seen.append(list(messages))
         text = self.rows.pop(0) if self.rows else "不是 JSON"
         return Completion(
             text=text, prompt_tokens=1, completion_tokens=1, finish_reason="stop",
@@ -136,6 +138,57 @@ def test_ambiguous_text_has_no_local_rule():
     """判不出来必须返回 None，交给模型——绝不能在本地硬猜一个能力。"""
     for text in ("今天天气不错", "谢谢", "帮我看看这个", "最近怎么样"):
         assert _match_local(text) is None, text
+
+
+# ---- 复合句：关键词只是先验，判官是模型 -------------------------------------
+#
+# 规则只认「整句就是这条命令」的说法。一旦句子里夹带了别的内容，它就只剩参考价值：
+# 「制定一个学习计划」确实命中 l4_plan，但整句的主语是「我想学习人工智能」——
+# 让关键词一票否决，用户明确说出的目标就被丢在后面那半句里，系统回头再问一遍
+# 「你想学什么」，看起来就像没听懂。判断方向的代价也不对等：多问一次模型只是多几十毫秒，
+# 判错一个能力却会去做一件用户没要求的事。
+
+COMPOSITE = "我想学习人工智能，帮我收集整理相关的材料，制定一个学习计划"
+
+
+def test_composite_sentence_goes_to_model(session):
+    router, provider = _router(
+        session,
+        ['{"capability":"l4_plan","args":{"goal":"学习人工智能"},'
+         '"confidence":0.9,"reason":"给了目标又要求排计划"}'],
+    )
+    route = router.route(COMPOSITE, user_id="u1")
+
+    assert provider.task_types == ["capability_routing"], "复合句必须交给模型判意图"
+    assert route.source == "model"
+    assert route.capability == "l4_plan"
+    assert route.args["goal"] == "学习人工智能"
+
+
+def test_bare_command_stays_local(session):
+    """整句就是一条命令时仍是零调用的快路径——按钮发出来的话不该花一次模型调用。"""
+    router, provider = _router(session, ['{"capability":"chat","args":{}}'])
+    route = router.route("生成周计划", user_id="u1")
+
+    assert route.capability == "l4_plan"
+    assert route.source == "local"
+    assert provider.task_types == []
+
+
+def test_local_guess_is_passed_to_model_as_hint(session):
+    """交给模型时要把本地判断一并送进去：有先验比让它从零猜稳，也保住了规则的可解释性。"""
+    router, provider = _router(session, ['{"capability":"chat","args":{}}'])
+    router.route(COMPOSITE, user_id="u1")
+
+    sent = "\n".join(str(m.get("content") or "") for m in provider.seen[-1])
+    assert "l4_plan" in sent
+
+
+def test_note_is_still_claimed_locally_even_when_long():
+    """记一条不参与这条规则：引导词后面全是正文，分句多是正常的，交给模型反而会改写正文。"""
+    long_note = "记一下：今天想通了递归的本质，就是把自己变小一号，剩下的交给同一个自己。"
+    route = _match_local(long_note)
+    assert route.capability == "knowledge_add"
 
 
 # ---- 记一条：参数抽取 -------------------------------------------------------

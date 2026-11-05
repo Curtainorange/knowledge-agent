@@ -1,15 +1,21 @@
 """统一对话入口的能力路由（「对话即入口」的分流层）。
 
-用户只用说话，这一层负责把这句话分派到某个已有能力上。两条路径：
+用户只用说话，这一层负责把这句话分派到某个已有能力上。三条路径：
 
-1. **本地命令式快路径**：明确的下达式说法（「记一下…」「同步微信读书」「生成认知简报」）
-   用确定性规则直接判，零模型调用。这类说法在实际使用里占多数，而且判错了用户立刻
-   能看出来——把确定性留给它们，比让模型每次都赌一把更划算。
-2. **模型分类**：本地规则没命中时才问模型，让它输出 `CapabilityRoute` JSON。
+1. **本地命令式快路径**：整句就是一条命令（「生成周计划」「同步微信读书」
+   「记一下…」）时用确定性规则直接判，零模型调用。按钮发出来的话、用户照着提示
+   复述的话都属于这一类，判错了用户一眼能看出来——把确定性留给它们很划算。
+2. **模型分类**：句子里夹带了别的内容、或多分句多诉求时，本地规则**只当先验**，
+   由模型看整句判断意图并抽参数。一句话里既有「我想学人工智能」又有「制定学习计划」，
+   关键词只抓得到后半句；让它一票否决，用户明确说出的目标就被丢掉了。
+3. **兜底回落**：模型也给不出结论时退回通用对话。
 
-**安全方向是明确的**：分流失败一律回落到通用对话。看不懂就当普通聊天，
-比「猜错了去执行一个错动作」安全得多——尤其当能力里包含「写入知识库」这种副作用时。
-这与 L1/L4/L5 的既有约定一致：能本地判的绝不调模型，判不准就退到最保守的分支。
+**判官是谁？** 本地规则只在「这句话没有别的可说」时独占，其余一律交给模型。
+这个方向上的代价不对等：多问一次模型是几十毫秒加一点点成本，
+判错能力却是去做一件用户没要求的事（甚至往知识库里写东西）。
+
+这与 L1/L4/L5 的既有约定一致：能本地判的绝不调模型，判不准就退到最保守的分支——
+但「能本地判」的前提是**整句确实只有一个动作**，而不是句子里恰好出现了某个词。
 """
 from __future__ import annotations
 
@@ -201,6 +207,23 @@ _BOOK_TITLE_PATTERN = re.compile(r"《([^《》]{1,80})》")
 _TITLE_MAX = 40
 _GOAL_MAX = 256
 
+# ---- 本地规则能独占的边界 ---------------------------------------------------
+#
+# 判据只有一条：**这句话除了这条命令，没有夹带别的内容**。两个信号：
+# 短到装不下第二个诉求；或者只有一个分句。冒号不切——「帮我定一个学习目标：X」
+# 里的后半段是参数，不是第二个诉求。
+#
+# 为什么阈值这么小（12 字）：宁可把一句长命令让给模型（多花几十毫秒，判得还更准），
+# 也不要把一句多诉求的话锁进某个能力（用户说了目标却被反问「你想学什么」）。
+_BARE_MAX_CHARS = 12
+_CLAUSE_SPLIT = re.compile(r"[，,。；;！!？?\n]+")
+
+# 引导词后面的部分**是参数、不是第二个诉求**的能力：分句多、句子长都正常。
+# 交给模型反而危险——它会把「记一下：…」的正文改写一遍，或把「给我建议，怎么用到周会上」
+# 里的后半句当成另一个意图。这类句式的边界很清楚：引导词是固定的指令短语，
+# 后面全部属于内容，规则剥离比模型猜准。
+_CONTENT_BEARING = frozenset({"knowledge_add", "book_discuss", "suggestion"})
+
 
 def _has_any(text: str, words: tuple[str, ...]) -> bool:
     return any(word in text for word in words)
@@ -380,6 +403,18 @@ def _match_local(text: str) -> CapabilityRoute | None:
     return None
 
 
+def _is_bare_command(text: str, route: CapabilityRoute) -> bool:
+    """这句话是不是「整句就是这条命令」——是则本地规则可以独占，不必问模型。
+
+    只判「有没有夹带别的东西」，不判语义。判据见 `_BARE_MAX_CHARS` 那一段。
+    """
+    if route.capability in _CONTENT_BEARING:
+        return True
+    if len(text) <= _BARE_MAX_CHARS:
+        return True
+    return len([c for c in _CLAUSE_SPLIT.split(text) if c.strip()]) <= 1
+
+
 # 分流理解指代用的上下文预算。两个数字都是成本阀：分流是**每次对话都会跑**的链路，
 # 历史直接决定固定成本；给多了既慢又贵，给少了「那个呢」还是看不懂。
 #
@@ -442,6 +477,10 @@ class CapabilityRouter:
         理解指代：没有它，「再来一次」「那个呢」这类话必然落到通用对话——分流只看当前句，
         根本不知道上一轮在干什么。本地规则仍然先跑且不受历史影响：命令式指令
         （「记一下…」）不该因为上一轮聊过别的而被改写。
+
+        **本地规则是否独占，取决于这句话有没有夹带别的内容**（见 `_is_bare_command`）：
+        「生成周计划」独占；「我想学习人工智能，帮我收集整理相关的材料，制定一个学习计划」
+        不独占——它有三个诉求，本地规则只抓得到最后那个词，模型看整句才判得准。
         """
         text = (message or "").strip()
         if not text:
@@ -452,7 +491,12 @@ class CapabilityRouter:
 
         local = _match_local(text)
         if local is not None:
-            return local
+            # 澄清态下不调模型，本地命中就是最终结论（命令式指令仍然生效）
+            if not allow_model or _is_bare_command(text, local):
+                return local
+            return self._model_route(
+                text, user_id=user_id, history=history, hint=local
+            )
 
         if not allow_model:
             return CapabilityRoute(
@@ -463,17 +507,27 @@ class CapabilityRouter:
         return self._model_route(text, user_id=user_id, history=history)
 
     def _model_route(
-        self, text: str, *, user_id: str, history: list[dict] | None = None
+        self, text: str, *, user_id: str, history: list[dict] | None = None,
+        hint: CapabilityRoute | None = None,
     ) -> CapabilityRoute:
+        """让模型判意图。`hint` 是本地规则的初判——只作参考，不预设结论。"""
         messages = [{"role": "system", "content": AGENT_ROUTE.text}]
         context = _history_block(history)
+        parts: list[str] = []
         if context:
             # 历史与当前句放进**同一条** user 消息：分成两条时，模型会把前一条
             # 当成「上一条用户输入」答掉，而不是当成上下文来理解指代。
-            user_content = f"{context}\n用户这句话是：\n{text}\n\n请输出路由 JSON。"
-        else:
-            user_content = f"用户这句话是：\n{text}\n\n请输出路由 JSON。"
-        messages.append({"role": "user", "content": user_content})
+            parts.append(context)
+        if hint is not None:
+            # 先验而不是结论：说清「这是按词匹配的初判」，模型才敢推翻它。
+            # 不说「可能不对」这类空话——它需要的是判断依据，不是免责声明。
+            parts.append(
+                f"本地按关键词的初判是 {hint.capability}（{hint.reason}），"
+                f"依据只是句子里出现了相关词。请按整句的真实意图判断，"
+                f"整句主意图是别的就覆盖它。"
+            )
+        parts.append(f"用户这句话是：\n{text}\n\n请输出路由 JSON。")
+        messages.append({"role": "user", "content": "\n\n".join(parts)})
 
         completion = self._gateway.chat(
             task_type="capability_routing",
