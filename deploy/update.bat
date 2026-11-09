@@ -26,7 +26,9 @@ if errorlevel 1 (
   echo        先按 deploy\README.md 第 5 节建任务，再回来跑这个脚本。
   exit /b 1
 )
-schtasks /query /tn "%TASK%" /fo list | find /i "%APP_DIR%" >nul
+rem 用 /fo list /v：不带 /v 的 list 只输出任务名/下次运行时间/状态，
+rem 不含「要运行的任务」，find 永远找不到路径，这道校验会永远误报「不是本项目」。
+schtasks /query /tn "%TASK%" /fo list /v | find /i "%APP_DIR%" >nul
 if errorlevel 1 (
   echo [FAIL] 任务 "%TASK%" 存在，但命令里不含 %APP_DIR%，不是本项目。
   echo        什么都没改。
