@@ -206,12 +206,14 @@ def check_repo(online: bool = True) -> None:
         _record(WARN, "repo", "一次性修复——.env / dev.db / data\\ / models\\ / .venv\\ 是 git-ignored，不会被覆盖：")
         for line in (
             f"cd /d {ROOT}",
+            "git ls-remote https://github.com/Curtainorange/knowledge-agent.git HEAD",
             "git init",
             "git remote add origin https://github.com/Curtainorange/knowledge-agent.git",
             "git fetch origin",
             "git checkout -f -B main origin/main",
         ):
             print(f"        {line}")
+        _record(WARN, "repo", "第二条必须返回一个 sha——证明这台机器出得了网；它失败就先修出网")
         _record(WARN, "repo", "弄完重跑一次本脚本，以及 deploy\\update.bat（它开头也会先判这条）")
         return
 

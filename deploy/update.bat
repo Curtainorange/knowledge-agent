@@ -70,11 +70,14 @@ if not exist "%APP_DIR%\.git" (
   echo        and .venv\ are git-ignored, so they survive the checkout untouched:
   echo.
   echo          cd /d %APP_DIR%
+  echo          git ls-remote https://github.com/Curtainorange/knowledge-agent.git HEAD
   echo          git init
   echo          git remote add origin https://github.com/Curtainorange/knowledge-agent.git
   echo          git fetch origin
   echo          git checkout -f -B main origin/main
   echo.
+  echo        Line 2 must return a sha - that proves the box can reach GitHub.
+  echo        If it fails, fix egress first: nothing below it can work.
   echo        Then run this script again. Nothing was changed by this run.
   exit /b 1
 )

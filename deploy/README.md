@@ -485,16 +485,21 @@ git remote -v
 任务计划能跑，`deploy\update.bat` 也能跑到第 4 步才失败——现场只看到「更新失败」，
 看不到「这里根本不是仓库」。历次「代码更新了但行为没变」有一半是这个原因。
 
-在**管理员** cmd 里跑一次下面五条，把它变成真仓库：
+在**管理员** cmd 里跑一次下面几条，把它变成真仓库：
 
 ```cmd
 cd /d E:\projects\renzhifujia
+git ls-remote https://github.com/Curtainorange/knowledge-agent.git HEAD
 git init
 git remote add origin https://github.com/Curtainorange/knowledge-agent.git
 git fetch origin
 git checkout -f -B main origin/main
 git status --short
 ```
+
+第一条（`ls-remote`）**必须返回一个 sha**，它只做一次网络探测、不改任何东西——证明这台机器
+出得了网。它失败就直接停在这里去修出网（代理 / 白名单），后面的步骤一步也别做：
+`git init` 之后目录会变成「有 .git 但拉不到代码」的半吊子状态，比现在更难判断。
 
 - `.env`、`dev.db`、`data\`、`models\`、`.venv\` 全部是 git-ignored，**不会被覆盖**，也不会入库。
   只有**代码**被换成仓库里的版本——包括服务器上那些手工改过的地方（这正是想要的）。
