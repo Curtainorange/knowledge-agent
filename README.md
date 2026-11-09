@@ -25,17 +25,17 @@ uvicorn app.main:app --reload
 
 ```bash
 # 健康检查
-curl http://127.0.0.1:8000/health
+curl http://127.0.0.1:8010/health
 
 # 对话（返回 reply 与同一条 request_id）
-curl -X POST http://127.0.0.1:8000/api/v1/chat \
+curl -X POST http://127.0.0.1:8010/api/v1/chat \
   -H "Content-Type: application/json" \
   -d '{"conversation_id": null, "message": "你好"}'
 ```
 
 ## 界面
 
-启动后打开 <http://127.0.0.1:8000/> 进入首页。前端按功能拆成 13 个独立页面
+启动后打开 <http://127.0.0.1:8010/> 进入首页。前端按功能拆成 13 个独立页面
 （原生 JS/CSS、无外部依赖，由后端同源托管因此无需 CORS），下表列核心几页：
 
 | 页面 | 职责 |
@@ -57,11 +57,11 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 
 ### 家里局域网直连（最快）
 
-1. PC 上跑 `scripts\start_server.bat`——默认绑定 `0.0.0.0:8000`，局域网可达
+1. PC 上跑 `scripts\start_server.bat`——默认绑定 `0.0.0.0:8010`，局域网可达
    （只想本机使用时改跑 `start_server_local.bat`，收回 `127.0.0.1`）；
 2. PC 上查局域网 IP：`ipconfig` →「无线局域网适配器 WLAN / 以太网」的 IPv4
    （形如 `192.168.x.x`）；
-3. 手机连同一个 Wi-Fi，浏览器打开 `http://192.168.x.x:8000/`，登录即用。
+3. 手机连同一个 Wi-Fi，浏览器打开 `http://192.168.x.x:8010/`，登录即用。
 
 > 首次绑定 `0.0.0.0` 时 Windows 防火墙会弹窗：只勾「专用网络」，别对「公用网络」放行。
 
@@ -73,7 +73,7 @@ curl -X POST http://127.0.0.1:8000/api/v1/chat \
 1. PC 与手机都安装 Tailscale，同一账号登录；
 2. PC 上把服务反代成 HTTPS（tailnet 内证书自动签发）：
    ```bash
-   tailscale serve --bg --https=443 http://127.0.0.1:8000
+   tailscale serve --bg --https=443 http://127.0.0.1:8010
    ```
 3. 手机浏览器打开 `https://<电脑名>.<tailnet>.ts.net`（或 Tailscale 面板里的
    `100.x.y.z` 地址）。
@@ -219,7 +219,7 @@ python scripts/backup.py --list     # 查看已有备份
 
 ```bash
 curl -H "Authorization: Bearer <token>" \
-  "http://127.0.0.1:8000/api/v1/knowledge/export?format=markdown" -o knowledge.md
+  "http://127.0.0.1:8010/api/v1/knowledge/export?format=markdown" -o knowledge.md
 ```
 
 ## 目录结构
