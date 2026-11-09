@@ -260,6 +260,38 @@ schtasks /run /tn "cognition-copilot"
 **启动参数里不要加 `--workers`**：SQLite + 进程内向量索引 + 后台 worker 线程，
 多进程会重复跑任务、抢写库。默认单进程就是对的。
 
+### 5.1 看门狗（补上「崩溃不会自动重启」这个缺口）
+
+任务计划是**开机跑一次**的语义：进程一旦崩掉就再也不起来，`/sc ONSTART` 只保证下次开机。
+10-27 那次用了 `/sc ONCE`，11-04 重启后服务没起、对外 502；11-09 又是一次 502
+（nginx 活着、8010 没人接）。NSSM 那种服务壳带崩溃重启，但这台机器没装 NSSM。
+
+补法是一个外部探活，不需要装任何东西：
+
+```cmd
+cd /d E:\projects\renzhifujia
+deploy\watchdog.bat install     rem 建 cognition-watchdog，每 5 分钟一次，SYSTEM
+deploy\watchdog.bat status      rem 看任务状态 + 上游健康 + 最近 10 行日志
+deploy\watchdog.bat remove      rem 只删这一个任务，不碰 cognition-copilot
+```
+
+它做什么：每 5 分钟探一次 `http://127.0.0.1:8010/health`，**连续 3 次不是 200** 才动手；
+动手时先 `schtasks /end` 再 `/run`，然后最多等 40 秒复检；健康时一行日志都不写。
+日志 `logs\watchdog.log` 只在异常时增长，所以出现 `STILL DOWN` 就是真需要人看。
+
+三个必须知道的细节（都是踩过的）：
+
+1. **它会和 `update.bat` 抢**。停服到起服之间有几十秒窗口，正好被探到就是「用旧代码把服务拉起来」，
+   最坏结果是更新脚本探到 200、报成功，而实际跑的是旧进程。所以 `update.bat` 现在会自动
+   `/disable` 它、结束时再 `/enable`（失败路径也会恢复）。**手工更新时记得自己关掉它。**
+2. **探活必须带 `--noproxy`**。设了 `HTTP_PROXY` 的机器上，代理会把 `127.0.0.1:8010` 接管并返回 502；
+   实测：8010 上没人监听，`curl` 却拿到 502。不绕过代理，watchdog 会认为服务永远挂着、每 5 分钟重启一次。
+3. **`deploy\*.bat` 只能写 ASCII**。cmd 按 OEM 代码页（中文 Windows 是 GBK）解析批处理，
+   UTF-8 的中文注释会被解成乱码字节、吞掉行尾，注释片段被当命令执行。中文说明一律写在本文件里。
+   门禁：`tests/test_deploy_scripts.py` 会检查每个 `.bat` 没有非 ASCII 字节。
+
+它的边界：机器关机、磁盘满、端口被别人占，watchdog 都救不了（只会记一行 `STILL DOWN`）。
+
 <details>
 <summary>备选：用 NSSM 装成 Windows 服务</summary>
 
@@ -435,6 +467,33 @@ deploy\update.bat
 会活着继续占着 8010，新实例起不来、旧进程继续服务——表现正是「代码更新了但行为没变」。
 
 更新后如果行为不对，**先重启服务再排查**，别只信 `--reload`（生产没开）。
+
+### 9.0 服务器从哪拉代码、要不要配密钥
+
+仓库 `Curtainorange/knowledge-agent` 是 **public**，所以**只拉不推的服务器不需要任何凭据**，
+不必配 SSH key、也不必配 token：
+
+```cmd
+cd /d E:\projects\renzhifujia
+git remote -v                                    rem 应指向 github.com/Curtainorange/knowledge-agent
+git remote set-url origin https://github.com/Curtainorange/knowledge-agent.git
+                                                 rem 上一条不是这个地址时才需要
+git ls-remote origin HEAD                        rem 返回一个 sha = 网络通、不用登录
+git pull --ff-only
+```
+
+**push 才需要凭据**（SSH key 或 PAT），服务器只读，不用管。
+
+首次拉取常见的四个失败：
+
+| 报错 | 原因与处理 |
+|---|---|
+| `Connection was reset` / 超时 | 服务器出不了外网。要么给 git 配代理 `git config --global http.proxy http://…`，要么在能上网的机器上 `git bundle create repo.bundle --all`，拷过去 `git clone repo.bundle` |
+| 提示输入用户名/密码 | remote 指向的不是那个公开地址，或仓库被改成了私有。按上面的 `set-url` 改正 |
+| `detected dubious ownership` | 目录属主与当前用户不一致：`git config --global --add safe.directory E:/projects/renzhifujia` |
+| `local changes would be overwritten` | 服务器上有手工改过的文件。**不要** `git checkout -- .`，先 `git stash push -m "server-before-update" -- web app tests scripts deploy docs`（不要加 `-u`：`nginx\cognition.conf` 不在版本库里，会被一起收走） |
+
+不要用 `--depth` 浅克隆：出问题要回滚到旧提交时没有历史可用。
 
 ### 9.1 只做核对、不动服务
 
