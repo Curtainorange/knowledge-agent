@@ -156,6 +156,7 @@ tar -xzf "%USERPROFILE%\Desktop\deploy-models.tar.gz" -C .
 
 `.env`、`dev.db`、`data\`、`models\` 都不在版本库里，**更新时不要覆盖它们**。
 有 git 且能访问远端时，直接 `git clone` 更省事，模型仍要单独拷。
+**已经手工拷过一次的目录**，不用重来——按 **9.0** 补成 git 仓库即可，拷进去的代码会被仓库版本替换。
 
 ## 3. 依赖与向量模型
 
@@ -468,7 +469,44 @@ deploy\update.bat
 
 更新后如果行为不对，**先重启服务再排查**，别只信 `--reload`（生产没开）。
 
-### 9.0 服务器从哪拉代码、要不要配密钥
+### 9.0 一次性迁移：手工复制的目录 → git 仓库
+
+判断依据只有一条：
+
+```cmd
+cd /d E:\projects\renzhifujia
+git remote -v
+```
+
+- 输出两行 `origin ... knowledge-agent`（fetch / push 各一行）→ 已经是仓库，直接看 9.1。
+- 输出 `fatal: not a git repository` → **这个目录是手工拷出来的**，`git pull` 永远不会成功。
+
+2026-11-09 线上就是第二种。这种目录最坑的地方是它「看起来完全正常」：页面能开、库能读、
+任务计划能跑，`deploy\update.bat` 也能跑到第 4 步才失败——现场只看到「更新失败」，
+看不到「这里根本不是仓库」。历次「代码更新了但行为没变」有一半是这个原因。
+
+在**管理员** cmd 里跑一次下面五条，把它变成真仓库：
+
+```cmd
+cd /d E:\projects\renzhifujia
+git init
+git remote add origin https://github.com/Curtainorange/knowledge-agent.git
+git fetch origin
+git checkout -f -B main origin/main
+git status --short
+```
+
+- `.env`、`dev.db`、`data\`、`models\`、`.venv\` 全部是 git-ignored，**不会被覆盖**，也不会入库。
+  只有**代码**被换成仓库里的版本——包括服务器上那些手工改过的地方（这正是想要的）。
+- `-f` 是必须的：目录里已有的同名文件在 git 眼里是"未跟踪文件"，不加 `-f` 会直接拒绝。
+- 跑完 `git status --short` 通常只剩几行 `??` 开头——那是**仓库里没有的本地文件**
+  （`nginx\cognition.conf`、`logs\`、`data\` 等），**不要删**；只有确认是旧代码残留时才清掉。
+- `deploy\update.bat` 现在会在**动手之前**先判这一条：不是仓库就直接退出并把这五条打出来，
+  不会先停服再报错。`scripts\check_deploy.py` 同理，「版本」小节第一项就判。
+
+变过来之后，以后所有更新都走 `deploy\update.bat`，不再拷文件。
+
+### 9.1 服务器从哪拉代码、要不要配密钥
 
 仓库 `Curtainorange/knowledge-agent` 是 **public**，所以**只拉不推的服务器不需要任何凭据**，
 不必配 SSH key、也不必配 token：
@@ -495,7 +533,7 @@ git pull --ff-only
 
 不要用 `--depth` 浅克隆：出问题要回滚到旧提交时没有历史可用。
 
-### 9.1 只做核对、不动服务
+### 9.2 只做核对、不动服务
 
 ```cmd
 .venv\Scripts\python.exe scripts\check_deploy.py
@@ -512,6 +550,7 @@ git pull --ff-only
 
 | 现象 | 原因 |
 |---|---|
+| `git remote -v` 报 `not a git repository` | 目录是手工拷出来的，没有 `.git`。`git pull` 永远失败——见 **9.0** 一次性迁移 |
 | 打开子路径整页 404 | `proxy_pass` 结尾漏了 `/`，前缀没剥掉 |
 | 页面能开、样式/接口全 404 | 浏览器缓存着旧版绝对路径的 JS → `Ctrl+F5` 强刷 |
 | 413 Request Entity Too Large | 漏了 `client_max_body_size` |

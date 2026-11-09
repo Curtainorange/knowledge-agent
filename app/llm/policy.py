@@ -90,6 +90,10 @@ EGRESS_PURPOSE: dict[str, str] = {
     "platform.xiaomimimo.com": "供应商控制台（注释，运行时不请求）",
     "hf-mirror.com": "HuggingFace 镜像（仅 embedding_backend=bge 时下载）",
     "www.modelscope.cn": "embedding 模型预取（仅 scripts/fetch_embedding_model.py）",
+    # 部署期才发生，运行时不碰：check_deploy.py 用 `git ls-remote` 把 HEAD 与远端 main
+    # 对一次（只读），update.bat 用 `git pull --ff-only` 取代码。登记它是因为「这个目录
+    # 到底是不是 git 仓库」是线上最常见的一类事故，必须能自动判（2026-11-09 现场）。
+    "github.com": "代码仓库：部署期 git 拉取与版本比对（只读，运行时不请求）",
 }
 
 ALLOWED_EGRESS_HOSTS: frozenset[str] = frozenset(EGRESS_PURPOSE)

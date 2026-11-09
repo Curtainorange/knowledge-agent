@@ -25,6 +25,7 @@ from __future__ import annotations
 import argparse
 import os
 import re
+import subprocess
 import sys
 from pathlib import Path
 
@@ -161,6 +162,119 @@ def _absolute_links() -> list[str]:
             if _ABS_LINK.search(line):
                 offenders.append(f"{path.name}:{lineno}")
     return offenders
+
+
+# --------------------------------------------------------------------------- 1.5 版本来源
+
+
+def _git(*args: str, timeout: float = 20.0) -> tuple[int, str]:
+    """跑一条只读 git 命令。不 fetch、不 checkout——本脚本承诺不改工作区。"""
+    try:
+        proc = subprocess.run(
+            ["git", *args],
+            cwd=ROOT,
+            capture_output=True,
+            encoding="utf-8",
+            errors="replace",
+            timeout=timeout,
+        )
+    except (OSError, subprocess.SubprocessError) as exc:
+        return 1, str(exc)
+    return proc.returncode, (proc.stdout or "").strip()
+
+
+def check_repo(online: bool = True) -> None:
+    """这个目录是不是 git 仓库，HEAD 和远端 main 是不是同一个提交。
+
+    2026-11-09 在服务器上实测到最根本的一条：`E:\\projects\\renzhifujia` **没有 .git**。
+    那份代码是手工拷进去的——页面能开、库能读，看起来一切正常，但它没有历史、没有远端，
+    `git remote -v` 直接报 "not a git repository"，`git pull` 永远失败。update.bat 要到
+    第 4 步才撞上这个错误，现场只看到「更新失败」，看不到「这个目录根本不是仓库」。
+
+    所以先判这一条：一进脚本就知道自己是靠 git 更新、还是靠人手拷。
+    """
+    _section("版本（这个目录是仓库吗、和远端一致吗）")
+
+    rc, _ = _git("rev-parse", "--show-toplevel")
+    if rc != 0:
+        _record(
+            FAIL,
+            "repo",
+            "这个目录不是 git 仓库：没有历史、没有远端，git pull 永远不会成功"
+            "（历次「代码更新了但没生效」的源头就在这里）",
+        )
+        _record(WARN, "repo", "一次性修复——.env / dev.db / data\\ / models\\ / .venv\\ 是 git-ignored，不会被覆盖：")
+        for line in (
+            f"cd /d {ROOT}",
+            "git init",
+            "git remote add origin https://github.com/Curtainorange/knowledge-agent.git",
+            "git fetch origin",
+            "git checkout -f -B main origin/main",
+        ):
+            print(f"        {line}")
+        _record(WARN, "repo", "弄完重跑一次本脚本，以及 deploy\\update.bat（它开头也会先判这条）")
+        return
+
+    _, top = _git("rev-parse", "--show-toplevel")
+    same = os.path.normcase(str(Path(top).resolve())) == os.path.normcase(str(ROOT))
+    _record(
+        OK if same else WARN,
+        "repo",
+        f"仓库根目录：{top}" + ("" if same else f"（与脚本所在目录 {ROOT} 不同，注意别跑错目录）"),
+    )
+
+    rc, url = _git("remote", "get-url", "origin")
+    if rc != 0:
+        _record(FAIL, "repo", "没有 origin 远端：git pull 无从谈起")
+        return
+    _record(OK if "knowledge-agent" in url else FAIL, "repo", f"origin = {url}")
+
+    _, head = _git("rev-parse", "--short", "HEAD")
+    _, dirty = _git("status", "--porcelain", "--untracked-files=no")
+    if dirty:
+        changed = len(dirty.splitlines())
+        _record(WARN, "repo", f"有 {changed} 个已跟踪文件被本地改过（服务器上出现说明有人手工改代码）")
+    else:
+        _record(OK, "repo", f"工作区干净，HEAD = {head}")
+
+    if not online:
+        _record(WARN, "repo", "已按 --no-network 跳过远端比对")
+        return
+
+    rc, remote = _git("ls-remote", "origin", "refs/heads/main", timeout=25)
+    if rc != 0:
+        _record(WARN, "repo", f"取不到远端 main（网络或凭据问题）：{remote[:80]}")
+        return
+    remote_sha = remote.split()[0] if remote else ""
+    _, local_sha = _git("rev-parse", "HEAD")
+    if remote_sha and remote_sha == local_sha:
+        _record(OK, "repo", f"HEAD 与远端 main 一致（{head}）")
+        return
+
+    rc, lr = _git("rev-list", "--left-right", "--count", f"HEAD...{remote_sha}")
+    if rc == 0 and lr.split():
+        ahead, behind = (int(x) for x in lr.split()[:2])
+        if behind:
+            _record(
+                FAIL,
+                "repo",
+                f"落后远端 {behind} 个提交（远端 {remote_sha[:7]}，本地 {head}）"
+                "——线上的就是旧代码，pull 没跑成功",
+            )
+        elif ahead:
+            _record(
+                WARN,
+                "repo",
+                f"领先远端 {ahead} 个提交（本地 {head}，远端 {remote_sha[:7]}）"
+                "——开发机正常；服务器上出现说明有没推的提交或手工改动",
+            )
+    else:
+        _record(
+            WARN,
+            "repo",
+            f"本地 {head}，远端 main 是 {remote_sha[:7]}，但本地没有这个提交，"
+            "判不了差几个（git fetch 之后再看）",
+        )
 
 
 # --------------------------------------------------------------------------- 2. 配置
@@ -300,6 +414,7 @@ def main() -> int:
     print(f"工作目录：{ROOT}")
 
     check_code()
+    check_repo(online=not args.no_network)
     check_config()
     check_db()
     if args.no_network:

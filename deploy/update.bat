@@ -50,6 +50,52 @@ if errorlevel 1 (
   exit /b 1
 )
 
+rem ---- Pre-checks: a hand-copied directory can never be updated by git ----
+rem 2026-11-09, live box: `git remote -v` answered "not a git repository". The
+rem directory had been filled by copying files by hand, so step 4 could never
+rem work -- and its failure surfaces far from the cause (service stopped, pull
+rem failed, restart). Check this before anything is stopped or touched, so the
+rem answer is "this directory is not a repo" instead of "update failed".
+where git >nul 2>&1
+if errorlevel 1 (
+  echo [FAIL] git not found in PATH. Install Git for Windows, or add it to PATH.
+  echo        Nothing was changed.
+  exit /b 1
+)
+
+if not exist "%APP_DIR%\.git" (
+  echo [FAIL] %APP_DIR% is NOT a git repository - git pull can never work here.
+  echo        It was deployed by copying files, so it has no history and no remote.
+  echo        Convert it once from an elevated cmd. .env / dev.db / data\ / models\
+  echo        and .venv\ are git-ignored, so they survive the checkout untouched:
+  echo.
+  echo          cd /d %APP_DIR%
+  echo          git init
+  echo          git remote add origin https://github.com/Curtainorange/knowledge-agent.git
+  echo          git fetch origin
+  echo          git checkout -f -B main origin/main
+  echo.
+  echo        Then run this script again. Nothing was changed by this run.
+  exit /b 1
+)
+
+pushd "%APP_DIR%" >nul 2>&1
+git rev-parse --git-dir >nul 2>&1
+if errorlevel 1 (
+  popd
+  echo [FAIL] %APP_DIR%\.git exists but git cannot read it - repo is broken.
+  echo        Run:  git -C "%APP_DIR%" status   and read the error.
+  exit /b 1
+)
+popd
+
+if not exist "%PY%" (
+  echo [FAIL] Python not found at %PY%
+  echo        This box may use another interpreter - edit the PY line at the top
+  echo        of this script to point at the real python.exe.
+  exit /b 1
+)
+
 if not exist "%APP_DIR%\logs" mkdir "%APP_DIR%\logs"
 
 echo [1/8] Backup database and book files...

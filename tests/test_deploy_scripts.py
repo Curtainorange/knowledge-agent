@@ -5,9 +5,12 @@
 """
 from __future__ import annotations
 
+import importlib.util
+import os
 from pathlib import Path
 
 DEPLOY = Path(__file__).resolve().parents[1] / "deploy"
+CHECK_DEPLOY = Path(__file__).resolve().parents[1] / "scripts" / "check_deploy.py"
 
 
 def _text(name: str) -> str:
@@ -80,6 +83,45 @@ def test_bat_files_are_pure_ascii():
             f"{path.name} 含非 ASCII 字节（首个偏移 {offenders[0]}）："
             "批处理里不能写中文，注释也不行"
         )
+
+
+def test_update_refuses_to_run_outside_a_git_repository():
+    """update.bat 必须在动手之前就判「这个目录是不是 git 仓库」。
+
+    2026-11-09 服务器现场：`git remote -v` 报 "not a git repository"。那份代码是手工
+    拷进去的，没有 .git——于是 `git pull` 永远失败，而 update.bat 要到第 4 步（已经备份完、
+    已经停服）才撞上，现场只能看到「更新失败」。这条守卫让它在碰任何东西之前就退出，
+    并把一次性修复的几条命令直接打到屏幕上。
+    """
+    text = _text("update.bat")
+    assert 'if not exist "%APP_DIR%\\.git"' in text, "update.bat 没有判 .git 是否存在"
+    assert "git init" in text, "update.bat 报错时没给出 git init 的修复步骤"
+    assert "git checkout -f -B main origin/main" in text, "修复步骤里缺 checkout 一步"
+
+
+def test_check_deploy_flags_a_hand_copied_directory(tmp_path, monkeypatch, capsys):
+    """check_deploy.py 必须把「不是仓库」判成失败，并给出修复命令。
+
+    这是上线自检的第一问：我刚拉的这份代码，到底是不是从 git 下来的。手工拷进去的
+    目录同样能开机、能开页面，只有 .git 缺失这一条线索——不主动查就永远查不出来。
+    """
+    spec = importlib.util.spec_from_file_location("_check_deploy_under_test", CHECK_DEPLOY)
+    assert spec and spec.loader
+    module = importlib.util.module_from_spec(spec)
+    cwd = os.getcwd()
+    try:
+        spec.loader.exec_module(module)  # 模块在 import 时 chdir(ROOT)，测试结束要还原
+    finally:
+        os.chdir(cwd)
+
+    monkeypatch.setattr(module, "ROOT", tmp_path)
+    module._results.clear()
+    module.check_repo(online=False)
+    out = capsys.readouterr().out
+
+    assert any(level == module.FAIL for level, _, _ in module._results), "非仓库目录没被判成失败"
+    assert "不是 git 仓库" in out
+    assert "git init" in out and "git checkout -f -B main origin/main" in out
 
 
 def test_update_safety_check_uses_verbose_listing():
