@@ -154,9 +154,12 @@ def advise(
                 topic=(topic or "").strip(),
             )
 
-        text = (completion.text or "").strip()
         calls = [c for c in (completion.tool_calls or []) if c.get("name") in KNOWN_TOOLS]
         if not calls:
+            # 只在「模型给出最终文本」时才收下 text。工具回合的 completion.text 是
+            # openai_compat 为老路径拼的 "[tool_request] ..." 摘要，不是给用户看的话；
+            # 拿它当最终回答，就会把 [tool_request] web_search(...) 原样漏给用户。
+            text = (completion.text or "").strip()
             break
 
         # 预算见底时只执行前几条，并明确告诉模型「剩下的没做」——

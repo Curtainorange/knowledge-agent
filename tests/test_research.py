@@ -193,6 +193,32 @@ def test_budget_caps_tool_calls(session, fake_search):
     assert result.text, "预算用尽也必须给用户一句话，不能空手而归"
 
 
+def test_tool_request_fallback_never_reaches_user(session, fake_search):
+    """真实供应商在「只调工具、没给文本」时，completion.text 是 "[tool_request] ..."
+    摘要（openai_compat 老路径），不是空串。research 不能把它当最终回答——预算用尽后
+    必须走收尾调用产出一句真话，而不是把 [tool_request] 原样漏给用户。
+
+    2026-11-09 线上就是这一条：服务器把 `[tool_request] web_search({...})` 直接
+    显示给用户。旧测试 mock 的是 text=""（空串），所以没拦住真实供应商的行为。
+    """
+    rows = [
+        {
+            "text": f'[tool_request] web_search({{"query": "q{i}"}})',
+            "tool_calls": [
+                {"id": f"c{i}", "name": "web_search", "arguments": json.dumps({"query": f"q{i}"})}
+            ],
+        }
+        for i in range(research.MAX_ROUNDS)
+    ]
+    rows.append({"text": "先读《动手学深度学习》，再跟课程。"})
+    gateway, _ = _gateway(rows)
+
+    result = research.advise(gateway=gateway, session=session, user_id="u1", question="找材料")
+
+    assert "[tool_request]" not in result.text
+    assert result.text == "先读《动手学深度学习》，再跟课程。"
+
+
 def test_bad_tool_arguments_do_not_crash(session):
     """模型给半个 JSON 是常态：这一条工具结果不可用即可，不该把整轮打成 500。"""
     gateway, _ = _gateway([
