@@ -36,17 +36,46 @@
     <h2>按线索找回
       <button id="btn-clear" class="sm">新会话</button>
     </h2>
-    <div class="turnbar">
-      <span id="turn-text">尚未开始</span>
-      <span id="status-text"></span>
+
+    <!-- 两个检索面：库里的条目 / 网上的书 -->
+    <div class="tabs" id="mode-tabs">
+      <button class="sm on" data-mode="kb">我的知识库</button>
+      <button class="sm" data-mode="web">全网找书</button>
     </div>
-    <div class="log" id="mine-log"></div>
-    <div class="composer">
-      <textarea id="mine-input" placeholder="用一句模糊的话描述你要找的东西，例如：之前存的那段讲查询优化的内容&#10;Ctrl + Enter 发送"></textarea>
-      <button id="mine-send" class="primary">挖掘</button>
+
+    <div id="kb-panel">
+      <div class="turnbar">
+        <span id="turn-text">尚未开始</span>
+        <span id="status-text"></span>
+      </div>
+      <div class="log" id="mine-log"></div>
+      <div class="composer">
+        <textarea id="mine-input" placeholder="用一句模糊的话描述你要找的东西，例如：之前存的那段讲查询优化的内容&#10;Ctrl + Enter 发送"></textarea>
+        <button id="mine-send" class="primary">挖掘</button>
+      </div>
+      <div class="meta">
+        线索不足时会自动追问（最多 3 轮）；命中后返回条目摘要、阅读提醒，并列出其他候选供你判断。
+      </div>
     </div>
-    <div class="meta">
-      线索不足时会自动追问（最多 3 轮）；命中后返回条目摘要、阅读提醒，并列出其他候选供你判断。
+
+    <div id="web-panel" hidden>
+      <div class="chip-cloud" id="clue-chips">
+        <button class="chip" data-clue="一个人海难后独自在一个岛上活了下来，用日记记下每天怎么活——书名想不起来了">只记得情节</button>
+        <button class="chip" data-clue="村上春树写的那本讲跑步和写作的书，书名忘了">只记得作者</button>
+        <button class="chip" data-clue="一个男孩在魔法学校上学，和朋友们一起对抗黑魔法，好像有七本">只记得人物和设定</button>
+      </div>
+      <div class="turnbar">
+        <span id="find-status">还没开始</span>
+      </div>
+      <div class="log" id="find-log"></div>
+      <div class="composer">
+        <textarea id="find-input" placeholder="描述你记得的部分：情节、人物、作者、封面、读它的场景都行&#10;Ctrl + Enter 发送"></textarea>
+        <button id="find-send" class="primary">去网上找</button>
+      </div>
+      <div class="meta">
+        只在网上检索公开信息，不猜书名——每条结果都带出处，并说明「你说的哪条线索对上了」。
+        找书结果默认不入库，想留下哪本自己挑。
+      </div>
     </div>
   </div>
 </main>
@@ -59,7 +88,29 @@
 
   var $ = CC.$;
   var esc = CC.esc;
-  var state = { convId: null, turn: 0, maxTurns: 3 };
+  var state = {
+    mode: 'kb',
+    convId: null, turn: 0, maxTurns: 3,
+    clues: [],       // 找书时说过的话（作为 history 回传，越靠后越新）
+    excluded: [],    // 已经看过、用户说不是的书名
+    books: []        // 当前这一批候选（「记入知识库」按序号取）
+  };
+
+  function scrollLog(id) {
+    var log = $(id);
+    log.scrollTop = log.scrollHeight;
+  }
+
+  function append(target, kind, html) {
+    var log = $(target);
+    var div = document.createElement('div');
+    div.className = 'msg ' + kind;
+    div.innerHTML = '<div class="bubble">' + html + '</div>';
+    log.appendChild(div);
+    scrollLog(target);
+  }
+
+  /* ---------------- 知识库模式 ---------------- */
 
   function embedBadge(status) {
     if (status === 'embedded') {
@@ -71,26 +122,12 @@
     return '<span class="badge">待向量化</span>';
   }
 
-  function scrollLog() {
-    var log = $('#mine-log');
-    log.scrollTop = log.scrollHeight;
-  }
-
-  function append(kind, html) {
-    var log = $('#mine-log');
-    var div = document.createElement('div');
-    div.className = 'msg ' + kind;
-    div.innerHTML = '<div class="bubble">' + html + '</div>';
-    log.appendChild(div);
-    scrollLog();
-  }
-
   function pushUser(text) {
-    append('user', esc(text));
+    append('#mine-log', 'user', esc(text));
   }
 
   function pushSys(text) {
-    append('sys', esc(text));
+    append('#mine-log', 'sys', esc(text));
   }
 
   function setTurn(turn, maxTurns) {
@@ -144,13 +181,13 @@
 
     var reason = result.reason ? '<div class="meta">判定依据：' + esc(result.reason) + '</div>' : '';
     var body = cards + reason + candidatesHtml(result.candidates, ids);
-    append('bot', body);
+    append('#mine-log', 'bot', body);
   }
 
   function pushQuestion(result) {
     var question = result.question || '（模型没有给出追问）';
     var reason = result.reason ? '<div class="meta">为什么问这个：' + esc(result.reason) + '</div>' : '';
-    append('bot', esc(question) + reason + candidatesHtml(result.candidates, []));
+    append('#mine-log', 'bot', esc(question) + reason + candidatesHtml(result.candidates, []));
   }
 
   async function send() {
@@ -193,6 +230,223 @@
     input.focus();
   }
 
+  /* ---------------- 全网找书模式 ---------------- */
+
+  function setFindStatus(text) {
+    $('#find-status').textContent = text || '';
+  }
+
+  function confidenceBadge(value) {
+    var pct = Math.round((value || 0) * 100);
+    if (pct >= 75) {
+      return '<span class="badge ok">很可能是 ' + pct + '%</span>';
+    }
+    if (pct >= 45) {
+      return '<span class="badge">可能是 ' + pct + '%</span>';
+    }
+    return '<span class="badge warn">把握不大 ' + pct + '%</span>';
+  }
+
+  /* 候选卡：书名 + 作者/年份 + 「哪条线索对上了」 + 出处 + 记入知识库。
+     书名单独占一行：与置信度徽标挤在同一个 flex 行里时，窄屏会被压成
+     一行三四个字（徽标占掉了半行），读起来像断码。 */
+  function bookCard(book, index) {
+    var meta = [book.author, book.year].filter(Boolean).join(' · ');
+    var source = book.url
+      ? '<span class="meta">出处：<a href="' + esc(book.url) + '" target="_blank" rel="noopener">' +
+        esc(book.site || '网页') + '</a></span>'
+      : '';
+    return '<div class="book">' +
+      '<div class="book-title">《' + esc(book.title) + '》</div>' +
+      '<div class="book-line">' + confidenceBadge(book.confidence) +
+        (meta ? '<span class="meta">' + esc(meta) + '</span>' : '') +
+      '</div>' +
+      (book.why ? '<div class="why">' + esc(book.why) + '</div>' : '') +
+      '<div class="actions">' +
+        '<button class="sm" data-remember="' + index + '">记入知识库</button>' +
+        source +
+      '</div>' +
+    '</div>';
+  }
+
+  function pushBooks(result) {
+    state.books = result.books || [];
+    var cards = state.books.map(bookCard).join('');
+    var head = result.summary ? '<div class="book-summary">' + esc(result.summary) + '</div>' : '';
+    var tail = '<div class="actions">' +
+      '<button class="sm" data-retry="1">都不是，再换一批</button>' +
+      '<span class="meta">查了 ' + (result.searched || 0) + ' 条网页</span>' +
+    '</div>';
+    append('#find-log', 'bot', head + cards + tail);
+    // 这一批都进「看过了」，下一轮不再重复
+    state.books.forEach(function (book) {
+      if (state.excluded.indexOf(book.title) === -1) {
+        state.excluded.push(book.title);
+      }
+    });
+    setFindStatus('找到 ' + state.books.length + ' 个可能');
+  }
+
+  function pushFindQuestion(result) {
+    append(
+      '#find-log', 'bot',
+      esc(result.question) +
+      (result.note ? '<div class="meta">' + esc(result.note) + '</div>' : '')
+    );
+    setFindStatus('等你补充细节');
+    $('#find-input').focus();
+  }
+
+  function renderFind(result) {
+    if (result.state === 'found' && (result.books || []).length) {
+      pushBooks(result);
+      return;
+    }
+    if (result.state === 'clarify') {
+      pushFindQuestion(result);
+      return;
+    }
+    var note = result.note || '这次没找到，换个说法再试一次。';
+    append('#find-log', 'sys', esc(note));
+    setFindStatus('');
+  }
+
+  async function sendFindText(text) {
+    var message = String(text || '').trim();
+    if (!message) {
+      return;
+    }
+    append('#find-log', 'user', esc(message));
+    setFindStatus('正在联网检索…');
+    try {
+      var result = await CC.withLoading($('#find-send'), function () {
+        return CC.api('POST', 'api/v1/l1/book-search', {
+          message: message,
+          history: state.clues.slice(-6),
+          exclude: state.excluded.slice(-20)
+        });
+      }, '检索中…');
+      state.clues.push(message);
+      renderFind(result);
+    } catch (err) {
+      append('#find-log', 'sys', '出错了：' + esc(err.message));
+      setFindStatus('');
+    }
+    $('#find-input').focus();
+  }
+
+  function sendFind() {
+    var input = $('#find-input');
+    var message = input.value.trim();
+    if (!message) {
+      return;
+    }
+    input.value = '';
+    sendFindText(message);
+  }
+
+  /* 记入知识库：走既有录入链路（写库是用户的动作，找书本身不入库） */
+  function rememberBook(button) {
+    var book = state.books[Number(button.getAttribute('data-remember'))];
+    if (!book) {
+      return;
+    }
+    var lines = [];
+    if (book.author) {
+      lines.push('作者：' + book.author);
+    }
+    if (book.year) {
+      lines.push('出版年：' + book.year);
+    }
+    if (book.why) {
+      lines.push('为什么是这本：' + book.why);
+    }
+    if (book.url) {
+      lines.push('出处：' + book.url);
+    }
+    lines.push('（通过「全网找书」定位，请自行核对后再引用）');
+
+    CC.withLoading(button, function () {
+      return CC.api('POST', 'api/v1/knowledge/items', {
+        title: '《' + book.title + '》',
+        content: lines.join('\n'),
+        tags: ['找书']
+      });
+    }, '记录中…').then(function (res) {
+      button.textContent = '已记入';
+      button.disabled = true;
+      var link = document.createElement('a');
+      link.href = 'knowledge.html?item=' + encodeURIComponent(res.item_id);
+      link.textContent = '查看';
+      button.parentNode.insertBefore(link, button.nextSibling);
+      CC.toast('已记入知识库');
+    }).catch(function (err) {
+      CC.toast('没记上：' + err.message);
+    });
+  }
+
+  /* ---------------- 模式切换 ---------------- */
+
+  function setMode(mode) {
+    state.mode = mode;
+    var isWeb = mode === 'web';
+    $('#kb-panel').hidden = isWeb;
+    $('#web-panel').hidden = !isWeb;
+    Array.prototype.forEach.call(document.querySelectorAll('#mode-tabs button'), function (button) {
+      button.classList.toggle('on', button.getAttribute('data-mode') === mode);
+    });
+    (isWeb ? $('#find-input') : $('#mine-input')).focus();
+  }
+
+  function clearCurrent() {
+    if (state.mode === 'web') {
+      state.clues = [];
+      state.excluded = [];
+      state.books = [];
+      $('#find-log').innerHTML = '';
+      setFindStatus('');
+      CC.toast('已清空找书记录');
+      $('#find-input').focus();
+      return;
+    }
+    state.convId = null;
+    $('#mine-log').innerHTML = '';
+    setTurn(0, state.maxTurns);
+    setStatus('');
+    CC.toast('已开启新会话');
+    $('#mine-input').focus();
+  }
+
+  /* ---------------- 事件绑定 ---------------- */
+
+  $('#mode-tabs').addEventListener('click', function (event) {
+    var button = event.target.closest('button[data-mode]');
+    if (button) {
+      setMode(button.getAttribute('data-mode'));
+    }
+  });
+
+  $('#clue-chips').addEventListener('click', function (event) {
+    var chip = event.target.closest('.chip[data-clue]');
+    if (!chip) {
+      return;
+    }
+    var input = $('#find-input');
+    input.value = chip.getAttribute('data-clue');
+    input.focus();
+  });
+
+  $('#find-log').addEventListener('click', function (event) {
+    var remember = event.target.closest('[data-remember]');
+    if (remember) {
+      rememberBook(remember);
+      return;
+    }
+    if (event.target.closest('[data-retry]')) {
+      sendFindText('刚才那几本都不是，再换几本。');
+    }
+  });
+
   $('#mine-send').addEventListener('click', send);
   $('#mine-input').addEventListener('keydown', function (event) {
     if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
@@ -201,17 +455,26 @@
     }
   });
 
-  $('#btn-clear').addEventListener('click', function () {
-    state.convId = null;
-    $('#mine-log').innerHTML = '';
-    setTurn(0, state.maxTurns);
-    setStatus('');
-    CC.toast('已开启新会话');
-    $('#mine-input').focus();
+  $('#find-send').addEventListener('click', sendFind);
+  $('#find-input').addEventListener('keydown', function (event) {
+    if (event.key === 'Enter' && (event.ctrlKey || event.metaKey)) {
+      event.preventDefault();
+      sendFind();
+    }
   });
+
+  $('#btn-clear').addEventListener('click', clearCurrent);
 
   (async function boot() {
     if (!(await CC.requireAuth())) {
+      return;
+    }
+    // 支持从别处带着线索跳进来：mine.html?find=只记得情节
+    var preset = new URLSearchParams(location.search).get('find');
+    if (preset) {
+      setMode('web');
+      $('#find-input').value = preset;
+      $('#find-input').focus();
       return;
     }
     $('#mine-input').focus();

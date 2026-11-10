@@ -543,6 +543,22 @@ mark.flash{outline:2px solid var(--accent);outline-offset:1px}
 .composer{display:flex;gap:8px;align-items:flex-end}
 .composer textarea{flex:1;min-height:56px}
 
+/* L1 的另一半：全网找书。候选卡用左侧强调色竖线，与「知识库命中」的绿色块
+   （.hit）分开——「找到我存的条目」和「网上搜到一本」不是同一件事。 */
+.book-summary{font-size:13.5px;color:var(--text-2);line-height:1.55;margin:2px 0 10px}
+.book{
+  border:1px solid var(--border);border-left:3px solid var(--accent);border-radius:var(--radius-sm);
+  background:#fff;padding:11px 12px;margin-bottom:8px;
+}
+.book .book-title{font-weight:650;color:var(--text);font-size:14px;line-height:1.45;word-break:break-word}
+.book .book-line{display:flex;align-items:center;gap:8px;flex-wrap:wrap;margin-top:5px}
+.book .book-line .meta{margin-top:0}
+.book .why{margin-top:6px;font-size:13px;color:var(--text-2);line-height:1.55}
+.book .actions{margin-top:9px;display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.book .actions .meta{margin-top:0}
+.book .actions a{color:var(--accent);font-size:13px;text-decoration:none}
+.book .actions a:hover{text-decoration:underline}
+
 /* ============ L2 冲突检测 ============ */
 .tabs{display:flex;gap:6px;flex-wrap:wrap;margin-bottom:12px}
 .tabs button.sm.on{background:var(--accent-weak);border-color:var(--accent);color:var(--accent);font-weight:600}
