@@ -23,6 +23,7 @@ from pathlib import Path
 import pytest
 
 from app.agent.l1_orchestrator import L1Route
+from app.agent.book_finder import BookMatch, BookQueries
 from app.agent.l2_orchestrator import ConflictJudgment, ExtractionResult, ReviewJudgment
 from app.agent.l3_orchestrator import BriefDraft, TopicAnalysisResult
 from app.agent.l4_orchestrator import DeviationAnalysis, GeneratedPlan
@@ -102,6 +103,8 @@ def _validator_for(name: str):
         "conflict_attribute": lambda d: AttributionDraft(**d),
         "probe_question": lambda d: ProbeDraft(**d),
         "book_compare": lambda d: CompareDraft(**d),
+        "book_search_query": lambda d: BookQueries(**d),
+        "book_search_match": lambda d: BookMatch(**d),
     }[name]
 
 
@@ -190,6 +193,19 @@ def _check(name: str, parsed) -> None:
             assert row.relation in RELATIONS, row.relation
             assert row.a_says and row.b_says
             assert row.difference
+    elif name == "book_search_query":
+        assert parsed.queries, "一条检索词都没有"
+        for query in parsed.queries:
+            assert str(query).strip(), "检索词是空的"
+    elif name == "book_search_match":
+        # 候选可以是空的（网上没有对得上的书），但空的时候必须带一个问题——
+        # 否则用户拿到的是「没找到」三个字，不知道下一步该补什么。
+        for book in parsed.books:
+            assert book.title, "候选缺书名"
+            assert book.source_id, "候选没标出处（代码侧会直接丢弃）"
+            assert 0.0 <= book.confidence <= 1.0, book.confidence
+        if not parsed.books:
+            assert parsed.question, "既没有候选也没有追问"
     else:  # pragma: no cover - 新提示词未登记校验
         raise AssertionError(f"未登记 golden 关键字段断言：{name}")
 

@@ -7,6 +7,14 @@
     "version": "v1",
     "sha256": "2b09fed2c97cd139b974cfe87f683bd8f81f3bb43b3ba13898bb983ed8ed0ef0"
   },
+  "book_search_query": {
+    "version": "v1",
+    "sha256": "d4807fe59c6c42adfc868a4e808b76e0e8ed1e029e5ff143f2317f507f270a09"
+  },
+  "book_search_match": {
+    "version": "v1",
+    "sha256": "78d8cd6db5e252516845b8e0c92ceb7a87bdc712b6ad266d9b5d387a92497014"
+  },
   "l2_extract": {
     "version": "v1",
     "sha256": "74a3cfb1ac3b40a3947831d3ab3f5c74c968e8c9c4b15378d196ae9b9bb39706"
