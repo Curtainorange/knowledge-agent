@@ -1,6 +1,7 @@
 """FastAPI 入口：初始化日志/建库/挂请求中间件与路由。"""
 from __future__ import annotations
 
+import logging
 import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -20,12 +21,27 @@ from app.domain import db
 from app.workers import runner
 
 core_logging.setup_logging()
-db.init_db()
+
+logger = logging.getLogger(__name__)
 
 
 @asynccontextmanager
 async def lifespan(_app: FastAPI):
-    """启动后台任务 worker（幂等/重试/死信；可用 worker_enabled 关闭）。"""
+    """启动前建库 + 启动后台任务 worker。
+
+    建库放在 lifespan 而不是 import 期：dev.db 损坏/被锁时，import 期执行会让进程
+    直接起不来、日志只剩一段裸 traceback。放这里 + try/except 后，失败只打一句可读
+    日志、进程仍能起——`/health` 是纯存活（不碰库），watchdog 不会因此反复重启；
+    「数据读写会报错」这类真问题由 `/doctor` 暴露。
+    """
+    try:
+        db.init_db()
+    except Exception as exc:  # 库损坏/被锁属环境问题，不让它挡住进程启动
+        logger.exception(
+            "数据库初始化失败（dev.db 可能被占用或损坏）：进程已启动，但数据读写会报错，"
+            "请检查数据库文件后重启。详情: %s",
+            exc,
+        )
     runner.start_worker()
     yield
 
