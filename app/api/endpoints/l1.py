@@ -1,10 +1,16 @@
-"""L1 认知挖掘端点（D3）：发起/承接多轮澄清挖掘。"""
+"""L1 认知挖掘端点（D3）：发起/承接多轮澄清挖掘。
+
+两个入口，同一件事的两个检索面：
+- `/mine`：在**用户自己的知识库**里按线索定位条目；
+- `/book-search`：库里没有时，**去网上**把「只记得情节/作者、不记得书名」的书找出来。
+"""
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends
 from pydantic import BaseModel, Field
 from sqlalchemy.orm import Session
 
+from app.agent import book_finder
 from app.agent.l1_orchestrator import L1Orchestrator
 from app.api.deps import get_gateway, get_session, get_user_id
 from app.core import trace
@@ -95,5 +101,80 @@ def l1_mine(
         turn=result.turn,
         max_turns=result.max_turns,
         reason=result.reason,
+        request_id=trace.get_request_id() or "",
+    )
+
+
+# ---- 全网找书 ---------------------------------------------------------------
+#
+# 无状态：不写会话、不写知识库。前端把「之前说过什么」「已经看过哪些书」带上来，
+# 候选只活在这一次响应里。用户要留下哪本，自己点「记入知识库」走既有录入链路。
+
+
+class BookSearchRequest(BaseModel):
+    message: str = Field(min_length=1, max_length=2000, description="这次补充的线索")
+    history: list[str] = Field(
+        default_factory=list, max_length=10, description="前几轮说过的线索（越靠后越新）"
+    )
+    exclude: list[str] = Field(
+        default_factory=list, max_length=20, description="已经看过、用户说不是的书名"
+    )
+
+
+class BookSearchBookOut(BaseModel):
+    title: str
+    author: str = ""
+    year: str = ""
+    why: str = ""
+    confidence: float = 0.0
+    url: str = ""
+    site: str = ""
+
+
+class BookSearchResponse(BaseModel):
+    state: str  # found | clarify | not_found | search_failed | unavailable | failed
+    books: list[BookSearchBookOut] = Field(default_factory=list)
+    summary: str = ""
+    question: str = ""
+    note: str = ""
+    queries: list[str] = Field(default_factory=list)
+    searched: int = 0
+    request_id: str
+
+
+@router.post("/book-search", response_model=BookSearchResponse)
+def l1_book_search(
+    body: BookSearchRequest,
+    user_id: str = Depends(get_user_id),
+    gateway: ModelGateway = Depends(get_gateway),
+    session: Session = Depends(get_session),
+) -> BookSearchResponse:
+    result = book_finder.find_books(
+        gateway=gateway,
+        session=session,
+        user_id=user_id,
+        message=body.message,
+        history=body.history,
+        exclude=body.exclude,
+    )
+    return BookSearchResponse(
+        state=result.state,
+        books=[
+            BookSearchBookOut(
+                title=book.title,
+                author=book.author,
+                year=book.year,
+                why=book.why,
+                confidence=book.confidence,
+                url=book.url,
+                site=book.site,
+            )
+            for book in result.books
+        ],
+        summary=result.summary,
+        question=result.question,
+        note=result.note,
+        queries=result.queries,
+        searched=result.searched,
         request_id=trace.get_request_id() or "",
     )
