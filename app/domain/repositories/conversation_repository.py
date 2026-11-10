@@ -49,6 +49,15 @@ def derive_kind(messages: list[dict] | None) -> str:
     return "chat"
 
 
+def has_user_message(conversation: Conversation) -> bool:
+    """会话里有没有用户说过话。
+
+    副驾开场（assistant）之后用户一直没开口的会话是「空会话」——只是「开了场、
+    没人接」的残留。它们不该在历史列表里堆积，也不该被反复新建。
+    """
+    return any(str(m.get("role") or "") == "user" for m in (conversation.messages or []))
+
+
 class ConversationRepository(BaseRepository[Conversation]):
     def __init__(self, session: Session, user_id: str | None = None):
         super().__init__(session, user_id)
@@ -131,6 +140,19 @@ class ConversationRepository(BaseRepository[Conversation]):
         if kind is None:
             return rows
         return [conv for conv in rows if derive_kind(conv.messages) == kind]
+
+    def latest_empty(self, user_id: str) -> Conversation | None:
+        """最近一个「用户还没说话」的会话，用于复用而非新建。
+
+        空会话复用是「点新会话 / 进工作台不堆积空会话」的根——`/start` 在
+        conversation_id 为空时优先复用最近的空会话，而不是每次新建一条只有
+        开场白的残留记录。
+        """
+        self._guard(user_id)
+        for conv in self.list_by_user(user_id):
+            if not has_user_message(conv):
+                return conv
+        return None
 
     def rename(self, conversation_id: str, title: str) -> Conversation | None:
         conv = self.get(conversation_id)

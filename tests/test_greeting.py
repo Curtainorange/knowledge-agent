@@ -209,6 +209,21 @@ def test_start_does_not_repeat_greeting(client, session, gateway_calls):
     assert len(again["messages"]) == 1
 
 
+def test_start_reuses_empty_conversation_instead_of_piling_up(client, session, gateway_calls):
+    """连续两次不带 id 的 /start 收敛到同一条空会话，而不是各建一条。
+
+    「点一次新会话、历史列表多出好几条」的根因：前端可能因预览面板重载 / 双击
+    连发多次 /start，后端对空 id 若每次都 create，空会话就无限堆积。复用最近的
+    空会话后，多次请求落到同一条，历史列表不再膨胀。
+    """
+    user = sign_in(client, "greet_reuse")
+    first = _start(client, user.headers)
+    second = _start(client, user.headers)
+
+    assert first["conversation_id"] == second["conversation_id"]
+    assert len(second["messages"]) == 1
+
+
 def test_start_returns_existing_history_instead_of_greeting(client, session, gateway_calls):
     """已有对话的会话：`/start` 就是「恢复历史」，绝不插开场。"""
     user = sign_in(client, "greet_history")

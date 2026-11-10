@@ -55,6 +55,28 @@ def test_list_is_empty_for_a_fresh_user(client):
     assert data["total"] == 0
 
 
+def test_list_hides_empty_conversations(client, session):
+    """空会话（副驾开了场、用户没说话）不进历史列表。
+
+    它们只是「点新会话 / 进工作台后没接话」的残留，摆出来只会让历史列表看起来
+    全是重复的「我是你的认知副驾…」。
+    """
+    user = sign_in(client, "hist_hide_empty")
+    repo = _repo(session, user.user_id)
+
+    empty = repo.create(user_id=user.user_id)
+    repo.append_message(empty, "assistant", "我是你的认知副驾。")
+    real = repo.create(user_id=user.user_id)
+    repo.append_message(real, "user", "你好")
+    session.commit()
+
+    data = _list(client, user.headers)
+    ids = [i["conversation_id"] for i in data["items"]]
+    assert real.id in ids
+    assert empty.id not in ids
+    assert data["total"] == 1
+
+
 def test_list_orders_latest_first_and_carries_title_preview(client, session):
     """列表最近活跃在前，行内带标题、预览与消息数。"""
     user = sign_in(client, "hist_order")
@@ -136,13 +158,13 @@ def test_list_falls_back_to_preview_when_title_is_empty(client, session):
 
 
 def test_list_falls_back_to_new_conversation_label(client, session):
-    """只有开场白的空会话：标题兜底为「新会话」。"""
+    """无用户消息的会话：title 兜底为「新会话」（仅 all 列表；chat 列表已过滤空会话）。"""
     user = sign_in(client, "hist_blank_title")
     repo = _repo(session, user.user_id)
     conv = repo.create(user_id=user.user_id)
     session.commit()
 
-    data = _list(client, user.headers)
+    data = _list(client, user.headers, kind="all")
     assert data["items"][0]["title"] == "新会话"
     assert data["items"][0]["message_count"] == 0
 

@@ -37,6 +37,7 @@ from app.domain.repositories.conversation_repository import (
     ConversationRepository,
     derive_kind,
     derive_title,
+    has_user_message,
 )
 from app.llm.gateway import ModelGateway
 
@@ -233,6 +234,10 @@ def list_conversations(
     """
     repo = ConversationRepository(session, user_id=user_id)
     rows = repo.list_by_user(user_id, kind=None if kind == "all" else kind)
+    if kind == "chat":
+        # 空会话（副驾开了场、用户没说话）不占历史列表——它们只是「点新会话后没接话」
+        # 的残留。过滤后再分页，total 与 items 同口径。
+        rows = [conv for conv in rows if has_user_message(conv)]
     total = len(rows)
     items = []
     for conv in rows[offset : offset + limit]:

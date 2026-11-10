@@ -64,7 +64,10 @@ from app.agent.router import (
 )
 from app.agent.turns import SOURCE
 from app.core.config import settings
-from app.domain.repositories.conversation_repository import ConversationRepository
+from app.domain.repositories.conversation_repository import (
+    ConversationRepository,
+    has_user_message,
+)
 from app.feedback import events
 from app.ingestion.service import SOURCE_MANUAL, IngestionService
 from app.llm.gateway import ModelGateway
@@ -158,9 +161,12 @@ class Copilot:
         """
         repo = ConversationRepository(self._session, user_id=user_id)
         conversation = self._load_or_create(repo, user_id, conversation_id)
-        if not (conversation.messages or []):
-            # 开场带一张「需求确认卡」：问候之后先确认，不直接推下一步动作。
-            # 卡片随开场一起落库，刷新页面还在（与消息同一事务）。
+        if not has_user_message(conversation):
+            # 空会话（新建的，或 `_load_or_create` 复用来的）都要开场。复用来的先
+            # 清掉旧开场白再重新生成——开场白读的是**当前**状态（在读哪本书、几处
+            # 冲突），复用旧开场白会过时。判断用「有没有用户说过话」而不是「有没有
+            # 消息」：只有开场白的会话也算空会话，同样该刷新。
+            conversation.messages = []
             text, card = opening_for(
                 self._session, user_id=user_id, conversation=conversation
             )
@@ -562,10 +568,15 @@ class Copilot:
             try:
                 found = repo.get(conversation_id)
             except PermissionError:
-                logger.warning("conversation id 越权或已失效，改为新开会话")
+                logger.warning("conversation id 越权或已失效，改为复用空会话或新开会话")
                 found = None
             if found is not None:
                 return found
+        # 空 id / 越权 id：优先复用最近的空会话（副驾开了场、用户还没说话），
+        # 否则每次进工作台 / 点「新会话」都新建一条，空会话在历史列表里无限堆积。
+        empty = repo.latest_empty(user_id)
+        if empty is not None:
+            return empty
         return repo.create(user_id=user_id)
 
     @staticmethod
