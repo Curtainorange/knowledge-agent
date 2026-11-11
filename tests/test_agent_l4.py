@@ -361,11 +361,15 @@ def test_composite_request_creates_goal_then_plan(client, session, provider):
 
 
 def test_unhandled_request_is_answered_not_dropped(client, session, provider):
-    """做不到的那半句要明说。静默丢掉＝用户以为自己说了、系统当作没说。"""
+    """做不到的那半句要明说。静默丢掉＝用户以为自己说了、系统当作没说。
+
+    这里用「订机票」这种计划**不会**去做的诉求——守卫的是"不承诺就必须说清楚"，
+    不能用「收集材料」（那条现在会被计划的主动收集承接，见下一条用例）。
+    """
     headers = auth_headers(client, "l4p_unhandled")
     provider.rows.append(json.dumps({
         "capability": "l4_plan", "args": {"goal": "学习人工智能"},
-        "unhandled": ["从网上收集人工智能的学习材料"],
+        "unhandled": ["帮我订一张去北京的机票"],
         "confidence": 0.9,
     }))
     provider.rows.append(_plan_payload())
@@ -375,15 +379,48 @@ def test_unhandled_request_is_answered_not_dropped(client, session, provider):
     messages = conv["messages"]
     said = [m["content"] for m in messages if m["role"] == "assistant"]
 
-    assert any("从网上收集人工智能的学习材料" in text for text in said), said
+    assert any("订一张去北京的机票" in text for text in said), said
     # 顺序：说明必须跟在用户那句话之后。写在前面等于「你还没说完我就先解释」，
     # 读起来像系统自说自话（第一版就是插到了用户消息前面）。
     aside_at = next(
         i for i, m in enumerate(messages)
-        if m["role"] == "assistant" and "从网上收集人工智能的学习材料" in m["content"]
+        if m["role"] == "assistant" and "订一张去北京的机票" in m["content"]
     )
     user_at = next(i for i, m in enumerate(messages) if m["role"] == "user")
     assert aside_at > user_at, "未承接说明排到了用户消息之前"
+
+
+def test_collect_request_is_absorbed_when_plan_collects(client, session, provider, monkeypatch):
+    """「帮我收集材料」被计划的主动收集承接后，不该再回一句「这件事我暂时做不了」。
+
+    同一句话里既要计划、又要材料——计划拆完会顺手联网找资料，诉求已经被做了，
+    再补一句「做不了」就是自相矛盾（这是上一轮交付时留下的已知边界）。
+    """
+    from app.agent import research as research_mod
+
+    headers = auth_headers(client, "l4p_absorb")
+    provider.rows.append(json.dumps({
+        "capability": "l4_plan", "args": {"goal": "学习人工智能"},
+        "unhandled": ["从网上收集人工智能的学习材料"],
+        "confidence": 0.9,
+    }))
+    provider.rows.append(_plan_payload())
+    monkeypatch.setattr(
+        research_mod, "advise",
+        lambda **kw: research_mod.ResearchResult(
+            text="", state="ok",
+            sources=[{"url": "https://a.example/x", "title": "资料 A", "site": "example"}],
+            topic="学习人工智能",
+        ),
+    )
+
+    body = _send(client, headers, COMPOSITE_TEXT)
+    conv = _read(client, headers, body["conversation_id"])
+    said = [m["content"] for m in conv["messages"] if m["role"] == "assistant"]
+
+    assert not any("暂时做不了" in text for text in said), said
+    assert body["card"]["kind"] == "l4_plan"
+    assert body["card"]["materials"], "计划卡应带上主动收集的资料"
 
 
 def test_l4_plan_degraded_keeps_user_informed(client, session, provider):

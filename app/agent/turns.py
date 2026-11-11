@@ -737,6 +737,40 @@ def _collect_plan_materials(
     return materials, ""
 
 
+# unhandled 是分流模型给的一句自由文本（如「从网上收集人工智能的学习材料」），
+# 判断它是不是"找资料"这类诉求只能看词：动作词 + 名词同时出现才算，
+# 避免把「帮我整理笔记」这类也误判成资料收集。
+_COLLECT_ACTIONS = ("收集", "找", "搜", "查", "下载", "整理", "推荐", "列一下")
+_COLLECT_OBJECTS = ("材料", "资料", "资源", "论文", "课程", "教材", "文献", "书单", "公开课", "网课")
+
+
+def absorbs_unhandled(capability: str, item: str, *, card: dict | None = None) -> bool:
+    """这个能力是否已经承接了「这条 unhandled 诉求」——承接了就别再说「做不了」。
+
+    目前只有两条能力会主动找外部资料，所以「帮我收集材料」这类诉求落在它们身上时，
+    不再算"没接住"：
+
+    - `l4_plan`：拆完周计划顺手联网检索，来源清单附在计划卡 `materials` 上；
+    - `research`：本身就是找资料。
+
+    为什么还要看 `card`：同步执行时手里有结果卡，`l4_plan` 只有**真的拆出了计划**
+    （`state == "ok"`）才算承接——计划降级说明根本没走到收集那一步，仍该照旧提示。
+    异步路径拿到的只是一张 pending 卡，看不到执行结果，因此按能力保守判为承接
+    （计划失败时卡上自己会说明原因，不会让用户以为"资料已经收好了"）。
+    """
+    if capability not in ("l4_plan", "research"):
+        return False
+    text = str(item or "").strip()
+    if not text:
+        return False
+    if not (any(w in text for w in _COLLECT_ACTIONS) and any(w in text for w in _COLLECT_OBJECTS)):
+        return False
+    # 同步路径有结果卡：计划真拆出来了才算承接；degraded 说明没走到收集那一步。
+    if capability == "l4_plan" and card is not None and card.get("kind") == "l4_plan":
+        return card.get("state") == "ok"
+    return True
+
+
 def _execute_l4_deviation(
     *, user_id: str, session: Session, gateway: ModelGateway, key: str
 ) -> tuple[str, dict]:

@@ -247,7 +247,7 @@ class Copilot:
                     repo, conversation, user_id=user_id, message=message, route=route
                 )
 
-        self._insert_unhandled(conversation, route, before)
+        self._insert_unhandled(conversation, route, before, card=card)
         self._session.commit()
         self._emit_turn(user_id, route, card)
         return CopilotTurn(
@@ -580,14 +580,20 @@ class Copilot:
         return repo.create(user_id=user_id)
 
     @staticmethod
-    def _unhandled_note(route: CapabilityRoute) -> str:
+    def _unhandled_note(route: CapabilityRoute, card: dict | None = None) -> str:
         """把「没接住的诉求」说成一句人话；没有就返回空串。
 
         不解释原因、不道歉：原因取决于具体能力，一句通用解释只会变成套话；
         用户真想知道会追问，那一轮通用对话会好好回答。
+
+        **已被能力承接的诉求要先摘掉**：比如 l4_plan 拆完计划会顺手联网找资料，
+        用户在同一句里说的「帮我收集材料」其实已经被做了，再回一句「这件事我暂时
+        做不了」是自相矛盾。判断交给 `turns.absorbs_unhandled`——只有它知道这次
+        到底收没收（同步路径有结果卡，异步路径按能力保守判）。
         """
         items = [str(s).strip().rstrip("。.；;，, ") for s in (route.unhandled or [])]
         items = [s for s in items if s]
+        items = [s for s in items if not turns.absorbs_unhandled(route.capability, s, card=card)]
         if not items or route.capability == FALLBACK_CAPABILITY:
             return ""
         quoted = "、".join(f"「{s}」" for s in items)
@@ -595,7 +601,9 @@ class Copilot:
         return f"另外，{quoted}{what}我暂时做不了。"
 
     @staticmethod
-    def _insert_unhandled(conversation, route: CapabilityRoute, before: int) -> None:
+    def _insert_unhandled(
+        conversation, route: CapabilityRoute, before: int, card: dict | None = None
+    ) -> None:
         """把「没接住的诉求」插在**用户那句话之后**。
 
         `before` 是本轮开始前的消息数：本轮新写的消息都在它之后。
@@ -606,7 +614,7 @@ class Copilot:
 
         `messages` 是 JSON 列，必须整体重新赋值才会落库——原地 insert 会被静默忽略。
         """
-        note = Copilot._unhandled_note(route)
+        note = Copilot._unhandled_note(route, card=card)
         if not note:
             return
         messages = list(conversation.messages or [])
