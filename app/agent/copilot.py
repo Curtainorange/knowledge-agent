@@ -74,10 +74,31 @@ from app.ingestion.service import SOURCE_MANUAL, IngestionService
 from app.llm.gateway import ModelGateway
 from app.retrieval.embedding import build_embedding
 
-# 一次最多抓几个链接。三个以上多半是「把收藏夹倒进来」，那不该发生在对话里
-# （对话里贴一串链接，一条失败就要解释半天，用户也看不清到底存了哪几条）。
-# 超出的链接不静默丢弃——回复里会说清楚只处理了前几个。
+# 一次最多抓几个链接。这不是「能识别几个」的限制，而是防呆上限：模型若把整段
+# 消息里的网址都当成「要存的」，一轮就会连抓十几次、把对话拖住。超过的部分
+# 不静默丢弃——回复里会说清还有几个没处理。
 _MAX_LINKS_PER_TURN = 3
+
+
+def _declared_links(route: CapabilityRoute, message: str) -> list[str]:
+    """路由结论里「用户要我把这些网页存下来」的网址；空表示这次不抓正文。
+
+    **判断权在模型**（`AGENT_ROUTE` 的 `args.url`）：整句是「存这个链接」还是
+    「问你关于这个链接的看法」，只有读懂语义才分得清，字数、关键词都分不清
+    （「你觉得这篇怎么样」比「存一下」还长）。
+
+    **但一定要回原文核对。** 模型有时会把网址补全、改写，甚至凭印象给一个
+    用户没发过的地址。抓一个他没给过的链接比不抓更糟：他以为自己存的是 A，
+    库里却是 B。核对失败就当它没说过，退回按原文录入——用户写的话不会丢。
+    """
+    raw = (route.args or {}).get("url")
+    candidates = [raw] if isinstance(raw, str) else list(raw) if isinstance(raw, list) else []
+    urls: list[str] = []
+    for item in candidates:
+        url = str(item).strip()
+        if url and url in message and url not in urls:
+            urls.append(url)
+    return urls[:_MAX_LINKS_PER_TURN]
 
 
 # 录入渠道标记：写在 tags 里而不是 source 里，常量定义在 `cards`（两处共用，
@@ -500,13 +521,14 @@ class Copilot:
             self._append_exchange(repo, conversation, message, card["note"], card)
             return card["note"], card
 
-        # 贴链接即存：正文基本就是一个网址时，抓网页正文再入库。
-        # 判断条件刻意很窄（见 `linkgrab.is_url_only`）——用户写「记一下：这篇文章
-        # 不错（附链接）但观点有问题」时要存的是他那句话，抓取会把它丢掉，
-        # 所以那种情况仍按原文录入。
-        if linkgrab.is_url_only(note["content"]):
+        # **要不要抓正文是语义判断，结论在路由层。** 模型看完整句后给 `args.url`
+        # 表示「用户要我把这个网页存下来」；只是引用了链接（问他怎么看、让你去那儿
+        # 找东西）时它不给 url。这里不自己再判一次——用字数或关键词猜，
+        # 就会出现「你觉得这篇怎么样（附链接）」被当成存链接、把用户的问题丢掉的错。
+        links = _declared_links(route, message)
+        if links:
             return self._add_from_links(
-                repo, conversation, user_id=user_id, message=message, note=note
+                repo, conversation, user_id=user_id, message=message, note=note, urls=links
             )
 
         service = IngestionService(self._session, self._embedding or build_embedding())
@@ -527,8 +549,9 @@ class Copilot:
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
 
-    def _add_from_links(self, repo, conversation, *, user_id: str, message: str, note: dict):
-        """把用户贴的网址抓成正文入库。
+    def _add_from_links(self, repo, conversation, *, user_id: str, message: str, note: dict,
+                        urls: list[str]):
+        """把**用户要求存下来的**那些网址抓成正文入库。
 
         为什么值得单独一条路：**存一个网址本身没有意义**。库里躺着一个
         `https://…` 字符串，含义是「这条以后一条都检索不到」——看起来存了，
@@ -537,16 +560,17 @@ class Copilot:
         抓不到就**不入库**并说明原因：宁可这次没存成，也不要塞一条空条目
         让用户以为已经收好了。
         """
-        urls = linkgrab.extract_urls(note["content"])
-        skipped = max(0, len(urls) - _MAX_LINKS_PER_TURN)
         results = [
             linkgrab.save_url(
                 session=self._session,
                 user_id=user_id,
                 url=url,
                 tags=_with_channel_tag(note["tags"]),
+                # 只存一个链接时把用户那句话一起存进去（他自己写了东西才有意义）。
+                # 多个链接时一句话说不清属于哪条，各存各的正文。
+                note=message if len(urls) == 1 else "",
             )
-            for url in urls[: _MAX_LINKS_PER_TURN]
+            for url in urls
         ]
         saved = [r for r in results if r["ok"]]
 
@@ -567,8 +591,12 @@ class Copilot:
         failed = len(results) - len(saved)
         if failed:
             reply += f"。另有 {failed} 个链接没抓到正文，没存"
-        if skipped:
-            reply += f"。一次最多存 {_MAX_LINKS_PER_TURN} 个链接，还有 {skipped} 个没处理"
+
+        # 句子里还提到别的链接、但没算进「要存的」里（比如「存这个 A，顺便看看 B 讲了啥」）
+        # → 说清没处理。静默跳过等于让用户以为都存好了。
+        others = [u for u in linkgrab.extract_urls(message) if u not in urls]
+        if others:
+            reply += f"。另外还提到 {len(others)} 个链接，这次没存"
 
         # 多个链接时卡片只挂第一条：卡片是「去库里看」的入口，
         # 条数与标题已经在回复里说清了，再堆几张卡反而把消息流刷乱。

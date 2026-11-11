@@ -275,6 +275,26 @@ def _has_any(text: str, words: tuple[str, ...]) -> bool:
     return any(word in text for word in words)
 
 
+def _link_args(text: str) -> dict:
+    """整句基本就是链接时，给出「要存的网址」；否则空 dict。
+
+    这个 args 只在两种场合生效：给模型的**先验参考**，以及模型不可用时的
+    兜底执行（`_match_local` 的产物直接成为结论）。**主路径上它不是判官**——
+    模型看到整句会自己判断这是「存链接」还是「问看法」，可以推翻它。
+
+    判得窄（`linkgrab.is_url_only`）是故意的：误判成「存链接」会把用户
+    真正说的话丢掉，而漏判最多是多问一次模型。
+    """
+    from app.agent import linkgrab
+
+    if not linkgrab.is_url_only(text):
+        return {}
+    urls = linkgrab.extract_urls(text)
+    if not urls:
+        return {}
+    return {"url": urls[0] if len(urls) == 1 else urls}
+
+
 def is_suggestion_command(text: str) -> bool:
     """这句话是「要建议 / 确认 / 跳过」的指令，而不是他的问题本身。
 
@@ -367,17 +387,18 @@ def _match_local(text: str) -> CapabilityRoute | None:
 
     # 1. 记一条内容 —— 优先级最高：它带副作用，且开头词就是强信号
     if text.startswith(_NOTE_VERBS):
-        return hit("knowledge_add", "以「记一条」类引导词开头")
+        return hit("knowledge_add", "以「记一条」类引导词开头", **_link_args(text))
 
-    # 1.1 贴链接即存 —— 整句基本就是一个网址，意思是「把这个存下来」。
+    # 1.1 整句基本就是一个网址 —— **先验**判「用户要存这个链接」。
     #     为什么必须在这里：裸链接里常带英文词，会撞上后面的能力
     #     （`/course/…` 撞 research 的「课程」，`/papers/…` 撞「论文」），
     #     被判成「去找资料」就完全做反了——用户已经把资料给到眼前了。
-    #     函数内 import：路由层不该在导入期把入库那一整条链拉进来。
-    from app.agent import linkgrab
-
-    if linkgrab.is_url_only(text):
-        return hit("knowledge_add", "贴了一个链接，按存一条处理")
+    #     为什么只是先验、且判得很窄：要分辨「存这个链接」和「问你关于这个链接的
+    #     看法」，只能靠读懂语义，字数和关键词都分不清（「你觉得这篇怎么样」比
+    #     「存一下」还长）。所以这里只在整句几乎只有网址时出手，其余交给模型。
+    link_args = _link_args(text)
+    if link_args:
+        return hit("knowledge_add", "整句基本就是一个链接，初判为「存这个链接」", **link_args)
 
     # 1.5 阅读建议（B 模块）—— 排在其它能力之前：用户明确要建议 / 确认 / 纠正时，
     #     若被"计划""冲突"之类的词抢走，系统就会去做一件他没要求的事。

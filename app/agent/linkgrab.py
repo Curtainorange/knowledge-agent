@@ -7,9 +7,11 @@
 
 **三条边界，都是「别替用户做主」：**
 
-1. **只抓整句基本就是链接的那些。** 用户写「记一下：这篇文章不错（附链接）
-   但观点有问题」时，他要存的是自己那句话；抓取会把他写的东西丢掉。
-   所以正文里除链接外还剩多少字，决定了走不走抓取（见 `is_url_only`）。
+1. **抓不抓由模型判，不由这里判。** 「存这个链接」和「问你关于这个链接的看法」
+   只有读懂语义才分得清——「你觉得这篇怎么样（附链接）」比「存一下」还长，
+   任何字数、关键词规则都会把它判反。所以主路径是路由层让模型给 `args.url`；
+   本模块的 `is_url_only` 只用于**先验**与**模型不可用时的兜底**，
+   不参与主路径决定（见 `copilot._declared_links`）。
 2. **抓不到就说抓不到，不入库。** 存一条只有网址、没有正文的条目，检索时
    永远命不中——那不是「已保存」，是给库里塞垃圾。
 3. **标题优先用网页标题。** 用户看到「用 bge-m3 做中文检索」才知道这条是什么；
@@ -38,14 +40,13 @@ URL_PATTERN = re.compile(r"https?://[^\s<>\"'`）)】\]，。；、]+")
 # 存进库里的是用户以后要检索、要通读的东西，只存开头等于存了半篇。
 INGEST_CONTENT_CHARS = 12000
 
-# 剥掉链接后剩余内容的容忍长度。低于它就认为「这句话就是在让我存这个链接」，
-# 剩下的那几个字算备注（「讲检索的」），不算要被保存的正文。
+# 剥掉链接后剩余内容的容忍长度。低于它就认为「这句话就是在让我存这个链接」。
 #
-# 为什么是 8：这个数字不精确，取值方向是「宁可退回原文存」。多抓一次只是少存
-# 用户几个字的备注不易察觉；错抓一次则是把他写的那句话整段丢掉——后者用户
-# 一定会发现，而且找不回来。中文里 8 个字已经能装下一句完整评价
-# （「和我的理解差挺多」就是 8 个），过长的备注一律按原文录入。
-_RESIDUE_TOLERANCE = 8
+# **这个数字只用于先验和兜底，主路径不靠它**（主路径是模型给 `args.url`）。
+# 为什么要收紧到 4：先验一旦标错，模型会有盲从的可能——「你觉得这篇怎么样」
+# 是 8 个字，若算进「纯链接」，就会把用户的提问当成「存链接」执行掉，
+# 那是这个功能最不能犯的错。反方向的代价只是多问一次模型（本来就每轮都问）。
+_RESIDUE_TOLERANCE = 4
 
 
 def extract_urls(text: str) -> list[str]:
@@ -61,8 +62,12 @@ def extract_urls(text: str) -> list[str]:
 def is_url_only(text: str) -> bool:
     """这句话是不是「基本只有一个链接」（去掉链接后几乎没剩什么）。
 
-    `_RESIDUE_TOLERANCE` 不是精确阈值，是一条保守的边界：宁可让「链接 + 一句话」
-    退回按原文存（用户的话不会丢），也不要在有正文的时候擅自抓取、把他的备注抹掉。
+    **只用于先验和兜底，不是主路径的判官。** 判断「用户想不想让我存这个网页」
+    要看语义：同样一句话，加个「你觉得这篇怎么样」意思就完全相反，而字数更多
+    反而更像「在提问」。所以真正决定抓不抓的是模型给的 `args.url`。
+
+    这里的存在理由只有一个：模型不可用（或处在澄清态不问模型）时，得有个
+    保守的兜底，否则用户贴个链接就什么都不会发生。
     """
     urls = extract_urls(text)
     if not urls:
@@ -87,8 +92,26 @@ _LEAD_VERBS = (
 )
 
 
+def user_note(text: str) -> str:
+    """取出用户自己写的那部分（去掉网址、引导词、标点后还剩的实质内容）。
+
+    用途是**决定要不要把用户原话一起存进正文**，不是决定抓不抓。这个区别很重要：
+    判断错了的后果不对称——该加没加，用户写的那句话就丢了（他一定会发现）；
+    不该加却加了，正文开头多一行他自己的话（无害，甚至更好检索）。
+    所以这里的阈值可以宽，只要"确实写了点东西"就够了。
+    """
+    residue = text or ""
+    for url in extract_urls(residue):
+        residue = residue.replace(url, " ")
+    for verb in _LEAD_VERBS:
+        residue = residue.replace(verb, " ")
+    residue = re.sub(r"[\s，,。.、；;：:！!？?（）()【】\[\]「」\"'~—-]+", "", residue)
+    return residue if len(residue) >= 2 else ""
+
+
 def save_url(
-    *, session: Session, user_id: str, url: str, title_hint: str = "", tags: list[str] | None = None
+    *, session: Session, user_id: str, url: str, title_hint: str = "",
+    tags: list[str] | None = None, note: str = "",
 ) -> dict:
     """抓 `url` 的正文并入库。返回 `{ok, url, title, chars, item, error}`。
 
@@ -96,6 +119,10 @@ def save_url(
     不该让整批停住）。失败原因原样带出，由调用方决定说多少。
 
     `item` 是入库成功后的 `KnowledgeItem`，给调用方建卡片用（卡片要 item.id 才能跳转）。
+
+    `note` 是用户那句话。**他自己写了东西时，原话和网页正文一起存**——
+    抓取只该补充内容，不该把他写的判断冲掉（「这篇 benchmark 我有疑问」这种话
+    恰恰是以后最该被检索到的东西）。
     """
     target = (url or "").strip()
     fetched = websearch.fetch(target, max_chars=INGEST_CONTENT_CHARS)
@@ -111,6 +138,10 @@ def save_url(
             "ok": False, "url": target, "title": "", "chars": 0, "item": None,
             "error": "这一页没有正文",
         }
+
+    if user_note(note):
+        # 用户原话放最前：他写的判断比网页正文更能代表「我为什么存这条」。
+        content = f"{note.strip()}\n\n---\n\n{content}"
 
     title = (title_hint or "").strip() or str(fetched.get("title") or "").strip() or target
     service = IngestionService(session, _embedding())
