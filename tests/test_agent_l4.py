@@ -213,6 +213,117 @@ def test_l4_plan_generates_weekly_tasks(client, session, provider):
     assert session.query(PlanTask).count() == 1
 
 
+def test_l4_plan_attaches_materials(client, session, provider, monkeypatch):
+    """拆完计划顺手联网找资料：来源清单附到计划卡上，默认一条都不入库。"""
+    from app.agent import research as research_mod
+
+    user = sign_in(client, "l4p_mat")
+    _seed_goal(session, user.user_id)
+    provider.rows.append(_plan_payload())
+    monkeypatch.setattr(
+        research_mod, "advise",
+        lambda **kw: research_mod.ResearchResult(
+            text="", state="ok",
+            sources=[{"url": "https://a.example/x", "title": "资料 A",
+                      "site": "example", "summary": "一段摘要"}],
+            topic="三个月掌握数据分析",
+        ),
+    )
+
+    body = _send(client, user.headers, PLAN_TEXT)
+
+    card = body["card"]
+    assert card["kind"] == "l4_plan"
+    assert card["materials"] == [
+        {"url": "https://a.example/x", "title": "资料 A", "site": "example",
+         "summary": "一段摘要", "saved": False}
+    ]
+    assert card["materials_note"] == ""
+
+
+def test_research_save_stores_checked_materials(client, session, provider, monkeypatch):
+    """勾选入库：只存用户勾中的来源，其余保持未入库；抓取失败的跳过并计数。"""
+    from app.agent import research as research_mod
+    from app.domain.models.knowledge_item import KnowledgeItem
+    from app.llm import websearch
+
+    user = sign_in(client, "l4p_save")
+    _seed_goal(session, user.user_id)
+    provider.rows.append(_plan_payload())
+    monkeypatch.setattr(
+        research_mod, "advise",
+        lambda **kw: research_mod.ResearchResult(
+            text="", state="ok",
+            sources=[
+                {"url": "https://a.example/x", "title": "资料 A", "site": "example", "summary": ""},
+                {"url": "https://b.example/y", "title": "资料 B", "site": "example", "summary": ""},
+            ],
+            topic="三个月掌握数据分析",
+        ),
+    )
+    monkeypatch.setattr(
+        websearch, "fetch",
+        lambda url: {"ok": True, "title": "抓到的标题", "content": "正文内容" * 10, "error": ""},
+    )
+
+    body = _send(client, user.headers, PLAN_TEXT)
+    cid = body["conversation_id"]
+    key = body["card"]["key"]
+    assert [m["saved"] for m in body["card"]["materials"]] == [False, False]
+
+    resp = _action(client, user.headers, {
+        "conversation_id": cid, "card_key": key,
+        "action": "research.save", "target_id": "",
+        "value": json.dumps(["https://a.example/x"]),
+    })
+    assert resp.status_code == 200, resp.text
+    new_card = resp.json()["card"]
+    flags = {m["url"]: m["saved"] for m in new_card["materials"]}
+    assert flags["https://a.example/x"] is True
+    assert flags["https://b.example/y"] is False
+
+    session.flush()
+    items = session.query(KnowledgeItem).all()
+    assert len(items) == 1
+    assert items[0].title == "资料 A"
+    assert items[0].source == "manual"
+
+
+def test_research_save_skips_failed_fetch(client, session, provider, monkeypatch):
+    """抓取失败的那条跳过并说清楚，别假装存进去了。"""
+    from app.agent import research as research_mod
+    from app.domain.models.knowledge_item import KnowledgeItem
+    from app.llm import websearch
+
+    user = sign_in(client, "l4p_save_fail")
+    _seed_goal(session, user.user_id)
+    provider.rows.append(_plan_payload())
+    monkeypatch.setattr(
+        research_mod, "advise",
+        lambda **kw: research_mod.ResearchResult(
+            text="", state="ok",
+            sources=[{"url": "https://a.example/x", "title": "资料 A", "site": "", "summary": ""}],
+            topic="三个月掌握数据分析",
+        ),
+    )
+    monkeypatch.setattr(
+        websearch, "fetch",
+        lambda url: {"ok": False, "title": "", "content": "", "error": "抓不到正文"},
+    )
+
+    body = _send(client, user.headers, PLAN_TEXT)
+    resp = _action(client, user.headers, {
+        "conversation_id": body["conversation_id"], "card_key": body["card"]["key"],
+        "action": "research.save", "target_id": "",
+        "value": json.dumps(["https://a.example/x"]),
+    })
+    assert resp.status_code == 200
+    assert resp.json()["card"]["materials"][0]["saved"] is False
+    assert "没抓到正文" in resp.json()["reply"]
+    session.flush()
+    assert session.query(KnowledgeItem).count() == 0
+
+
 def test_l4_plan_without_goal_says_what_is_missing(client, session, provider):
     """没有目标时不能说「生成失败了」——那是与事实相反的提示，用户会以为模型坏了。"""
     headers = auth_headers(client, "l4p_nogoal")

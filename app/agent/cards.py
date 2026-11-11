@@ -386,6 +386,7 @@ def l4_plan_card(
     version: int = 0, rationale: str = "", tasks: list[dict] | None = None,
     progress: dict | None = None, note: str = "",
     rules_snapshot: dict | None = None,
+    materials: list[dict] | None = None, materials_note: str = "",
 ) -> dict:
     spec = capability_spec("l4_plan")
     return {
@@ -415,6 +416,20 @@ def l4_plan_card(
         # 本次排期用的规则参数：周容量 / 新复比 / 复习周 / 剩余进度
         "rules_snapshot": dict(rules_snapshot or {}),
         "note": note,
+        # 主动收集的学习资料：联网搜来的外部来源，**默认不入库**，用户勾选后才存。
+        # `saved` 由 research.save 动作翻成 True；摘要只用于帮助勾选，正文入库时才抓。
+        "materials": [
+            {
+                "url": str(m.get("url") or ""),
+                "title": str(m.get("title") or "")[:200],
+                "site": str(m.get("site") or "")[:60],
+                "summary": str(m.get("summary") or "")[:200],
+                "saved": bool(m.get("saved")),
+            }
+            for m in (materials or [])
+            if m.get("url")
+        ],
+        "materials_note": materials_note,
         "href": spec.href if spec else "",
         "sends": [_send("重新生成周计划", "重新生成周计划")] if state == "ok" else [],
     }

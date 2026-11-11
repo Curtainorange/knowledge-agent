@@ -28,6 +28,7 @@ L5 的 `status` 是会变的。若不刷新，重新打开页面会看到已经�
 """
 from __future__ import annotations
 
+import json
 import logging
 from uuid import uuid4
 
@@ -83,6 +84,7 @@ from app.domain.models.task_run import TaskRun
 from app.domain.repositories.conversation_repository import ConversationRepository
 from app.domain.repositories.learning_plan_repository import LearningGoalRepository
 from app.llm.gateway import ModelGateway
+from app.llm import websearch
 
 logger = logging.getLogger(__name__)
 
@@ -681,13 +683,58 @@ def _execute_l4_plan(
         )
         return plan_reply("degraded", tasks=[], progress={}, note=result.note), card
 
+    # 拆完计划后主动联网找一圈资料（用目标描述当检索主题），把来源附到计划卡上。
+    # 这不是"用户点了才找"：计划刚成形时最需要资料，也最省用户再去说一句"帮我找"。
+    # 失败（没配 Key / 没搜到 / 模型挂了）都只清空清单，绝不让计划本身跟着失败。
+    materials, materials_note = _collect_plan_materials(
+        gateway=gateway, session=session, user_id=user_id, topic=goal.description
+    )
+
     card = l4_plan_card(
         key=key, state=result.state, goal_description=view.goal_description,
         plan_id=view.plan_id, version=view.version, rationale=view.rationale,
         tasks=view.tasks, progress=view.progress, note=result.note,
         rules_snapshot=getattr(view, "rules_snapshot", {}) or {},
+        materials=materials, materials_note=materials_note,
     )
     return plan_reply(result.state, tasks=view.tasks, progress=view.progress, note=result.note), card
+
+
+def _collect_plan_materials(
+    *, gateway: ModelGateway, session: Session, user_id: str, topic: str
+) -> tuple[list[dict], str]:
+    """拆完计划后联网找一圈资料。返回 (materials, note)；失败只清空清单，不影响计划。
+
+    收集用的是 `research.advise`（与"找学习材料"能力同一份逻辑），但这里只把
+    **来源清单**附到计划卡上、不入库——用户勾选哪条，才抓正文存哪条。
+    任何失败（没配 Key / 没搜到 / 模型挂了）都收敛成空清单 + 一句说明，
+    绝不因为"顺手找资料"把已经拆好的计划带崩。
+    """
+    if not (topic or "").strip():
+        return [], ""
+    try:
+        result = research.advise(
+            gateway=gateway, session=session, user_id=user_id,
+            question=topic, topic=topic,
+        )
+    except Exception as exc:  # pragma: no cover - 联网异常绝不拖累计划
+        logger.warning("plan materials research failed: %s", exc)
+        return [], "这次没能自动检索资料。"
+
+    materials = [
+        {
+            "url": it.get("url"),
+            "title": it.get("title"),
+            "site": it.get("site"),
+            "summary": it.get("summary") or "",
+            "saved": False,
+        }
+        for it in (result.sources or [])
+        if it.get("url")
+    ]
+    if not materials:
+        return [], "这次没能自动检索到资料。"
+    return materials, ""
 
 
 def _execute_l4_deviation(
@@ -1130,6 +1177,19 @@ def apply_action(
         session.commit()
         return reply, new_card
 
+    if kind == "l4_plan" and action == "research.save":
+        # 勾选入库：按用户勾的 url 抓正文存库，其余条目保持原样。
+        # 这也是"产生新卡"（materials 的 saved 变了），必须写回会话，否则刷新页面就回退。
+        new_card, saved, failed = _save_research_materials(
+            session=session, user_id=user_id, card=card, urls=_parse_urls(value)
+        )
+        _replace_card(
+            session, user_id=user_id, conversation_id=conversation_id,
+            card_key=card.get("key") or card_key, card=new_card,
+        )
+        session.commit()
+        return _save_materials_reply(saved, failed), new_card
+
     if kind == "comprehension_probe" and action == "probe.level":
         # level 走 target_id（与 probe.answer 传 option_key 一致）。
         # 曾经误写成 value：前端把选项值放在 data-target、value 传空，
@@ -1160,6 +1220,82 @@ def apply_action(
         raise ActionError(f"这张卡片不支持该操作（{kind} / {action}）")
 
     return reply, refresh_card(session, user_id=user_id, card=card)
+
+
+def _parse_urls(value: str) -> list[str]:
+    """把前端传来的 value（勾选的 url 数组 JSON）解析成去重后的 url 列表。
+
+    前端拼的是 JSON 数组字符串；解析失败或形状不对时返回空列表，交给调用方
+    报「没有可入库的内容」，而不是在这里抛错把一次操作打成 500。
+    """
+    try:
+        raw = json.loads(value or "[]")
+    except (TypeError, ValueError):
+        return []
+    if not isinstance(raw, list):
+        return []
+    seen: list[str] = []
+    for item in raw:
+        url = str(item).strip()
+        if url and url not in seen:
+            seen.append(url)
+    return seen
+
+
+def _save_research_materials(
+    *, session: Session, user_id: str, card: dict, urls: list[str]
+) -> tuple[dict, int, int]:
+    """把用户勾选的来源抓正文入库。返回 (新卡, 成功条数, 失败条数)。
+
+    只处理用户勾中、且尚未入库的条目；逐条抓正文，抓不到就跳过并计数——
+    一条失败不该让整批都失败（与微信读书同步「失败的书下次再试」同一口径）。
+    正文走 DeepSeek 官方抓取接口（出网主机已登记），来源仍是 manual、
+    渠道标在 tags 里（与「对话录入」同构）。
+    """
+    from app.ingestion.service import SOURCE_MANUAL, IngestionService
+    from app.retrieval.embedding import build_embedding
+
+    wanted = set(urls)
+    materials = [dict(m) for m in (card.get("materials") or [])]
+    service = IngestionService(session, build_embedding())
+    saved = 0
+    failed = 0
+    for material in materials:
+        url = str(material.get("url") or "")
+        if not url or material.get("saved") or url not in wanted:
+            continue
+        fetched = websearch.fetch(url)
+        if not fetched.get("ok"):
+            failed += 1
+            continue
+        content = str(fetched.get("content") or "").strip()
+        if not content:
+            failed += 1
+            continue
+        title = (str(material.get("title") or "") or str(fetched.get("title") or "") or url)[:200]
+        service.add_knowledge(
+            user_id=user_id,
+            title=title,
+            content=content,
+            source=SOURCE_MANUAL,
+            tags=[cards_mod.CHANNEL_TAG_CHAT, "联网资料"],
+        )
+        material["saved"] = True
+        saved += 1
+    new_card = dict(card)
+    new_card["materials"] = materials
+    return new_card, saved, failed
+
+
+def _save_materials_reply(saved: int, failed: int) -> str:
+    parts: list[str] = []
+    if saved:
+        parts.append(f"已存 {saved} 条资料")
+    if failed:
+        parts.append(f"{failed} 条没抓到正文，没存")
+    if not parts:
+        return "没有可入库的内容，先勾选几条再点。"
+    return "，".join(parts) + "。"
 
 
 def _find_card(session: Session, *, user_id: str, conversation_id: str, card_key: str) -> dict | None:

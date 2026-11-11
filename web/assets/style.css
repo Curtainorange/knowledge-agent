@@ -194,6 +194,12 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 .badge.src-book{background:var(--warn-weak);color:var(--warn)}
 .badge.src-other{background:#eef0f6;color:var(--text-2)}
 
+/* 计划卡资料清单（拆计划时主动收集、勾选入库） */
+.mat-list{margin-top:10px}
+.mat-item{margin-top:7px;font-size:13px;color:var(--text-2)}
+.mat-check{display:inline-flex;align-items:flex-start;gap:6px}
+.mat-check input{flex:0 0 auto;margin-top:2px}
+
 /* ============ 知识库概览仪表盘 ============ */
 .stat-grid{
   display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:6px 0 12px;

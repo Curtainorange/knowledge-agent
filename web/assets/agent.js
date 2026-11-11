@@ -322,11 +322,46 @@ window.CCA = (function () {
     if (card.rationale) {
       parts.push('<div class="cf-block"><b>为什么这样排：</b>' + esc(card.rationale) + '</div>');
     }
+    parts.push(materialsHtml(card));
     if (card.note) {
       parts.push('<div class="notice">' + esc(card.note) + '</div>');
     }
     parts.push(actionsRow(card));
     return '<div class="l4-card">' + parts.join('') + '</div>';
+  }
+
+  /* 计划卡上的资料清单：拆计划时顺手联网找的来源。
+     默认一条都不入库——用户勾选哪条、点「入库选中项」，才抓正文存哪条。
+     已入库的只标状态，不再给勾选框（重复入库没有意义）。 */
+  function materialsHtml(card) {
+    var materials = card.materials || [];
+    if (!materials.length) {
+      return card.materials_note
+        ? '<div class="meta">' + esc(card.materials_note) + '</div>'
+        : '';
+    }
+    var rows = materials.map(function (m) {
+      var href = safeHref(m.url);
+      var title = href
+        ? '<a href="' + esc(href) + '" target="_blank" rel="noopener noreferrer">' + esc(m.title || m.url) + '</a>'
+        : esc(m.title || m.url);
+      var badge = m.site ? '<span class="badge">' + esc(m.site) + '</span>' : '';
+      if (m.saved) {
+        return '<div class="mat-item"><span class="badge ok">已入库</span> ' + title + badge + '</div>';
+      }
+      var summary = m.summary ? '<div class="meta">' + esc(m.summary) + '</div>' : '';
+      return '<div class="mat-item"><label class="mat-check">' +
+        '<input type="checkbox" class="mat-select" value="' + esc(m.url) + '"> ' +
+        title + badge + '</label>' + summary + '</div>';
+    }).join('');
+    return '<div class="mat-list">' +
+      '<div class="sg-refs-title">学习资料（联网检索，勾选后入库）</div>' +
+      rows +
+      '<div class="cf-actions">' +
+      '<button class="sm" data-agent-action="research.save" data-card-key="' + esc(card.key) + '"' +
+      ' data-target="" data-value="" data-mat-save="1">入库选中项</button>' +
+      '</div>' +
+      '</div>';
   }
 
   function l4DeviationHtml(card) {
@@ -1533,6 +1568,22 @@ window.CCA = (function () {
       var button = target.closest('[data-agent-action]');
       if (button) {
         event.preventDefault();
+        // 勾选入库：按钮本身不带 data-value，点击时收集本卡内勾选的 checkbox 拼成 JSON。
+        // 没勾选就不发请求、直接提示——「没选就存」正是这次改动要防的事。
+        if (button.getAttribute('data-agent-action') === 'research.save') {
+          var cardEl = button.closest('.mat-list');
+          var urls = [];
+          if (cardEl) {
+            cardEl.querySelectorAll('.mat-select:checked').forEach(function (cb) {
+              urls.push(cb.value);
+            });
+          }
+          if (!urls.length) {
+            CC.toast('先勾选要入库的资料');
+            return;
+          }
+          button.setAttribute('data-value', JSON.stringify(urls));
+        }
         runAction(button);
         return;
       }

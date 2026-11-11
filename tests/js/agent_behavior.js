@@ -289,6 +289,30 @@ check('排序理由渲染', planCard.indexOf('先打基础再上工具') !== -1)
 check('任务标题被转义', planCard.indexOf('<img src=x') === -1);
 check('计划卡带重新生成按钮', planCard.indexOf('data-agent-send="重新生成周计划"') !== -1);
 
+const planWithMat = CCA.renderCard({
+  kind: 'l4_plan', key: 'p1m', state: 'ok',
+  goal_description: '三个月掌握数据分析', plan_id: 'pl1', version: 1,
+  rationale: '', tasks: [], progress: { total: 0, done: 0 },
+  note: '', href: '/l4.html', sends: [],
+  materials: [
+    { url: 'https://a.example/x', title: XSS, site: 'example', summary: '一段摘要', saved: false },
+    { url: 'https://b.example/y', title: '已存的资料', site: '', summary: '', saved: true }
+  ]
+});
+check('资料清单标题被转义', planWithMat.indexOf('<img src=x') === -1);
+check('未入库条目给勾选框', planWithMat.indexOf('class="mat-select" value="https://a.example/x"') !== -1);
+check('已入库条目不再给勾选框', planWithMat.indexOf('mat-select" value="https://b.example/y"') === -1);
+check('已入库条目标出状态', planWithMat.indexOf('已入库') !== -1);
+check('给「入库选中项」按钮', planWithMat.indexOf('data-agent-action="research.save"') !== -1);
+
+const planNoMat = CCA.renderCard({
+  kind: 'l4_plan', key: 'p1n', state: 'ok',
+  goal_description: '三个月掌握数据分析', plan_id: 'pl1', version: 1,
+  rationale: '', tasks: [], progress: { total: 0, done: 0 },
+  note: '', href: '/l4.html', sends: [], materials: [], materials_note: '这次没能自动检索到资料。'
+});
+check('没搜到资料时给一句说明', planNoMat.indexOf('这次没能自动检索到资料') !== -1);
+
 const planDegraded = CCA.renderCard({
   kind: 'l4_plan', key: 'p2', state: 'degraded', goal_description: '三个月掌握数据分析',
   plan_id: '', version: 0, rationale: '', tasks: [], progress: {},
