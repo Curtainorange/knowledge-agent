@@ -1,0 +1,50 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>L3 简报：问出你「该问但没问」的问题</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 620, flexDirection: 'column' }}>
+            <Image src="assets/brief.png" style={{ width: 620, height: 388, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                真实简报：10 个主题各自几篇、入门还是进阶，底部给出结构信号
+            </Text>
+        </Box>
+
+        <Box style={{ width: 504, flexDirection: 'column' }}>
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>先看清结构，再生成问题</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 8, lineHeight: 1.6 }}>
+                    主题分布 + 入门/进阶比例是问题的依据；没有这两张表，追问就只是漂亮话。
+                </Text>
+            </Box>
+            <Box style={{ width: 504, height: 1, background: '#E2E8F0', marginTop: 20 }} />
+            <Box style={{ flexDirection: 'column', marginTop: 20 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>两种模式：「大量存在」与「完全缺失」</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 8, lineHeight: 1.6 }}>
+                    前者是堆在入门层的重复，后者是整块没碰过的领域——两种缺口的问法不同。
+                </Text>
+            </Box>
+            <Box style={{ width: 504, height: 1, background: '#E2E8F0', marginTop: 20 }} />
+            <Box style={{ flexDirection: 'column', marginTop: 20 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>追问带出处</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 8, lineHeight: 1.6 }}>
+                    每个问题都要能指回具体的主题、篇数或冲突，而不是泛泛的「你有没有想过」。
+                </Text>
+            </Box>
+
+            <Box style={{ width: 504, height: 58, background: '#EEF2FF', borderRadius: 8, marginTop: 22, padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#4F46E5', lineHeight: 1.5 }}>
+                    简报同时把「本周新增冲突」写进标题区，冲突与缺口放在一起看
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>17</Text>
+    </Box>
+</Slide>

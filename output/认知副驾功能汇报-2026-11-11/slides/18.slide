@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>L4 路径：模型排任务，代码管约束</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 620, flexDirection: 'column' }}>
+            <Image src="assets/l4.png" style={{ width: 620, height: 388, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                真实计划：每周 300 分钟、新学 70%、1 个复习任务；每个任务可展开「为什么排在这里」
+            </Text>
+        </Box>
+
+        <Box style={{ width: 504, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                模型不知道你每周只有 5 小时，也不知道第 3 周该回看第 1 周——这些约束写进提示词也核查不了，只能放在代码里。
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 20 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>01</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>排期参数可改，改完立刻生效</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        每周时长、新学与复习比例、计划周数都在页面上调，不必改代码
+                    </Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>02</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>偏离是本地算出来的</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        连续无行为、活动量突变、完成度停滞、新内容与主题脱节——四类信号
+                    </Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>03</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>重排要你点头</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        给建议而不是替你改：采纳才重排，拒绝就保留原计划
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ width: 504, height: 62, background: '#EEF2FF', borderRadius: 8, marginTop: 20, padding: '0 18px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#4F46E5', lineHeight: 1.5 }}>
+                    拆计划时会主动去网上找学习材料，勾选后才入库——不替你决定存什么
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>18</Text>
+    </Box>
+</Slide>

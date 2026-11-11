@@ -1,0 +1,51 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>对话即入口：不点功能，只说话</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 468 }}>
+        <Box style={{ width: 636, flexDirection: 'column' }}>
+            <Image src="assets/chat_plan2.png" style={{ width: 636, height: 398, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                开场不自报功能：先摆出「你在读哪本、读到第几节」，再问一句方向
+            </Text>
+        </Box>
+
+        <Box style={{ width: 488, flexDirection: 'column', gap: 22 }}>
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#4F46E5' }}>判官是模型，关键词只是先验</Text>
+                <Text style={{ fontSize: 18, color: '#334155', marginTop: 8, lineHeight: 1.6 }}>
+                    看整句判意图、抽参数；关键词命中只作线索。
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0' }} />
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#4F46E5' }}>先确认，再建议</Text>
+                <Text style={{ fontSize: 18, color: '#334155', marginTop: 8, lineHeight: 1.6 }}>
+                    目标、进度、理解程度没齐就不出建议；说清了就直接给。
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0' }} />
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#4F46E5' }}>长任务转后台，不当场转圈</Text>
+                <Text style={{ fontSize: 18, color: '#334155', marginTop: 8, lineHeight: 1.6 }}>
+                    先发 pending 卡，后台跑完就地改写，前端轮询。
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0' }} />
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#4F46E5' }}>没接住的半句，必须说出来</Text>
+                <Text style={{ fontSize: 18, color: '#334155', marginTop: 8, lineHeight: 1.6 }}>
+                    「收集材料+排计划」这类复合诉求，接不住的部分明说。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>06</Text>
+    </Box>
+</Slide>

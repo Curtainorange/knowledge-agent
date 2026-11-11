@@ -1,0 +1,10 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+    <Text style={{ fontSize: 148, fontWeight: 'bold', color: '#4F46E5', opacity: 0.16, width: 220 }}>04</Text>
+    <Box style={{ width: 1, height: 132, background: '#C7D2FE' }} />
+    <Box style={{ flexDirection: 'column', width: 760 }}>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#1F2937' }}>技术重点与工程保障</Text>
+        <Text style={{ fontSize: 20, color: '#64748B', marginTop: 18, lineHeight: 1.6 }}>
+            三处「用代码兜住模型」的设计，和一条每次提交都要过的门禁
+        </Text>
+    </Box>
+</Slide>

@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>主动推送：先决定「不推」，再考虑「推」</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 620, flexDirection: 'column' }}>
+            <Image src="assets/notify.png" style={{ width: 620, height: 388, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                通知页：推送频率、两条送达通道的状态、以及推送历史
+            </Text>
+        </Box>
+
+        <Box style={{ width: 504, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>三道闸门，都在发送之前</Text>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 12 }}>
+                <Box style={{ width: 6, height: 6, background: '#4F46E5', borderRadius: 3, marginTop: 9 }} />
+                <Text style={{ fontSize: 17, color: '#475569', marginLeft: 12, lineHeight: 1.55, flex: 1 }}>
+                    免打扰：设成安静模式后，只放行重大诊断
+                </Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 }}>
+                <Box style={{ width: 6, height: 6, background: '#4F46E5', borderRadius: 3, marginTop: 9 }} />
+                <Text style={{ fontSize: 17, color: '#475569', marginLeft: 12, lineHeight: 1.55, flex: 1 }}>
+                    去重：同样的内容推过一次就不再推
+                </Text>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 8 }}>
+                <Box style={{ width: 6, height: 6, background: '#4F46E5', borderRadius: 3, marginTop: 9 }} />
+                <Text style={{ fontSize: 17, color: '#475569', marginLeft: 12, lineHeight: 1.55, flex: 1 }}>
+                    收敛：同一类冲突被你忽略三次，就不再推这一类
+                </Text>
+            </Box>
+
+            <Box style={{ width: 504, height: 1, background: '#E2E8F0', marginTop: 18 }} />
+
+            <Box style={{ flexDirection: 'column', marginTop: 18 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>两条送达通道</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 8, lineHeight: 1.6 }}>
+                    站内弹窗（打开项目时右下角弹出，可关闭）+ 手机微信（需自己开，默认关）。
+                </Text>
+            </Box>
+
+            <Box style={{ width: 504, height: 1, background: '#E2E8F0', marginTop: 18 }} />
+
+            <Box style={{ flexDirection: 'column', marginTop: 18 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#4F46E5' }}>推送是旁路，不能拖垮主流程</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 8, lineHeight: 1.6 }}>
+                    通道发不出去只记日志；周简报、月诊断、教练提示都由后台任务排期，不占请求。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>20</Text>
+    </Box>
+</Slide>

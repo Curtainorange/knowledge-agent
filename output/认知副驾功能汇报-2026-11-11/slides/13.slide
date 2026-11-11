@@ -1,0 +1,10 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+    <Text style={{ fontSize: 148, fontWeight: 'bold', color: '#4F46E5', opacity: 0.16, width: 220 }}>03</Text>
+    <Box style={{ width: 1, height: 132, background: '#C7D2FE' }} />
+    <Box style={{ flexDirection: 'column', width: 760 }}>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#1F2937' }}>五层能力：从被动到主动</Text>
+        <Text style={{ fontSize: 20, color: '#64748B', marginTop: 18, lineHeight: 1.6 }}>
+            找得到、看得出矛盾、问得出问题、改得动计划、说得出病根
+        </Text>
+    </Box>
+</Slide>

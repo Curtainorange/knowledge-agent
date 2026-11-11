@@ -1,0 +1,28 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>技术重点二与三：先判「是不是真懂」，再谈长任务</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 40, marginTop: 22, height: 472 }}>
+        <Box style={{ width: 560, flexDirection: 'column' }}>
+            <Image src="assets/fig_probe.png" style={{ width: 560, height: 315, objectFit: 'contain' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 10, lineHeight: 1.5 }}>
+                判定矩阵：自评 × 判断题 × 复述覆盖率，结论由代码给
+            </Text>
+        </Box>
+
+        <Box style={{ width: 560, flexDirection: 'column' }}>
+            <Image src="assets/fig_loop.png" style={{ width: 560, height: 315, objectFit: 'contain' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 10, lineHeight: 1.5 }}>
+                通读循环：状态落盘、独立验证、停止规则，三者缺一就不可靠
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>23</Text>
+    </Box>
+</Slide>

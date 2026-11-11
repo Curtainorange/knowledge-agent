@@ -1,0 +1,57 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>微信读书：让划过的线回到自己的库</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ marginTop: 24, width: 1160, height: 246, border: '1px solid #E2E8F0', borderRadius: 10, padding: 1 }}>
+        <Table
+            style={{ width: '100%', height: '100%' }}
+            defaultTextStyle={{ fontSize: 17, textAlign: 'left', color: '#334155' }}
+            defaultCellStyle={{ border: { bottom: { width: 1, color: '#E2E8F0' }, right: { width: 1, color: '#E2E8F0' } }, background: { color: '#FFFFFF' } }}
+            cells={[
+                [
+                    { text: '微信读书里的内容', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#4F46E5' } } },
+                    { text: '落成什么', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#4F46E5' } } },
+                    { text: '标签', textStyle: { bold: true, color: '#FFFFFF' }, cellStyle: { background: { color: '#4F46E5' } } },
+                ],
+                ['划线', '一条知识（划线原文）', { text: '微信读书 / 划线', textStyle: { color: '#4F46E5' } }],
+                ['带划线的想法', '一条知识（原文 +【我的想法】）', { text: '微信读书 / 读书笔记', textStyle: { color: '#4F46E5' } }],
+                ['整本书评、章节点评', '一条知识（想法本身）', { text: '微信读书 / 书评', textStyle: { color: '#4F46E5' } }],
+            ]}
+        />
+    </Box>
+
+    <Box style={{ flexDirection: 'row', gap: 32, marginTop: 26 }}>
+        <Box style={{ width: 350, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>幂等</Text>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                按内容 id 去重，反复同步不会重复；你自己删掉的条目也不会被同步复活
+            </Text>
+        </Box>
+        <Box style={{ width: 350, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>可追溯</Text>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                每条都带书名、章节、位置与原文链接，能跳回微信读书核对
+            </Text>
+        </Box>
+        <Box style={{ width: 350, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>有上限</Text>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                单次最多扫描 300 条；没扫完会提示还剩几本，再点一次继续
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ width: 1160, height: 62, background: '#EEF2FF', borderRadius: 10, marginTop: 24, flexDirection: 'row', alignItems: 'center', padding: '0 24px' }}>
+        <Text style={{ fontSize: 18, color: '#1F2937', lineHeight: 1.5 }}>
+            真正的重点是<span style={{ fontWeight: 'bold', color: '#4F46E5' }}>格式同构</span>：同步来的划线与手写知识同等对待，才会被 L1 捞出来、被 L2 拿去比对
+        </Text>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>12</Text>
+    </Box>
+</Slide>

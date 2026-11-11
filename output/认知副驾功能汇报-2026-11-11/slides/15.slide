@@ -1,0 +1,60 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>L2 冲突：找出知识体系里的「内战」</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 512, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                你半年前认可「时间可以被管理」，昨天又划了「时间根本不可管理」。两条都在库里，谁也没提醒过你。
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 22 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 28 }}>01</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>两侧原句并排</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>不是「相关」，是能引出原话的对立</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 28 }}>02</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>依据与置信度</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>写明为什么算矛盾，置信度用本地信号校准</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 28 }}>03</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>可执行建议</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>先各自给操作性定义，再列可验证判据</Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 18 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 28 }}>04</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>为什么会冲突</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>解释立场、前提与边界——不是判个对错就完</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ width: 512, height: 52, background: '#EEF2FF', borderRadius: 8, marginTop: 20, flexDirection: 'row', alignItems: 'center', padding: '0 16px' }}>
+                <Text style={{ fontSize: 16, color: '#4F46E5' }}>采纳 / 忽略都回流；同类被忽略三次后不再推</Text>
+            </Box>
+        </Box>
+
+        <Box style={{ width: 612, flexDirection: 'column' }}>
+            <Image src="assets/conflicts.png" style={{ width: 612, height: 382, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                真实冲突卡：立场对立 ⇄，置信度 93%，两侧原句、依据、建议与「为什么会冲突」
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>15</Text>
+    </Box>
+</Slide>

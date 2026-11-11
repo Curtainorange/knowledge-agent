@@ -1,0 +1,10 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+    <Text style={{ fontSize: 148, fontWeight: 'bold', color: '#4F46E5', opacity: 0.16, width: 220 }}>02</Text>
+    <Box style={{ width: 1, height: 132, background: '#C7D2FE' }} />
+    <Box style={{ flexDirection: 'column', width: 760 }}>
+        <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#1F2937' }}>知识怎么进来、怎么被读</Text>
+        <Text style={{ fontSize: 20, color: '#64748B', marginTop: 18, lineHeight: 1.6 }}>
+            录入不靠专门开一个页面，它发生在阅读和对话里
+        </Text>
+    </Box>
+</Slide>

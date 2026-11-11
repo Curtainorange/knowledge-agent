@@ -1,0 +1,25 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Box style={{ width: 36, height: 4, background: '#4F46E5', borderRadius: 2 }} />
+        <Text style={{ fontSize: 16, color: '#4F46E5', letterSpacing: 2 }}>项目功能汇报</Text>
+    </Box>
+
+    <Text style={{ fontSize: 76, fontWeight: 'bold', color: '#1F2937', marginTop: 26, letterSpacing: 2 }}>
+        认知副驾
+    </Text>
+
+    <Text style={{ fontSize: 26, color: '#334155', marginTop: 20, lineHeight: 1.5 }}>
+        把「收藏的碎片」变成「可调用的认知」
+    </Text>
+
+    <Text style={{ fontSize: 18, color: '#64748B', marginTop: 14 }}>
+        五层能力 · 对话即入口 · 书籍与笔记一体 · 全程可溯源
+    </Text>
+
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 56 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 48, marginTop: 18 }}>
+        <Text style={{ fontSize: 15, color: '#64748B' }}>汇报人　周宇航</Text>
+        <Text style={{ fontSize: 15, color: '#64748B' }}>2026 年 11 月 11 日</Text>
+    </Box>
+</Slide>

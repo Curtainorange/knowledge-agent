@@ -1,0 +1,53 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>L1 挖掘：让遗忘变成对话</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 690, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                你只记得「一个外国老头说的，讲拖延症的」——不需要先想起关键词，也不需要先知道它存在哪个标签下。
+            </Text>
+
+            <Box style={{ marginTop: 22, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>两个检索面，同一个入口</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    库里找条目（模糊线索召回），或全网找书（只记得情节、作者）
+                </Text>
+            </Box>
+            <Box style={{ marginTop: 20, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>多轮澄清，不是一次搜索</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    线索不足就只追问一个最关键的点；有回合上限，超限给最近命中兜底
+                </Text>
+            </Box>
+            <Box style={{ marginTop: 20, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>命中后给的是「可以继续的下一步」</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    摘要、候选、上次读到哪；空库时直接说清楚，而不是假装找不到
+                </Text>
+            </Box>
+
+            <Box style={{ width: 690, height: 88, background: '#EEF2FF', borderRadius: 10, marginTop: 24, padding: '14px 18px', flexDirection: 'column' }}>
+                <Text style={{ fontSize: 17, fontWeight: 'bold', color: '#4F46E5' }}>全网找书的两条硬约束</Text>
+                <Text style={{ fontSize: 16, color: '#334155', marginTop: 6, lineHeight: 1.5 }}>
+                    候选书名必须指到真实检索结果（指不到就丢弃）；搜不到就说搜不到，结果默认不入库
+                </Text>
+            </Box>
+        </Box>
+
+        <Box style={{ width: 434, flexDirection: 'column' }}>
+            <Image src="assets/mine_web.png" style={{ width: 434, height: 271, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                L1 挖掘页：库里找 / 全网找书两个模式，示例线索一点即填
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>14</Text>
+    </Box>
+</Slide>

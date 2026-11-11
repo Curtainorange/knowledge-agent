@@ -1,0 +1,100 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>四个层次，十四个功能模块</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', marginTop: 26, height: 92, alignItems: 'center', borderBottom: '1px solid #E2E8F0' }}>
+        <Box style={{ width: 168, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>入口</Text>
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>一句话开始</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+            <Box style={{ padding: '12px 22px', background: '#4F46E5', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#FFFFFF', fontWeight: 'bold' }}>对话工作台</Text>
+            </Box>
+            <Box style={{ padding: '12px 22px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>16 项能力已接入</Text>
+            </Box>
+            <Box style={{ padding: '12px 22px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>25 种卡片回写</Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', marginTop: 14, height: 92, alignItems: 'center', borderBottom: '1px solid #E2E8F0' }}>
+        <Box style={{ width: 168, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>内容</Text>
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>知识怎么进来</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>知识库</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>滚动阅读器</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>书架（txt / epub / pdf）</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>微信读书同步</Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', marginTop: 14, height: 92, alignItems: 'center', borderBottom: '1px solid #E2E8F0' }}>
+        <Box style={{ width: 168, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>能力</Text>
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>发现问题并修正</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+            <Box style={{ padding: '12px 18px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>L1 模糊挖掘</Text>
+            </Box>
+            <Box style={{ padding: '12px 18px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>L2 冲突检测</Text>
+            </Box>
+            <Box style={{ padding: '12px 18px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>L3 认知简报</Text>
+            </Box>
+            <Box style={{ padding: '12px 18px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>L4 路径修正</Text>
+            </Box>
+            <Box style={{ padding: '12px 18px', background: '#EEF2FF', borderRadius: 10 }}>
+                <Text style={{ fontSize: 18, color: '#4F46E5' }}>L5 健康诊断</Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ flexDirection: 'row', marginTop: 14, height: 92, alignItems: 'center' }}>
+        <Box style={{ width: 168, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 20, fontWeight: 'bold', color: '#1F2937' }}>底座</Text>
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>找得到、送得到</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 12, flex: 1 }}>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>主动推送（站内 / 微信）</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>后台任务队列</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>系统自检 /doctor</Text>
+            </Box>
+            <Box style={{ padding: '12px 20px', background: '#F8FAFC', borderRadius: 10, border: '1px solid #E2E8F0' }}>
+                <Text style={{ fontSize: 18, color: '#334155' }}>备份与导出</Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 18 }}>
+        后端 16 个路由模块、20 张表、13 个页面；前端原生 HTML/CSS/JS，无框架、无外部依赖。
+    </Text>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>05</Text>
+    </Box>
+</Slide>

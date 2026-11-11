@@ -1,0 +1,63 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>工程保障：门禁比承诺可靠</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 32, marginTop: 28, height: 330 }}>
+        <Box style={{ width: 420, background: '#4F46E5', borderRadius: 10, flexDirection: 'column', padding: '26px 28px', justifyContent: 'center' }}>
+            <Text style={{ fontSize: 15, color: '#C7D2FE' }}>测试用例</Text>
+            <Text style={{ fontSize: 96, fontWeight: 'bold', color: '#FFFFFF', marginTop: 6, lineHeight: 1.05 }}>1176</Text>
+            <Text style={{ fontSize: 17, color: '#E0E7FF', marginTop: 12, lineHeight: 1.55 }}>
+                全程 Mock，不触发真实 API；前端行为另有 Node 侧验证
+            </Text>
+        </Box>
+
+        <Box style={{ width: 708, flexDirection: 'column', justifyContent: 'space-between' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-end' }}>
+                <Box style={{ width: 176 }}>
+                    <Text style={{ fontSize: 15, color: '#94A3B8' }}>提交</Text>
+                    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1F2937', lineHeight: 1.1 }}>310</Text>
+                </Box>
+                <Box style={{ width: 176 }}>
+                    <Text style={{ fontSize: 15, color: '#94A3B8' }}>开发天数</Text>
+                    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1F2937', lineHeight: 1.1 }}>67</Text>
+                </Box>
+                <Box style={{ width: 176 }}>
+                    <Text style={{ fontSize: 15, color: '#94A3B8' }}>数据表</Text>
+                    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1F2937', lineHeight: 1.1 }}>20</Text>
+                </Box>
+                <Box style={{ width: 176 }}>
+                    <Text style={{ fontSize: 15, color: '#94A3B8' }}>路由模块</Text>
+                    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1F2937', lineHeight: 1.1 }}>16</Text>
+                </Box>
+            </Box>
+            <Box style={{ width: 708, height: 1, background: '#E2E8F0' }} />
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>模型可触达面是登记制</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    工具、可读文件、出网主机、可用密钥四类边界写在同一个白名单里；要放开，先登记再写代码。
+                </Text>
+            </Box>
+            <Box style={{ width: 708, height: 1, background: '#E2E8F0' }} />
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>本地钩子 + 持续集成双触发</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    每次提交前跑边界检查与相关测试，推送到主分支时再跑全量——两边跑的是同一套。
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ width: 1160, height: 62, background: '#F8FAFC', borderRadius: 10, marginTop: 26, flexDirection: 'row', alignItems: 'center', padding: '0 24px' }}>
+        <Text style={{ fontSize: 17, color: '#1F2937', lineHeight: 1.5 }}>
+            为什么在意这个：接了模型的系统，最容易出的不是功能 bug，而是<span style={{ color: '#4F46E5', fontWeight: 'bold' }}>权限悄悄变大</span>却没人发现。
+        </Text>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>24</Text>
+    </Box>
+</Slide>

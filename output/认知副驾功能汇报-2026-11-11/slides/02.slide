@@ -1,0 +1,30 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'row', alignItems: 'center' }}>
+    <Box style={{ width: 330, flexDirection: 'column' }}>
+        <Text style={{ fontSize: 44, fontWeight: 'bold', color: '#1F2937', letterSpacing: 3 }}>目录</Text>
+        <Text style={{ fontSize: 15, color: '#94A3B8', letterSpacing: 4, marginTop: 12 }}>CONTENTS</Text>
+        <Box style={{ width: 56, height: 3, background: '#4F46E5', borderRadius: 2, marginTop: 24 }} />
+    </Box>
+
+    <Box style={{ width: 770, flexDirection: 'column' }}>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-end', paddingBottom: 18, borderBottom: '1px solid #E2E8F0' }}>
+            <Text style={{ fontSize: 22, color: '#4F46E5', fontWeight: 'bold', width: 70 }}>01</Text>
+            <Text style={{ fontSize: 26, color: '#1F2937', flex: 1 }}>认识这个产品</Text>
+            <Text style={{ fontSize: 17, color: '#94A3B8' }}>P03</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-end', paddingTop: 26, paddingBottom: 18, borderBottom: '1px solid #E2E8F0' }}>
+            <Text style={{ fontSize: 22, color: '#4F46E5', fontWeight: 'bold', width: 70 }}>02</Text>
+            <Text style={{ fontSize: 26, color: '#1F2937', flex: 1 }}>知识怎么进来、怎么被读</Text>
+            <Text style={{ fontSize: 17, color: '#94A3B8' }}>P08</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-end', paddingTop: 26, paddingBottom: 18, borderBottom: '1px solid #E2E8F0' }}>
+            <Text style={{ fontSize: 22, color: '#4F46E5', fontWeight: 'bold', width: 70 }}>03</Text>
+            <Text style={{ fontSize: 26, color: '#1F2937', flex: 1 }}>五层能力：从被动到主动</Text>
+            <Text style={{ fontSize: 17, color: '#94A3B8' }}>P13</Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', alignItems: 'flex-end', paddingTop: 26, paddingBottom: 18, borderBottom: '1px solid #E2E8F0' }}>
+            <Text style={{ fontSize: 22, color: '#4F46E5', fontWeight: 'bold', width: 70 }}>04</Text>
+            <Text style={{ fontSize: 26, color: '#1F2937', flex: 1 }}>技术重点与工程保障</Text>
+            <Text style={{ fontSize: 17, color: '#94A3B8' }}>P21</Text>
+        </Box>
+    </Box>
+</Slide>

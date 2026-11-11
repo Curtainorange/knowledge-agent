@@ -1,0 +1,46 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>它要解决的，是三个断层</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 32, marginTop: 30, height: 366 }}>
+        <Box style={{ width: 470, flexDirection: 'column', padding: '26px 28px', background: '#EEF2FF', borderRadius: 10 }}>
+            <Text style={{ fontSize: 16, color: '#4F46E5' }}>01　收藏即遗忘</Text>
+            <Text style={{ fontSize: 92, fontWeight: 'bold', color: '#4F46E5', marginTop: 8, lineHeight: 1.05 }}>9%</Text>
+            <Text style={{ fontSize: 18, color: '#334155', marginTop: 10, lineHeight: 1.6 }}>
+                库里有 22 条知识，完整读完的只有 2 条。存下来这个动作，替代了读这件事。
+            </Text>
+        </Box>
+
+        <Box style={{ width: 330, flexDirection: 'column', padding: '26px 0 0 0' }}>
+            <Text style={{ fontSize: 16, color: '#64748B' }}>02　阅读未消化</Text>
+            <Text style={{ fontSize: 72, fontWeight: 'bold', color: '#1F2937', marginTop: 10, lineHeight: 1.05 }}>4 篇</Text>
+            <Text style={{ fontSize: 18, color: '#334155', marginTop: 12, lineHeight: 1.6 }}>
+                「人生意义」这个主题下的 4 篇全在入门层，没有一篇进入进阶。
+            </Text>
+        </Box>
+
+        <Box style={{ width: 296, flexDirection: 'column', padding: '26px 0 0 0' }}>
+            <Text style={{ fontSize: 16, color: '#64748B' }}>03　积累无体系</Text>
+            <Text style={{ fontSize: 72, fontWeight: 'bold', color: '#1F2937', marginTop: 10, lineHeight: 1.05 }}>5 天</Text>
+            <Text style={{ fontSize: 18, color: '#334155', marginTop: 12, lineHeight: 1.6 }}>
+                连续 5 天没有任何学习行为，而计划还停在第一周。
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ width: 1160, height: 66, background: '#F8FAFC', borderRadius: 10, flexDirection: 'row', alignItems: 'center', padding: '0 24px', marginTop: 26 }}>
+        <Text style={{ fontSize: 18, color: '#1F2937', lineHeight: 1.5 }}>
+            三个断层的共同点：缺的不是「存得更快」，是存进来之后的
+            <span style={{ color: '#4F46E5', fontWeight: 'bold' }}>判断、关联与修正</span>
+            ——这正是认知副驾要补的那一段。
+        </Text>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>04</Text>
+    </Box>
+</Slide>

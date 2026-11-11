@@ -1,0 +1,51 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>三条入库路径，入库即向量化</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 620, flexDirection: 'column' }}>
+            <Image src="assets/knowledge.png" style={{ width: 620, height: 388, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                知识库页：24 条全部已向量化，来源分布与 Top 标签一眼可见
+            </Text>
+        </Box>
+
+        <Box style={{ width: 504, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                不用先想「该记到哪个目录」——录入发生在你已经在做的那件事里。
+            </Text>
+
+            <Box style={{ marginTop: 22, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>读书时划词</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>存摘录，或把原文与自己的想法一起存成一条</Text>
+            </Box>
+            <Box style={{ marginTop: 20, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>对话里贴一个网址</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>自动抓正文入库；你自己写的那句评价不会被冲掉</Text>
+            </Box>
+            <Box style={{ marginTop: 20, paddingLeft: 16, borderLeft: '3px solid #4F46E5' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>手动录入 / 微信读书同步</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>补齐标签；同步来的划线与书评与手写内容同等对待</Text>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', gap: 30, marginTop: 24 }}>
+                <Box style={{ flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#4F46E5' }}>24 / 24</Text>
+                    <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>已向量化 / 总数</Text>
+                </Box>
+                <Box style={{ flexDirection: 'column' }}>
+                    <Text style={{ fontSize: 30, fontWeight: 'bold', color: '#1F2937' }}>4 类</Text>
+                    <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 4 }}>手动 / 书籍 / 微信读书 / 划线</Text>
+                </Box>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>09</Text>
+    </Box>
+</Slide>

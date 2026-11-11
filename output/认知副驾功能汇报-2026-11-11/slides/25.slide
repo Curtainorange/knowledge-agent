@@ -1,0 +1,22 @@
+<Slide style={{ width: 1280, height: 720, padding: '0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei', flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+        <Box style={{ width: 36, height: 4, background: '#4F46E5', borderRadius: 2 }} />
+        <Text style={{ fontSize: 16, color: '#4F46E5', letterSpacing: 2 }}>总结</Text>
+    </Box>
+
+    <Text style={{ fontSize: 52, fontWeight: 'bold', color: '#1F2937', marginTop: 26, lineHeight: 1.35 }}>
+        把收藏的碎片，变成可调用的认知，<br />并持续修正方向
+    </Text>
+
+    <Text style={{ fontSize: 20, color: '#475569', marginTop: 22, lineHeight: 1.6 }}>
+        找得到 · 看得出矛盾 · 问得出问题 · 改得动计划 · 说得出病根
+    </Text>
+
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 54 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 48, marginTop: 18 }}>
+        <Text style={{ fontSize: 15, color: '#64748B' }}>汇报人　周宇航</Text>
+        <Text style={{ fontSize: 15, color: '#64748B' }}>2026 年 11 月 11 日</Text>
+        <Text style={{ fontSize: 15, color: '#94A3B8' }}>欢迎提问</Text>
+    </Box>
+</Slide>

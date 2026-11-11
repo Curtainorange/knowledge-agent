@@ -1,0 +1,51 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>阅读器：读到哪，就记到哪</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 636, flexDirection: 'column' }}>
+            <Image src="assets/reader_sel.png" style={{ width: 636, height: 398, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                选中一段文字，浮层直接给「存摘录 / 写想法」——不打断阅读
+            </Text>
+        </Box>
+
+        <Box style={{ width: 488, flexDirection: 'column' }}>
+            <Box style={{ flexDirection: 'column' }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>划词两种存法</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    存摘录（或 Ctrl/Cmd + Enter），或把原文和自己的想法一起存成一条
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0', marginTop: 18 }} />
+            <Box style={{ flexDirection: 'column', marginTop: 18 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>已录段落自动高亮</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    黄色是纯摘录，绿色含自己的想法；消化过哪段，一眼看得出来
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0', marginTop: 18 }} />
+            <Box style={{ flexDirection: 'column', marginTop: 18 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>进度精确到章内，随时续读</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    目录跳章、字号调节、触屏左右滑翻章；本书已录知识可点回原文
+                </Text>
+            </Box>
+            <Box style={{ width: 488, height: 1, background: '#E2E8F0', marginTop: 18 }} />
+            <Box style={{ flexDirection: 'column', marginTop: 18 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>阅读日志：按天 / 周 / 月</Text>
+                <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                    每一桶读了哪几本、各多少字，趋势与明细都在同一页
+                </Text>
+            </Box>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>10</Text>
+    </Box>
+</Slide>

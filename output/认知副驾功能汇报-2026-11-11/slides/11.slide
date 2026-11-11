@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>书架不止是书架：智能体也读书</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26, height: 462 }}>
+        <Box style={{ width: 512, flexDirection: 'column' }}>
+            <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>通读一本书</Text>
+                <Text style={{ fontSize: 15, color: '#4F46E5' }}>分章要点 + 断点续读</Text>
+            </Box>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                逐章提取要点再汇总；中断后接着读，不必从头再来
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 20 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>聊书</Text>
+                <Text style={{ fontSize: 15, color: '#4F46E5' }}>基于本书内容对话</Text>
+            </Box>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                不是通用闲聊：答案要落在这本书的章节上
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 20 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>推荐书籍</Text>
+                <Text style={{ fontSize: 15, color: '#4F46E5' }}>带证据，不凭印象</Text>
+            </Box>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                推荐理由必须指回你库里已有的条目或已通读的章节
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'baseline', gap: 10, marginTop: 20 }}>
+                <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>对比两本书</Text>
+                <Text style={{ fontSize: 15, color: '#4F46E5' }}>书架勾选两本即可</Text>
+            </Box>
+            <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                先由代码对齐「讲同一件事」的章节，再让模型判一致 / 互补 / 冲突
+            </Text>
+
+            <Box style={{ width: 512, height: 58, background: '#EEF2FF', borderRadius: 8, marginTop: 22, padding: '0 16px', justifyContent: 'center' }}>
+                <Text style={{ fontSize: 16, color: '#4F46E5', lineHeight: 1.5 }}>
+                    智能体读过的书与你读过的书是两本账：它只写自己的阅读记录，不动你的进度，也不往知识库塞东西
+                </Text>
+            </Box>
+        </Box>
+
+        <Box style={{ width: 612, flexDirection: 'column' }}>
+            <Image src="assets/books.png" style={{ width: 612, height: 382, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                书架：支持 txt / epub / pdf，自动分章；上传、阅读日志、同步、对比四个入口
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>11</Text>
+    </Box>
+</Slide>

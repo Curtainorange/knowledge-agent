@@ -1,0 +1,65 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>建议必须带依据，否则不出</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 24, height: 474 }}>
+        <Box style={{ width: 524, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                对话里回写的是「卡片」，不是一段话。每张卡片都能被操作，也都能被追问。
+            </Text>
+
+            <Box style={{ flexDirection: 'row', marginTop: 26, alignItems: 'flex-start' }}>
+                <Text style={{ fontSize: 15, color: '#4F46E5', fontWeight: 'bold', width: 30 }}>01</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>为什么</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>说明这条建议从哪条已同步内容推出来</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', marginTop: 20, alignItems: 'flex-start' }}>
+                <Text style={{ fontSize: 15, color: '#4F46E5', fontWeight: 'bold', width: 30 }}>02</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>怎么判断有用</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>给一个下次就能自查的判据，而不是「坚持就好」</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', marginTop: 20, alignItems: 'flex-start' }}>
+                <Text style={{ fontSize: 15, color: '#4F46E5', fontWeight: 'bold', width: 30 }}>03</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>依据 N 条（可点开原文）</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>只有能命中原文、能跳回定位的内容才算依据</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ flexDirection: 'row', marginTop: 20, alignItems: 'flex-start' }}>
+                <Text style={{ fontSize: 15, color: '#4F46E5', fontWeight: 'bold', width: 30 }}>04</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>我去做了 / 这条不对</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>采纳与否定都回流，同类被否过的建议不再重复</Text>
+                </Box>
+            </Box>
+
+            <Box style={{ width: 524, height: 54, background: '#EEF2FF', borderRadius: 8, flexDirection: 'row', alignItems: 'center', padding: '0 18px', marginTop: 18 }}>
+                <Text style={{ fontSize: 17, color: '#4F46E5' }}>
+                    模型引了不存在的依据 → 整条建议丢弃，而不是只删掉引用
+                </Text>
+            </Box>
+        </Box>
+
+        <Box style={{ width: 600, flexDirection: 'column' }}>
+            <Image src="assets/chat_suggest.png" style={{ width: 600, height: 375, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                真实建议卡：两条建议各带「依据 1–2 条」，判据写在正文里
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>07</Text>
+    </Box>
+</Slide>

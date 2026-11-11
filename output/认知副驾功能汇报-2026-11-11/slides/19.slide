@@ -1,0 +1,61 @@
+<Slide style={{ width: 1280, height: 720, padding: '60px 60px 0 60px', background: '#FFFFFF', fontFamily: 'Microsoft YaHei' }}>
+    <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', height: 18 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>认知副驾 · 功能汇报</Text>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>2026-11-11</Text>
+    </Box>
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1F2937', marginTop: 14 }}>L5 诊断：说清「为什么」，不只报「是多少」</Text>
+    <Box style={{ width: 1160, height: 1, background: '#E2E8F0', marginTop: 12 }} />
+
+    <Box style={{ flexDirection: 'row', gap: 36, marginTop: 24, height: 478 }}>
+        <Box style={{ width: 512, flexDirection: 'column' }}>
+            <Text style={{ fontSize: 18, color: '#64748B', lineHeight: 1.6 }}>
+                「完成率 9%」这种数字，任何统计工具都能给。诊断要回答的是：卡在哪一步、下一步做什么。
+            </Text>
+
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 16 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>01</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>指标全部本地算</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        收藏完成比、活跃度、连续无活动天数、未处理冲突数——模型不参与算术
+                    </Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 15 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>02</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>归因给的是「病根」</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        输入远大于消化、方向反复跳动、停在浅层——三种模式对应不同解法
+                    </Text>
+                </Box>
+            </Box>
+            <Box style={{ flexDirection: 'row', alignItems: 'flex-start', marginTop: 15 }}>
+                <Text style={{ fontSize: 15, fontWeight: 'bold', color: '#4F46E5', width: 26 }}>03</Text>
+                <Box style={{ flexDirection: 'column', flex: 1 }}>
+                    <Text style={{ fontSize: 19, fontWeight: 'bold', color: '#1F2937' }}>建议必须今天就能做</Text>
+                    <Text style={{ fontSize: 17, color: '#475569', marginTop: 6, lineHeight: 1.55 }}>
+                        从哪条开始、用多少分钟、产出什么，都写在建议里；附完整推理链
+                    </Text>
+                </Box>
+            </Box>
+
+            <Box style={{ width: 512, height: 56, background: '#EEF2FF', borderRadius: 8, marginTop: 16, flexDirection: 'row', alignItems: 'center', padding: '0 18px' }}>
+                <Text style={{ fontSize: 16, color: '#4F46E5', lineHeight: 1.5 }}>
+                    样本太少就不下结论——数据不足时明说，不硬凑一份报告
+                </Text>
+            </Box>
+        </Box>
+
+        <Box style={{ width: 612, flexDirection: 'column' }}>
+            <Image src="assets/l5.png" style={{ width: 612, height: 382, objectFit: 'cover', borderRadius: 10, border: '1px solid #E2E8F0' }} />
+            <Text style={{ fontSize: 15, color: '#94A3B8', marginTop: 12, lineHeight: 1.5 }}>
+                真实诊断：归因 → 建议 → 四步推理链 → 采纳建议 / 暂时不用
+            </Text>
+        </Box>
+    </Box>
+
+    <Box style={{ position: 'absolute', bottom: 20, right: 60 }}>
+        <Text style={{ fontSize: 14, color: '#94A3B8' }}>19</Text>
+    </Box>
+</Slide>
