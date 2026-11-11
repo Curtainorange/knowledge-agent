@@ -48,3 +48,6 @@ Thumbs.db
 # --- slidep（PPT 工具）的本地缓存 / 会话目录 ---
 .slidep/
 .cache/
+
+# 视频录制的中间帧（可由 record_video.py 重新生成）
+output/**/_frames_*/
