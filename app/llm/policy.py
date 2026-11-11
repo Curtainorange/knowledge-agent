@@ -94,6 +94,10 @@ EGRESS_PURPOSE: dict[str, str] = {
     # 对一次（只读），update.bat 用 `git pull --ff-only` 取代码。登记它是因为「这个目录
     # 到底是不是 git 仓库」是线上最常见的一类事故，必须能自动判（2026-11-09 现场）。
     "github.com": "代码仓库：部署期 git 拉取与版本比对（只读，运行时不请求）",
+    # 主动推送的微信通道（个人通知，非模型层）。sctapi 是发送网关，sct 是注册/文档页
+    # （只出现在 config.py 注释里，运行时不请求）。
+    "sctapi.ftqq.com": "Server酱 微信推送网关（app/push/channels.py，个人通知）",
+    "sct.ftqq.com": "Server酱 注册/文档页（config.py 注释中的链接，运行时不请求）",
 }
 
 ALLOWED_EGRESS_HOSTS: frozenset[str] = frozenset(EGRESS_PURPOSE)
@@ -106,6 +110,7 @@ SECRET_FIELDS: dict[str, dict[str, object]] = {
     "mimo_api_key": {"purpose": "模型供应商鉴权（已停用）", "model_visible": True},
     "weread_api_key": {"purpose": "微信读书账号凭据（只读个人数据）", "model_visible": False},
     "jwt_secret": {"purpose": "会话签名 / 验签", "model_visible": False},
+    "serverchan_api_key": {"purpose": "Server酱 微信推送鉴权（SendKey，个人通知）", "model_visible": False},
 }
 
 # ---- 文件（模型层可见的本地路径）--------------------------------------------
