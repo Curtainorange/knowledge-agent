@@ -229,7 +229,7 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v8",
+    version="v9",
     text=(
         "你是「认知副驾」对话入口的意图分流器。读整句，判断用户真正想做的那件事，"
         "并抽出这件事需要的参数。输出严格 JSON："
@@ -247,6 +247,8 @@ AGENT_ROUTE = PromptSpec(
         "l4_deviation=检查计划执行是否偏离、要归因与调整建议，args 留空；"
         "l5=诊断学习行为问题、做健康归因，args 留空；"
         "knowledge_add=用户要新记一条内容，args 必带 {title, content}，tags 可选数组；"
+        "**用户只贴了一个网址（要收藏/保存/记下它）也归这里**，content 直接填那个网址，"
+        "不要因为「没看出正文」就退成 chat——正文由系统去抓；"
         "weread_sync=同步微信读书的划线与想法，args 留空；"
         "books=查看书架或阅读记录，args 留空；"
         "book_digest=让我通读书架里的某本书并生成通读笔记（要点、总评），"

@@ -145,6 +145,22 @@ def test_note_about_materials_is_still_a_note():
     assert _match_local("记一下：学习材料要按主题分 #方法").capability == "knowledge_add"
 
 
+def test_bare_link_is_a_note_not_a_material_search():
+    """贴一个链接的意思是「把它存下来」，不是「去网上找资料」。
+
+    单列一条的理由：网址路径里常带能力词（`/course/` 撞「课程」、`/papers/` 撞
+    「论文」），被判成 research 就完全做反了——资料已经在用户手里，
+    再「去找」只会让他觉得系统没看懂。
+    """
+    assert _match_local("https://example.com/posts/retrieval").capability == "knowledge_add"
+    assert _match_local("https://coursera.org/learn/ml-course").capability == "knowledge_add"
+    assert _match_local("记一下：https://example.com/a").capability == "knowledge_add"
+    # 夹着自己写的一段话 → 不是「存链接」，别抢，交回模型判意图
+    assert _match_local(
+        "这篇文章 https://example.com/a 讲混合检索，和我的理解差挺多"
+    ) is None
+
+
 def test_ambiguous_text_has_no_local_rule():
     """判不出来必须返回 None，交给模型——绝不能在本地硬猜一个能力。"""
     for text in ("今天天气不错", "谢谢", "帮我看看这个", "最近怎么样"):

@@ -369,6 +369,16 @@ def _match_local(text: str) -> CapabilityRoute | None:
     if text.startswith(_NOTE_VERBS):
         return hit("knowledge_add", "以「记一条」类引导词开头")
 
+    # 1.1 贴链接即存 —— 整句基本就是一个网址，意思是「把这个存下来」。
+    #     为什么必须在这里：裸链接里常带英文词，会撞上后面的能力
+    #     （`/course/…` 撞 research 的「课程」，`/papers/…` 撞「论文」），
+    #     被判成「去找资料」就完全做反了——用户已经把资料给到眼前了。
+    #     函数内 import：路由层不该在导入期把入库那一整条链拉进来。
+    from app.agent import linkgrab
+
+    if linkgrab.is_url_only(text):
+        return hit("knowledge_add", "贴了一个链接，按存一条处理")
+
     # 1.5 阅读建议（B 模块）—— 排在其它能力之前：用户明确要建议 / 确认 / 纠正时，
     #     若被"计划""冲突"之类的词抢走，系统就会去做一件他没要求的事。
     if _has_any(text, _CORRECTION_WORDS):
