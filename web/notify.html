@@ -47,6 +47,12 @@
   </div>
 
   <div class="card">
+    <h2>送达通道</h2>
+    <div class="meta">站内通知永远开启。下面两个是「不打开项目也能收到」的附加通道，默认关闭，在 .env 开启后重启服务生效。</div>
+    <div id="channel-list"></div>
+  </div>
+
+  <div class="card">
     <h2>通知 <span class="badge" id="notify-count">0</span>
       <button id="btn-reload" class="sm">刷新</button>
     </h2>
@@ -116,9 +122,32 @@
     try {
       var data = await CC.api('GET', 'api/v1/preferences');
       $('#pref-frequency').value = data.push_frequency || 'weekly';
+      renderChannels(data.channels);
     } catch (err) {
       $('#pref-hint').textContent = '偏好加载失败：' + err.message;
     }
+  }
+
+  function renderChannels(channels) {
+    if (!channels) return;
+    var toast = channels.toast || {};
+    var wechat = channels.wechat || {};
+    var wechatOn = !!(wechat.enabled && wechat.configured);
+    var rows = [
+      ['站内通知', true, '打开本项目即可查看（本页）'],
+      [toast.label || '桌面弹窗', !!toast.enabled, 'Windows 系统弹窗，不打开也能收到'],
+      [wechat.label || '手机微信', wechatOn,
+        (wechat.enabled && !wechat.configured)
+          ? '已开启但未配置 SendKey：在 .env 填 SERVERCHAN_API_KEY'
+          : '微信里直接收到，需 .env 开启并填 SERVERCHAN_API_KEY']
+    ];
+    $('#channel-list').innerHTML = rows.map(function (r) {
+      var badge = r[1] ? '<span class="badge ok">已开启</span>' : '<span class="badge">未开启</span>';
+      return '<div class="question-card">' +
+        '<div class="q-head">' + esc(r[0]) + ' ' + badge + '</div>' +
+        '<div class="meta">' + esc(r[2]) + '</div>' +
+        '</div>';
+    }).join('');
   }
 
   async function markRead(jobId) {

@@ -26,6 +26,7 @@ from sqlalchemy.orm import Session
 from app.agent import plan_rules
 from app.api.deps import get_current_user, get_session
 from app.core import trace
+from app.core.config import settings
 from app.domain.models.user import User
 from app.domain.repositories.user_repository import UserRepository
 
@@ -51,6 +52,8 @@ class PlanParamsIn(BaseModel):
 class PreferencesOut(BaseModel):
     push_frequency: str
     plan_params: dict = Field(default_factory=dict)
+    # 送达通道的只读状态（.env 全局配置，opt-in）。前端据此展示开关，值只能改 .env。
+    channels: dict = Field(default_factory=dict)
     request_id: str
 
 
@@ -65,6 +68,18 @@ def _effective_params(user: User) -> dict:
     return plan_rules.to_prefs(plan_rules.from_prefs(getattr(user, "plan_params", None)))
 
 
+def _channel_status() -> dict:
+    """送达通道的只读状态（.env 全局配置，opt-in）。"""
+    return {
+        "toast": {"enabled": settings.push_toast_enabled, "label": "桌面弹窗"},
+        "wechat": {
+            "enabled": settings.push_wechat_enabled,
+            "configured": bool(settings.serverchan_api_key),
+            "label": "手机微信",
+        },
+    }
+
+
 @router.get("", response_model=PreferencesOut)
 def get_preferences(
     user: User = Depends(get_current_user),
@@ -72,6 +87,7 @@ def get_preferences(
     return PreferencesOut(
         push_frequency=user.push_frequency or "weekly",
         plan_params=_effective_params(user),
+        channels=_channel_status(),
         request_id=trace.get_request_id() or "",
     )
 
@@ -101,5 +117,6 @@ def update_preferences(
     return PreferencesOut(
         push_frequency=user.push_frequency or "weekly",
         plan_params=_effective_params(user),
+        channels=_channel_status(),
         request_id=trace.get_request_id() or "",
     )
