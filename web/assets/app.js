@@ -281,6 +281,7 @@ window.CC = (function () {
       var me = await api('GET', 'api/v1/auth/me');
       localStorage.setItem(NAME_KEY, me.username);
       renderTopbar();
+      startNotifyPolling();
       return me;
     } catch (err) {
       // 401 已由 api() 跳转登录页；能走到这里说明是网络/服务端异常，
@@ -379,6 +380,116 @@ window.CC = (function () {
   }
   syncNavEdges();
 
+  /* ---------- 站内弹窗：打开项目时把未读提醒弹出来 ----------
+     电脑端不再弹系统通知，改成打开项目时在网页内弹一层卡片（纯前端、零系统依赖）。
+     登录后拉一次 + 每 60 秒轮询 pending 推送；localStorage 记录已弹过的 job_id 去重，
+     同一浏览器不重复弹。拉取失败静默——后台轮询不该打扰用户。 */
+  var NOTIFY_SEEN_KEY = 'cc_notified_jobs';
+  var _notifyTimer = null;
+
+  function notifySeen() {
+    try {
+      return JSON.parse(localStorage.getItem(NOTIFY_SEEN_KEY) || '[]');
+    } catch (err) {
+      return [];
+    }
+  }
+
+  function notifyMarkSeen(ids) {
+    var seen = notifySeen().concat(ids);
+    if (seen.length > 300) {
+      seen = seen.slice(seen.length - 300);
+    }
+    localStorage.setItem(NOTIFY_SEEN_KEY, JSON.stringify(seen));
+  }
+
+  function notifyStack() {
+    var el = document.getElementById('notify-stack');
+    if (!el) {
+      el = document.createElement('div');
+      el.id = 'notify-stack';
+      el.className = 'notify-stack';
+      document.body.appendChild(el);
+    }
+    return el;
+  }
+
+  function showNotifyPop(item) {
+    var box = document.createElement('div');
+    box.className = 'notify-pop';
+    var href = (item.payload && item.payload.href) || '';
+    box.innerHTML =
+      '<div class="notify-pop-head">' +
+        '<span class="notify-pop-title">' + esc(item.title || '通知') + '</span>' +
+        '<button type="button" class="notify-pop-close" aria-label="关闭">×</button>' +
+      '</div>' +
+      '<div class="notify-pop-body">' + esc(item.body || '') + '</div>' +
+      (href ? '<button type="button" class="notify-pop-go">查看</button>' : '');
+    notifyStack().appendChild(box);
+
+    box.querySelector('.notify-pop-close').addEventListener('click', function () {
+      if (box.parentNode) {
+        box.parentNode.removeChild(box);
+      }
+    });
+    var go = box.querySelector('.notify-pop-go');
+    if (go) {
+      go.addEventListener('click', function () { location.href = href; });
+    }
+  }
+
+  async function checkNotifications() {
+    if (!token() || isLoginPage()) {
+      return;
+    }
+    if (document.body.getAttribute('data-page') === 'notify') {
+      return; // 通知页自己会列出来，不再弹
+    }
+    var data;
+    try {
+      data = await api('GET', 'api/v1/push/jobs', null, { noAuthRedirect: true });
+    } catch (err) {
+      return; // 静默：后台轮询失败不打扰用户
+    }
+    var items = (data && data.items) || [];
+    var seen = notifySeen();
+    var fresh = [];
+    for (var i = 0; i < items.length; i++) {
+      if (seen.indexOf(items[i].job_id) === -1) {
+        fresh.push(items[i]);
+      }
+    }
+    if (!fresh.length) {
+      return;
+    }
+    var show = fresh.slice(0, 3); // 一次最多弹 3 条
+    for (var j = 0; j < show.length; j++) {
+      (function (item, idx) {
+        setTimeout(function () { showNotifyPop(item); }, idx * 250);
+      })(show[j], j);
+    }
+    var ids = [];
+    for (var k = 0; k < fresh.length; k++) {
+      ids.push(fresh[k].job_id);
+    }
+    notifyMarkSeen(ids);
+  }
+
+  function startNotifyPolling() {
+    if (_notifyTimer) {
+      return;
+    }
+    checkNotifications();
+    _notifyTimer = setInterval(checkNotifications, 60000);
+  }
+
+  // 兜底启动：agent.js / app.html 这类不调 requireAuth 的页面，只要登录了也能轮询。
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', startNotifyPolling);
+  } else {
+    startNotifyPolling();
+  }
+
   return {
     $: $,
     esc: esc,
@@ -392,6 +503,7 @@ window.CC = (function () {
     withLoading: withLoading,
     requireAuth: requireAuth,
     goLogin: goLogin,
-    tryRefresh: tryRefresh
+    tryRefresh: tryRefresh,
+    notifyNow: checkNotifications
   };
 })();

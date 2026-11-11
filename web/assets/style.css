@@ -262,6 +262,36 @@ button.link{border:none;background:none;color:var(--accent);padding:0;text-decor
 }
 #toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
 
+/* ============ 站内弹窗（电脑端取代系统通知） ============ */
+.notify-stack{
+  position:fixed;right:16px;bottom:80px;z-index:1200;
+  display:flex;flex-direction:column;gap:10px;
+  width:320px;max-width:calc(100vw - 32px);
+}
+.notify-pop{
+  background:var(--card);border:1px solid var(--border);border-radius:14px;
+  box-shadow:0 10px 30px rgba(17,24,39,.16);padding:13px 15px;
+  animation:notify-pop-in .22s ease-out;
+}
+@keyframes notify-pop-in{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:none}}
+.notify-pop-head{display:flex;align-items:flex-start;justify-content:space-between;gap:10px;margin-bottom:5px}
+.notify-pop-title{font-weight:650;font-size:13.5px;line-height:1.45;color:var(--text)}
+.notify-pop-close{
+  border:none;background:none;color:var(--muted-2);font-size:18px;line-height:1;
+  padding:0 2px;cursor:pointer;flex:none;box-shadow:none;
+}
+.notify-pop-close:hover:not(:disabled){border:none;background:none;color:var(--text);box-shadow:none}
+.notify-pop-body{font-size:12.5px;line-height:1.65;color:var(--muted);white-space:pre-wrap;word-break:break-word;margin-bottom:9px}
+.notify-pop-body:last-child{margin-bottom:0}
+.notify-pop-go{
+  border:1px solid var(--border);background:none;color:var(--accent);
+  font-size:12.5px;padding:4px 12px;border-radius:8px;cursor:pointer;
+}
+.notify-pop-go:hover:not(:disabled){background:var(--accent-weak);border-color:var(--accent);color:var(--accent)}
+@media (max-width:720px){
+  .notify-stack{right:12px;left:12px;bottom:calc(92px + env(safe-area-inset-bottom,0px));width:auto;max-width:none}
+}
+
 /* ============ 书架 ============ */
 .book-item{
   display:flex;gap:13px;border:1px solid var(--border);border-radius:var(--radius-sm);
