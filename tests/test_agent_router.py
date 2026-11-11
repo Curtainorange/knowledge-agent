@@ -155,7 +155,22 @@ def test_bare_link_is_a_note_not_a_material_search():
     assert _match_local("https://example.com/posts/retrieval").capability == "knowledge_add"
     assert _match_local("https://coursera.org/learn/ml-course").capability == "knowledge_add"
     assert _match_local("记一下：https://example.com/a").capability == "knowledge_add"
-    # 夹着自己写的一段话 → 不是「存链接」，别抢，交回模型判意图
+
+
+def test_bare_link_prior_carries_the_url():
+    """先验里要带上「要存的网址」：模型不可用时，兜底路径靠它才抓得成正文。"""
+    route = _match_local("https://example.com/posts/retrieval")
+    assert route.capability == "knowledge_add"
+    assert route.args["url"] == "https://example.com/posts/retrieval"
+
+
+def test_local_rule_does_not_grab_questions_about_a_link():
+    """「你觉得这篇怎么样（附链接）」是提问，不是让我存。
+
+    本地规则只是先验，但它一旦标错，模型就有盲从的可能——所以这条先验必须判得窄：
+    只有整句几乎只有链接才出手，带完整疑问句的交给模型读语义。
+    """
+    assert _match_local("你觉得这篇怎么样 https://example.com/a") is None
     assert _match_local(
         "这篇文章 https://example.com/a 讲混合检索，和我的理解差挺多"
     ) is None
