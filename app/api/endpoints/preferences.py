@@ -69,9 +69,8 @@ def _effective_params(user: User) -> dict:
 
 
 def _channel_status() -> dict:
-    """送达通道的只读状态（.env 全局配置，opt-in）。"""
+    """送达通道的只读状态（.env 全局配置，opt-in）。电脑端改为网页内弹窗，不再走系统通知。"""
     return {
-        "toast": {"enabled": settings.push_toast_enabled, "label": "桌面弹窗"},
         "wechat": {
             "enabled": settings.push_wechat_enabled,
             "configured": bool(settings.serverchan_api_key),
