@@ -1283,37 +1283,31 @@ def _save_research_materials(
 
     只处理用户勾中、且尚未入库的条目；逐条抓正文，抓不到就跳过并计数——
     一条失败不该让整批都失败（与微信读书同步「失败的书下次再试」同一口径）。
-    正文走 DeepSeek 官方抓取接口（出网主机已登记），来源仍是 manual、
-    渠道标在 tags 里（与「对话录入」同构）。
+
+    抓取与入库**不在这里实现**：那条规则在 `linkgrab`，因为它同时被
+    「对话里直接贴链接」用着。两处各写一遍，对「标题取哪个」「抓不到怎么办」
+    迟早给出不同答案，而用户看到的是两套口径。
     """
-    from app.ingestion.service import SOURCE_MANUAL, IngestionService
-    from app.retrieval.embedding import build_embedding
+    from app.agent import linkgrab
 
     wanted = set(urls)
     materials = [dict(m) for m in (card.get("materials") or [])]
-    service = IngestionService(session, build_embedding())
     saved = 0
     failed = 0
     for material in materials:
         url = str(material.get("url") or "")
         if not url or material.get("saved") or url not in wanted:
             continue
-        fetched = websearch.fetch(url)
-        if not fetched.get("ok"):
-            failed += 1
-            continue
-        content = str(fetched.get("content") or "").strip()
-        if not content:
-            failed += 1
-            continue
-        title = (str(material.get("title") or "") or str(fetched.get("title") or "") or url)[:200]
-        service.add_knowledge(
+        result = linkgrab.save_url(
+            session=session,
             user_id=user_id,
-            title=title,
-            content=content,
-            source=SOURCE_MANUAL,
-            tags=[cards_mod.CHANNEL_TAG_CHAT, "联网资料"],
+            url=url,
+            title_hint=str(material.get("title") or ""),
+            tags=[cards_mod.CHANNEL_TAG_CHAT],
         )
+        if not result["ok"]:
+            failed += 1
+            continue
         material["saved"] = True
         saved += 1
     new_card = dict(card)

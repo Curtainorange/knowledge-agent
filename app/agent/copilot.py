@@ -40,7 +40,7 @@ from uuid import uuid4
 
 from sqlalchemy.orm import Session
 
-from app.agent import turns
+from app.agent import linkgrab, turns
 from app.agent.cards import (
     CHANNEL_TAG_CHAT,
     guide_card,
@@ -50,6 +50,7 @@ from app.agent.cards import (
     l1_located_card,
     located_reply,
     note_empty_card,
+    notice_card,
 )
 from app.agent.greeting import opening_for
 from app.agent.l1_orchestrator import L1Orchestrator
@@ -72,6 +73,12 @@ from app.feedback import events
 from app.ingestion.service import SOURCE_MANUAL, IngestionService
 from app.llm.gateway import ModelGateway
 from app.retrieval.embedding import build_embedding
+
+# 一次最多抓几个链接。三个以上多半是「把收藏夹倒进来」，那不该发生在对话里
+# （对话里贴一串链接，一条失败就要解释半天，用户也看不清到底存了哪几条）。
+# 超出的链接不静默丢弃——回复里会说清楚只处理了前几个。
+_MAX_LINKS_PER_TURN = 3
+
 
 # 录入渠道标记：写在 tags 里而不是 source 里，常量定义在 `cards`（两处共用，
 # 且 copilot 已依赖 cards，不会成环）。
@@ -493,6 +500,15 @@ class Copilot:
             self._append_exchange(repo, conversation, message, card["note"], card)
             return card["note"], card
 
+        # 贴链接即存：正文基本就是一个网址时，抓网页正文再入库。
+        # 判断条件刻意很窄（见 `linkgrab.is_url_only`）——用户写「记一下：这篇文章
+        # 不错（附链接）但观点有问题」时要存的是他那句话，抓取会把它丢掉，
+        # 所以那种情况仍按原文录入。
+        if linkgrab.is_url_only(note["content"]):
+            return self._add_from_links(
+                repo, conversation, user_id=user_id, message=message, note=note
+            )
+
         service = IngestionService(self._session, self._embedding or build_embedding())
         item = service.add_knowledge(
             user_id=user_id,
@@ -508,6 +524,55 @@ class Copilot:
         )
         card = knowledge_created_card(item)
         reply = f"已记下：{item.title}"
+        self._append_exchange(repo, conversation, message, reply, card)
+        return reply, card
+
+    def _add_from_links(self, repo, conversation, *, user_id: str, message: str, note: dict):
+        """把用户贴的网址抓成正文入库。
+
+        为什么值得单独一条路：**存一个网址本身没有意义**。库里躺着一个
+        `https://…` 字符串，含义是「这条以后一条都检索不到」——看起来存了，
+        用的时候什么都没存。抓成正文之后，它才真的进了知识库。
+
+        抓不到就**不入库**并说明原因：宁可这次没存成，也不要塞一条空条目
+        让用户以为已经收好了。
+        """
+        urls = linkgrab.extract_urls(note["content"])
+        skipped = max(0, len(urls) - _MAX_LINKS_PER_TURN)
+        results = [
+            linkgrab.save_url(
+                session=self._session,
+                user_id=user_id,
+                url=url,
+                tags=_with_channel_tag(note["tags"]),
+            )
+            for url in urls[: _MAX_LINKS_PER_TURN]
+        ]
+        saved = [r for r in results if r["ok"]]
+
+        if not saved:
+            reason = (results[0]["error"] if results else "没认出网址")
+            card = notice_card(
+                title="这个链接没存下来",
+                note=f"抓正文失败：{reason}。没有入库——只存一个网址以后检索不到。",
+            )
+            self._append_exchange(repo, conversation, message, card["note"], card)
+            return card["note"], card
+
+        if len(saved) == 1 and len(results) == 1:
+            reply = f"已存下这篇：{saved[0]['title']}（正文约 {saved[0]['chars']} 字）"
+        else:
+            titles = "、".join(r["title"] for r in saved)
+            reply = f"已存 {len(saved)} 条：{titles}"
+        failed = len(results) - len(saved)
+        if failed:
+            reply += f"。另有 {failed} 个链接没抓到正文，没存"
+        if skipped:
+            reply += f"。一次最多存 {_MAX_LINKS_PER_TURN} 个链接，还有 {skipped} 个没处理"
+
+        # 多个链接时卡片只挂第一条：卡片是「去库里看」的入口，
+        # 条数与标题已经在回复里说清了，再堆几张卡反而把消息流刷乱。
+        card = knowledge_created_card(saved[0]["item"])
         self._append_exchange(repo, conversation, message, reply, card)
         return reply, card
 

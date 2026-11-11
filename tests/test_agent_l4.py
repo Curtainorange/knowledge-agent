@@ -263,7 +263,8 @@ def test_research_save_stores_checked_materials(client, session, provider, monke
     )
     monkeypatch.setattr(
         websearch, "fetch",
-        lambda url: {"ok": True, "title": "抓到的标题", "content": "正文内容" * 10, "error": ""},
+        # `**kw` 是为了收下 `max_chars`：入库侧会传更大的上限（存全文，不是回灌模型）
+        lambda url, **kw: {"ok": True, "title": "抓到的标题", "content": "正文内容" * 10, "error": ""},
     )
 
     body = _send(client, user.headers, PLAN_TEXT)
@@ -308,7 +309,7 @@ def test_research_save_skips_failed_fetch(client, session, provider, monkeypatch
     )
     monkeypatch.setattr(
         websearch, "fetch",
-        lambda url: {"ok": False, "title": "", "content": "", "error": "抓不到正文"},
+        lambda url, **kw: {"ok": False, "title": "", "content": "", "error": "抓不到正文"},
     )
 
     body = _send(client, user.headers, PLAN_TEXT)

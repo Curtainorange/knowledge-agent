@@ -136,8 +136,13 @@ def search(query: str, *, count: int = 5) -> dict:
     return {"ok": bool(results), "results": results, "error": "" if results else "没有搜到结果"}
 
 
-def fetch(url: str) -> dict:
-    """抓取单页正文（Markdown）。返回 `{ok, title, content, error}`。"""
+def fetch(url: str, *, max_chars: int = FETCH_CONTENT_CHARS) -> dict:
+    """抓取单页正文（Markdown）。返回 `{ok, title, content, error}`。
+
+    `max_chars` 默认是回灌给模型的长度（`FETCH_CONTENT_CHARS`）：给模型看只要要点。
+    但**入库**是另一回事——存进库里的是用户以后要检索、要通读的东西，
+    截在 4000 字等于只存了半篇，所以入库侧会传一个更大的值。
+    """
     target = (url or "").strip()
     if not target.startswith(("http://", "https://")):
         return {"ok": False, "title": "", "content": "", "error": "不是可抓取的网址"}
@@ -151,6 +156,6 @@ def fetch(url: str) -> dict:
     return {
         "ok": True,
         "title": str(data.get("title") or target).strip()[:200],
-        "content": content[:FETCH_CONTENT_CHARS],
+        "content": content[: max(1, int(max_chars))],
         "error": "",
     }
