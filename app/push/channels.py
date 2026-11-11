@@ -17,6 +17,38 @@ logger = logging.getLogger(__name__)
 
 WECHAT_URL = "https://sctapi.ftqq.com/{sendkey}.send"
 
+# Server酱 卡片标题硬限制 32 字（超出被服务端截断，换行会让整条推送报错）
+TITLE_MAX = 32
+
+
+def _one_line(text: str) -> str:
+    """压成单行：Server酱 的 title 不能含换行，正文也可能带换行。"""
+    return " ".join((text or "").split())
+
+
+def compose_title(title: str, body: str) -> str:
+    """把标题和正文压成一条 ≤32 字的标题。
+
+    为什么标题要带正文摘要：Server酱 **免费版卡片只显示标题、不显示 desp**
+    （官方对比表：免费「仅显示标题」，订阅才「显示标题和内容」）。只发 title 的话，
+    手机上就是一条「只有标题、点开也没内容」的空推送（2026-11-11 用户现场反馈）。
+    所以正文摘要必须挤进标题，desp 仍然照发——付费账号可直接看到完整正文。
+    """
+    head = _one_line(title)
+    text = _one_line(body)
+    if not text or text in head:
+        merged = head or text
+    elif head and head in text:
+        # 正文本身已包含标题（如周简报正文以标题开头），避免重复拼接
+        merged = text
+    else:
+        merged = f"{head}｜{text}" if head else text
+    if not merged:
+        return "认知副驾"
+    if len(merged) > TITLE_MAX:
+        merged = merged[: TITLE_MAX - 1] + "…"
+    return merged
+
 
 def send_wechat(
     title: str,
@@ -47,7 +79,7 @@ def send_wechat(
     try:
         resp = client.post(
             WECHAT_URL.format(sendkey=sendkey),
-            data={"title": title.replace("\n", " ")[:32], "desp": body},
+            data={"title": compose_title(title, body), "desp": body},
         )
         if resp.status_code == 200:
             try:

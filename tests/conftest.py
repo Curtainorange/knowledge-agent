@@ -31,6 +31,12 @@ from app.retrieval.vector_store import set_backfill_loader  # noqa: E402
 set_backfill_loader(lambda: [])
 # 微信读书同步：强制「未配置 API Key」，避免本机 .env 里的真实 Key 影响断言
 settings.weread_api_key = ""
+# 推送通道：强制关闭 + 清空 SendKey。本机 .env 里 PUSH_WECHAT_ENABLED=true 且 Key 是真的，
+# 而大量用例会调 PushService.enqueue —— 不关就会「跑一次 pytest 往用户微信推几条测试消息」
+# （2026-11-11 现场：用户收到标题为 t / 周简报 / 观点冲突：A ⇄ B 的通知，全是测试数据）。
+# 需要验证通道分发的用例自己 monkeypatch 打开，并注入假的 send_wechat。
+settings.push_wechat_enabled = False
+settings.serverchan_api_key = ""
 # 书籍文件写到临时目录，避免污染真实 data/books
 settings.books_dir = tempfile.mkdtemp(prefix="cc_test_books_")
 # 鉴权：固定密钥（避免随机密钥带来的不可预期），并调低 PBKDF2 迭代数以免拖慢测试
