@@ -463,9 +463,12 @@ window.CC = (function () {
       return;
     }
     var show = fresh.slice(0, 3); // 一次最多弹 3 条
+    var later = typeof setTimeout === 'function'
+      ? setTimeout
+      : function (fn) { fn(); };  // 沙箱无定时器时同步弹
     for (var j = 0; j < show.length; j++) {
       (function (item, idx) {
-        setTimeout(function () { showNotifyPop(item); }, idx * 250);
+        later(function () { showNotifyPop(item); }, idx * 250);
       })(show[j], j);
     }
     var ids = [];
@@ -477,6 +480,11 @@ window.CC = (function () {
 
   function startNotifyPolling() {
     if (_notifyTimer) {
+      return;
+    }
+    // 无定时器的环境（Node 沙箱、老浏览器）直接不轮询：弹窗是增强，不能因为它
+    // 让整份 app.js 抛 ReferenceError——那会把登录/续期一起带崩（11-11 实测）。
+    if (typeof setInterval !== 'function') {
       return;
     }
     checkNotifications();
