@@ -4,40 +4,88 @@
 绝不抛异常打断调用方；也不写库、不碰 PushJob 状态机（PushJob 永远是站内通知的权威载体）。
 
 两个通道（都是 opt-in，默认关，见 settings.push_*_enabled）：
-- toast  ：本机 Windows 系统通知（winotify），零外网依赖，适合「电脑就在面前」。
-- wechat ：Server酱 微信推送（需要 SendKey），适合「人不在电脑前」，手机微信直接收。
+- toast  ：本机 Windows 系统通知（ToastGeneric 模板），零外网依赖。
+- wechat ：Server酱 微信推送（需要 SendKey），手机微信直接收。
+
+桌面通知为什么不用 winotify：winotify 有三重坑——app_id 不支持非 ASCII（中文静默
+失效）、Popen 把 stdout/stderr 全丢（返回 True 也不代表弹出来）、硬编码的
+ToastImageAndText02 模板在这台 Win11 上会被静默丢弃（LoadXml 不报错、通知不进通知中心，
+11-11 实测）。所以这里自写 PowerShell 脚本 + ToastGeneric 模板，并把内容 base64 传进
+脚本（避免任何转义问题）、写临时 .ps1 用 -File 执行（避免 -Command 多行传参坑）、
+真正检查 returncode。
 """
 from __future__ import annotations
 
+import base64
 import logging
+import os
+import subprocess
+import tempfile
 
 import httpx
 
 logger = logging.getLogger(__name__)
 
-# app_id 是 Windows AUMID：必须用 ASCII（winotify 不支持非 ASCII，中文会让
-# 通知静默失效——CreateToastNotifier 不报错、通知也不进通知中心）。
+# app_id 是 Windows AUMID：必须用 ASCII（中文会让通知静默失效）。
 TOAST_APP_ID = "CognitiveCopilot"
 WECHAT_URL = "https://sctapi.ftqq.com/{sendkey}.send"
 
+# ToastGeneric 模板（Win10/11 通用）。title/body 以 base64(UTF-8) 注入，脚本里解码 +
+# XML 转义后进 toast——标题正文的任意字符（中文、引号、换行）都不会破坏脚本或 XML。
+_PS_SCRIPT = r"""
+$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+[Windows.UI.Notifications.ToastNotification, Windows.UI.Notifications, ContentType = WindowsRuntime] | Out-Null
+[Windows.Data.Xml.Dom.XmlDocument, Windows.Data.Xml.Dom.XmlDocument, ContentType = WindowsRuntime] | Out-Null
+$title = [Security.SecurityElement]::Escape([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{title_b64}')))
+$body = [Security.SecurityElement]::Escape([Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('{body_b64}')))
+$xml = New-Object Windows.Data.Xml.Dom.XmlDocument
+$xml.LoadXml("<toast duration='short'><visual><binding template='ToastGeneric'><text id='1'>$title</text><text id='2'>$body</text></binding></visual></toast>")
+$toast = [Windows.UI.Notifications.ToastNotification]::new($xml)
+$toast.Tag = '{title_b64}'
+$toast.Group = '{app_id}'
+$notifier = [Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('{app_id}')
+$notifier.Show($toast)
+"""
+
 
 def send_toast(title: str, body: str) -> bool:
-    """本机系统通知。winotify 未安装 / 非 Windows 时静默降级 False。
+    """本机 Windows 系统通知（ToastGeneric）。任何失败只记日志、返回 False。"""
+    title = (title or "")[:120]
+    body = (body or "")[:400]
+    script = _PS_SCRIPT.format(
+        title_b64=base64.b64encode(title.encode("utf-8")).decode("ascii"),
+        body_b64=base64.b64encode(body.encode("utf-8")).decode("ascii"),
+        app_id=TOAST_APP_ID,
+    )
 
-    winotify 在函数内延迟 import：缺依赖只代表「这个通道不生效」，
-    不该让整个推送模块在 import 阶段就崩。
-    """
+    ps1 = None
     try:
-        from winotify import Notification
-    except Exception as exc:  # noqa: BLE001 - 缺依赖属预期降级，不该打断
-        logger.debug("winotify 未安装，跳过桌面通知：%s", exc)
-        return False
-    try:
-        Notification(app_id=TOAST_APP_ID, title=title[:120], msg=body[:400]).show()
+        fd, ps1 = tempfile.mkstemp(suffix=".ps1", prefix="cc_toast_")
+        with os.fdopen(fd, "w", encoding="utf-8-sig") as f:
+            f.write(script)
+        proc = subprocess.run(
+            ["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", ps1],
+            capture_output=True,
+            timeout=20,
+        )
+        if proc.returncode != 0:
+            logger.warning(
+                "桌面通知失败 rc=%s err=%s",
+                proc.returncode,
+                proc.stderr.decode("utf-8", "ignore")[:200],
+            )
+            return False
         return True
-    except Exception as exc:  # noqa: BLE001 - 桌面环境五花八门，失败只降级
+    except Exception as exc:  # noqa: BLE001 - 旁路，失败只降级
         logger.warning("桌面通知发送失败：%s", exc)
         return False
+    finally:
+        if ps1:
+            try:
+                os.unlink(ps1)
+            except OSError:
+                pass
 
 
 def send_wechat(
