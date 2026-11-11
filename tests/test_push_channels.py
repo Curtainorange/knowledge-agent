@@ -14,6 +14,12 @@ import httpx
 from app.push import channels
 
 
+def test_toast_app_id_is_ascii():
+    """winotify 的 app_id 不支持非 ASCII：中文会让通知静默失效（11-11 踩坑，
+    CreateToastNotifier 不报错、通知也不进通知中心）。"""
+    assert channels.TOAST_APP_ID.isascii()
+
+
 # ---------- toast ----------
 
 

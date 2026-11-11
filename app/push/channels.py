@@ -15,7 +15,9 @@ import httpx
 
 logger = logging.getLogger(__name__)
 
-TOAST_APP_ID = "认知副驾"
+# app_id 是 Windows AUMID：必须用 ASCII（winotify 不支持非 ASCII，中文会让
+# 通知静默失效——CreateToastNotifier 不报错、通知也不进通知中心）。
+TOAST_APP_ID = "CognitiveCopilot"
 WECHAT_URL = "https://sctapi.ftqq.com/{sendkey}.send"
 
 
