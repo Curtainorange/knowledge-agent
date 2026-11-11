@@ -186,36 +186,21 @@ def test_push_jobs_api_exposes_payload(client, session):
     assert item["payload"]["href"] == "/conflicts.html"
 
 
-# ---------- 通道旁路分发（ADR-14「送到眼前」扩展） ----------
+# ---------- 通道旁路分发（微信通道） ----------
 
 
 def test_enqueue_skips_channels_when_disabled(session, monkeypatch):
-    """默认关：enqueue 不碰任何通道发送器。"""
-    monkeypatch.setattr(settings, "push_toast_enabled", False)
+    """默认关：enqueue 不碰微信通道。"""
     monkeypatch.setattr(settings, "push_wechat_enabled", False)
     calls = []
 
-    monkeypatch.setattr(channels, "send_toast", lambda t, b: calls.append(("toast", t)) or True)
     monkeypatch.setattr(channels, "send_wechat", lambda t, b, **kw: calls.append(("wechat", t)) or True)
 
     _service(session).enqueue(user_id="u1", push_type="brief", title="t", body="b", subject="s1")
     assert calls == []
 
 
-def test_enqueue_dispatches_to_enabled_toast(session, monkeypatch):
-    monkeypatch.setattr(settings, "push_toast_enabled", True)
-    monkeypatch.setattr(settings, "push_wechat_enabled", False)
-    monkeypatch.setattr(settings, "serverchan_api_key", "")
-    calls = []
-
-    monkeypatch.setattr(channels, "send_toast", lambda t, b: calls.append(t) or True)
-
-    _service(session).enqueue(user_id="u1", push_type="brief", title="标题", body="正文", subject="s2")
-    assert calls == ["标题"]
-
-
 def test_enqueue_dispatches_to_enabled_wechat(session, monkeypatch):
-    monkeypatch.setattr(settings, "push_toast_enabled", False)
     monkeypatch.setattr(settings, "push_wechat_enabled", True)
     monkeypatch.setattr(settings, "serverchan_api_key", "SCT123")
     sent: dict = {}
@@ -234,12 +219,13 @@ def test_enqueue_dispatches_to_enabled_wechat(session, monkeypatch):
 
 def test_enqueue_channel_failure_does_not_break_job(session, monkeypatch):
     """通道发送器抛异常，job 仍照常建好（旁路铁律）。"""
-    monkeypatch.setattr(settings, "push_toast_enabled", True)
+    monkeypatch.setattr(settings, "push_wechat_enabled", True)
+    monkeypatch.setattr(settings, "serverchan_api_key", "SCT123")
 
-    def boom(title, body):
-        raise RuntimeError("toast boom")
+    def boom(title, body, **kw):
+        raise RuntimeError("wechat boom")
 
-    monkeypatch.setattr(channels, "send_toast", boom)
+    monkeypatch.setattr(channels, "send_wechat", boom)
 
     outcome = _service(session).enqueue(user_id="u1", push_type="brief", title="t", body="b", subject="s4")
     assert outcome.status == "pending" and outcome.job_id

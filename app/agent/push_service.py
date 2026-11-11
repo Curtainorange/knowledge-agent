@@ -131,22 +131,16 @@ class PushService:
             self._session, user_id=user_id, event_type=events.PUSH_SENT,
             payload={"push_type": push_type, "job_id": job.id},
         )
-        # 旁路分发到「送到眼前」的通道（toast / wechat）。即使这里出错也绝不
-        # 影响主链路——job 已建好、站内通知仍然在。
+        # 旁路分发到微信通道。即使这里出错也绝不影响主链路——job 已建好、
+        # 站内通知仍然在（电脑端由打开项目时的网页内弹窗呈现）。
         self._dispatch_channels(user_id=user_id, title=title, body=body)
         return EnqueueOutcome(status="pending", job_id=job.id)
 
     # ---- 附加通道分发（opt-in；失败只记日志）-------------------------------
 
     def _dispatch_channels(self, *, user_id: str, title: str, body: str) -> None:
-        """按开关把提醒送到附加通道。任何异常都吞掉，绝不打断调用方。"""
+        """按开关把提醒送到微信通道。任何异常都吞掉，绝不打断调用方。"""
         from app.push import channels
-
-        if settings.push_toast_enabled:
-            try:
-                channels.send_toast(title, body)
-            except Exception as exc:  # noqa: BLE001 - 旁路，失败即降级
-                logger.warning("toast 通道失败 user=%s err=%s", user_id, exc)
 
         if settings.push_wechat_enabled and settings.serverchan_api_key:
             try:

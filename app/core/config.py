@@ -195,9 +195,8 @@ class Settings(BaseSettings):
     push_schedule_enabled: bool = True        # 每周简报 / 每月健康报告定时推送（幂等键按 ISO 周/月去重）
 
     # --- 推送通道（opt-in，默认关；站内通知 app 永远开启）---
-    # 站内通知只能「打开项目才看到」，这两个通道把提醒送到眼前——用户自主选择才开。
-    push_toast_enabled: bool = False          # 桌面系统通知（winotify，本机零外网）
-    push_wechat_enabled: bool = False         # 手机微信推送（Server酱，需 SendKey）
+    # 手机微信推送（Server酱，需 SendKey）；电脑端改为打开项目时的网页内弹窗（纯前端）。
+    push_wechat_enabled: bool = False
     # Server酱 SendKey（https://sct.ftqq.com 微信扫码获取，SCT 开头）；留空=微信通道不生效。
     # 凭据等同个人通知权限：只填本机 .env，勿提交仓库、勿写日志。
     serverchan_api_key: str = ""
