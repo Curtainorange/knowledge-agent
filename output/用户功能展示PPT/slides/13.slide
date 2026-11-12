@@ -1,0 +1,49 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      两本书打架，它把双方立场拆开给我看
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 34, marginTop: 28 }}>
+    <Box style={{ width: 700, flexDirection: 'column' }}>
+      <Image src="assets/conflicts.jpg" style={{ width: 700, height: 385, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 下方还有「依据」与「建议安排一次对谈」
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Box style={{ borderLeft: '3px solid #7C3AED', paddingLeft: 14 }}>
+        <Text style={{ fontSize: 14, color: '#7C3AED', fontWeight: 'bold', fontFamily: '微软雅黑' }}>
+          《高效能人士的七个习惯》
+        </Text>
+        <Text style={{ fontSize: 17, color: '#1E1B4B', lineHeight: 1.6, marginTop: 6, fontFamily: '微软雅黑' }}>
+          时间是可以被有效管理的。
+        </Text>
+      </Box>
+
+      <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 10, marginTop: 18, marginBottom: 18 }}>
+        <Box style={{ flex: 1, height: 1, background: '#E5E7EB' }} />
+        <Text style={{ fontSize: 14, color: '#F472B6', fontWeight: 'bold', letterSpacing: 1, fontFamily: '微软雅黑' }}>
+          立场对立 · 置信度 93%
+        </Text>
+      </Box>
+
+      <Box style={{ borderLeft: '3px solid #C4B5FD', paddingLeft: 14 }}>
+        <Text style={{ fontSize: 14, color: '#7C3AED', fontWeight: 'bold', fontFamily: '微软雅黑' }}>
+          《把时间当作朋友》
+        </Text>
+        <Text style={{ fontSize: 17, color: '#1E1B4B', lineHeight: 1.6, marginTop: 6, fontFamily: '微软雅黑' }}>
+          时间不可管理，「时间管理」这个概念本身应被否定。
+        </Text>
+      </Box>
+
+      <Text style={{ fontSize: 16, color: '#4B5563', lineHeight: 1.65, marginTop: 24, fontFamily: '微软雅黑' }}>
+        它不替我选一边，只问一句：<span style={{ fontWeight: 'bold', color: '#7C3AED' }}>你现在做事，用的是哪套前提？</span>
+      </Text>
+    </Box>
+  </Box>
+</Slide>

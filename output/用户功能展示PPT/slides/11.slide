@@ -1,0 +1,12 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+  <Text style={{ fontSize: 190, fontWeight: 'bold', color: '#EDE9FE', lineHeight: 1, fontFamily: 'Helvetica' }}>03</Text>
+  <Box style={{ flexDirection: 'column', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 62, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.2, fontFamily: '微软雅黑' }}>
+      它在替你盯着
+    </Text>
+    <Box style={{ width: 88, height: 1, background: '#C4B5FD', marginTop: 26 }} />
+    <Text style={{ fontSize: 20, color: '#4B5563', lineHeight: 1.7, marginTop: 26, fontFamily: '微软雅黑' }}>
+      读多了以后，问题不再是「没有内容」，<br />而是内容彼此打架、而且我察觉不到。
+    </Text>
+  </Box>
+</Slide>

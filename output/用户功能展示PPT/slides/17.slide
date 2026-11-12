@@ -1,0 +1,16 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#F7F3FF', flexDirection: 'row', alignItems: 'center' }}>
+  <Box style={{ width: 8, height: 260, background: '#7C3AED', borderRadius: 4, marginRight: 56 }} />
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 42, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.5, fontFamily: '微软雅黑' }}>
+      它不替我读，也不替我思考。<br />
+      它只保证一件事：<br />
+      读完这一刻，我说得出一句自己的话。
+    </Text>
+
+    <Box style={{ width: 88, height: 1, background: '#C4B5FD', marginTop: 40 }} />
+
+    <Text style={{ fontSize: 16, color: '#7C6FA8', marginTop: 26, fontFamily: '微软雅黑' }}>
+      认知副驾 · 用户视角功能演示 · 2026 年 11 月
+    </Text>
+  </Box>
+</Slide>

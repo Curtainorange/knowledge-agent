@@ -1,0 +1,20 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#F7F3FF', flexDirection: 'row', alignItems: 'center' }}>
+  <Box style={{ width: 8, height: 320, background: '#7C3AED', borderRadius: 4, marginRight: 56 }} />
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 16, color: '#7C3AED', fontWeight: 'bold', letterSpacing: 3, fontFamily: '微软雅黑' }}>
+      用 之 前 的 我
+    </Text>
+
+    <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.42, marginTop: 30, fontFamily: '微软雅黑' }}>
+      我不是不读书。<br />我是读完就忘，把收藏当成了学过。
+    </Text>
+
+    <Text style={{ fontSize: 46, fontWeight: 'bold', color: '#7C3AED', lineHeight: 1.42, marginTop: 34, fontFamily: '微软雅黑' }}>
+      25 条收藏，读完 2 条——这个数字我自己算不出来。
+    </Text>
+
+    <Text style={{ fontSize: 14, color: '#7C6FA8', marginTop: 44, fontFamily: '微软雅黑' }}>
+      这两句话不是我编的：它是产品在「学习健康诊断」里替我算出来的（详见第 15 页截图）
+    </Text>
+  </Box>
+</Slide>

@@ -1,0 +1,31 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 48 }}>
+  <Box style={{ flex: 1, flexDirection: 'column', justifyContent: 'center' }}>
+    <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 10 }}>
+      <Box style={{ width: 6, height: 24, background: '#7C3AED', borderRadius: 3 }} />
+      <Text style={{ fontSize: 16, color: '#7C3AED', fontWeight: 'bold', letterSpacing: 3, fontFamily: '微软雅黑' }}>
+        认 知 副 驾 · 用 户 视 角
+      </Text>
+    </Box>
+
+    <Text style={{ fontSize: 68, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.16, marginTop: 26, fontFamily: '微软雅黑' }}>
+      你的学习，<br />需要一个会反驳的副驾
+    </Text>
+
+    <Box style={{ width: 96, height: 1, background: '#C4B5FD', marginTop: 30 }} />
+
+    <Text style={{ fontSize: 22, color: '#4B5563', lineHeight: 1.6, marginTop: 26, fontFamily: '微软雅黑' }}>
+      从一句话开始的对话，到书架、笔记、冲突与诊断——<br />全部落在同一个入口里，不用在五个工具之间搬运自己。
+    </Text>
+
+    <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 46, fontFamily: '微软雅黑' }}>
+      2026 年 11 月 · 演示中所有界面截图均来自本人真实使用记录
+    </Text>
+  </Box>
+
+  <Box style={{ width: 500, flexDirection: 'column' }}>
+    <Image src="assets/chat_books.jpg" style={{ width: 500, height: 275, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+    <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+      对话工作台：问一句「看看我的书架」，它回一张可点的卡片
+    </Text>
+  </Box>
+</Slide>

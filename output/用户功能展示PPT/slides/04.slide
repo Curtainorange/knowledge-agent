@@ -1,0 +1,51 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      打开就说话，答案落在卡片上
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 30, marginTop: 30 }}>
+    <Box style={{ width: 700, flexDirection: 'column' }}>
+      <Image src="assets/chat_books.jpg" style={{ width: 700, height: 385, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 左侧是历史会话，右侧是这次对话的结果卡片
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#7C3AED', lineHeight: 1.35, fontFamily: '微软雅黑' }}>
+        我说一句话，它自己挑活干
+      </Text>
+
+      <Box style={{ flexDirection: 'column', gap: 20, marginTop: 24 }}>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>01</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            问「看看我的书架」，它不念清单，直接回一张可点的书卡
+          </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>02</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            每本书带真实进度：读到 55%、已读 20%、还没开始
+          </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>03</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            卡片上的「继续读」直接进阅读器，不用回对话框再描述一遍
+          </Text>
+        </Box>
+      </Box>
+
+      <Box style={{ background: '#F7F3FF', borderRadius: 6, padding: 16, marginTop: 26 }}>
+        <Text style={{ fontSize: 18, color: '#1E1B4B', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+          关键在于：<span style={{ fontWeight: 'bold', color: '#7C3AED' }}>回答就是操作入口</span>，不是一段要你再读一遍的文字。
+        </Text>
+      </Box>
+    </Box>
+  </Box>
+</Slide>

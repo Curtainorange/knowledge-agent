@@ -1,0 +1,49 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      它给的不是书单，是能点开的来源
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 34, marginTop: 30 }}>
+    <Box style={{ width: 640, flexDirection: 'column' }}>
+      <Image src="assets/chat_research.jpg" style={{ width: 640, height: 352, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 8 条来源都带站名，末尾挂着「把这些材料排成周计划」
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Text style={{ fontSize: 24, fontWeight: 'bold', color: '#7C3AED', lineHeight: 1.35, fontFamily: '微软雅黑' }}>
+        我说「教材和论文我看不了」，它换了一批
+      </Text>
+
+      <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.65, marginTop: 20, fontFamily: '微软雅黑' }}>
+        它去公开网页上查，回来的是能直接点开的公众号文章与官方科普，每条都标了来源；还主动说明这些内容没有进我的知识库，要不要存由我决定。
+      </Text>
+
+      <Box style={{ flexDirection: 'column', gap: 14, marginTop: 22 }}>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>01</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            来源可核查：微信公众号、中科院心理所科普服务
+          </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>02</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            承认边界：查到的没进库，就不假装是我读过的
+          </Text>
+        </Box>
+        <Box style={{ flexDirection: 'row', gap: 10 }}>
+          <Text style={{ fontSize: 18, color: '#C4B5FD', fontWeight: 'bold', fontFamily: 'Helvetica' }}>03</Text>
+          <Text style={{ fontSize: 18, color: '#374151', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+            一键接上计划：这批材料可以直接排进周任务
+          </Text>
+        </Box>
+      </Box>
+    </Box>
+  </Box>
+</Slide>

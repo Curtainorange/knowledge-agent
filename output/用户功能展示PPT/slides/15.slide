@@ -1,0 +1,40 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      它先说了我最不想听的那句
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 34, marginTop: 28 }}>
+    <Box style={{ width: 770, flexDirection: 'column' }}>
+      <Image src="assets/l5.jpg" style={{ width: 770, height: 424, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 结论下面挂着 4 条推理链，最后是「采纳建议 / 暂时不用」
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Text style={{ fontSize: 14, color: '#F472B6', fontWeight: 'bold', letterSpacing: 2, fontFamily: '微软雅黑' }}>
+        诊 断 结 论
+      </Text>
+      <Text style={{ fontSize: 26, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.35, marginTop: 8, fontFamily: '微软雅黑' }}>
+        高收藏，低完成
+      </Text>
+
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: 1.65, marginTop: 16, fontFamily: '微软雅黑' }}>
+        归因：22 条收藏只读完 2 条，本周 2 次学习行为——精力花在「收集新内容」，不是「消化旧内容」。
+      </Text>
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: 1.65, marginTop: 14, fontFamily: '微软雅黑' }}>
+        建议：今天先暂停新增，从 22 条里挑 1 条置顶，30 分钟读完并写下 3 句复述 + 1 个疑问。
+      </Text>
+
+      <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 18 }} />
+
+      <Text style={{ fontSize: 14, color: '#6B7280', lineHeight: 1.6, marginTop: 14, fontFamily: '微软雅黑' }}>
+        行为数据全部在本地统计，模型不参与算术——数字对不上时，错的是模型，不是我的记录。
+      </Text>
+    </Box>
+  </Box>
+</Slide>

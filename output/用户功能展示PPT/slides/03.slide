@@ -1,0 +1,12 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+  <Text style={{ fontSize: 190, fontWeight: 'bold', color: '#EDE9FE', lineHeight: 1, fontFamily: 'Helvetica' }}>01</Text>
+  <Box style={{ flexDirection: 'column', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 62, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.2, fontFamily: '微软雅黑' }}>
+      开口就能用
+    </Text>
+    <Box style={{ width: 88, height: 1, background: '#C4B5FD', marginTop: 26 }} />
+    <Text style={{ fontSize: 20, color: '#4B5563', lineHeight: 1.7, marginTop: 26, fontFamily: '微软雅黑' }}>
+      不用先学会操作界面：说话、要计划、要材料，<br />它自己判断该做什么，再把结果摆回你面前。
+    </Text>
+  </Box>
+</Slide>

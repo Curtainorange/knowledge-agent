@@ -1,0 +1,36 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      采纳之后，计划要跟着改
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 34, marginTop: 28 }}>
+    <Box style={{ width: 690, flexDirection: 'column' }}>
+      <Image src="assets/l4.jpg" style={{ width: 690, height: 380, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 目标名就叫「采纳诊断建议：高频零闭环」
+      </Text>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Box style={{ backgroundColor: '#F7F3FF', borderRadius: 6, padding: 16 }}>
+        <Text style={{ fontSize: 14, color: '#7C3AED', fontWeight: 'bold', marginBottom: 8, fontFamily: '微软雅黑' }}>
+          它 给 的 排 法 理 由
+        </Text>
+        <Text style={{ fontSize: 16, color: '#1E1B4B', lineHeight: 1.7, fontFamily: '微软雅黑' }}>
+          不安排继续读新书，而是把 8 周全押在最薄的一环——输出、反馈与复盘：先用两周做减法与定义，再跑通一次最小闭环。
+        </Text>
+      </Box>
+
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: 1.65, marginTop: 18, fontFamily: '微软雅黑' }}>
+        每条任务都能追问「为什么排在这里」，点开就是理由——计划不是一张表，是一串可被质疑的判断。
+      </Text>
+      <Text style={{ fontSize: 16, color: '#374151', lineHeight: 1.65, marginTop: 14, fontFamily: '微软雅黑' }}>
+        周任务 90 分钟起算，超时就重排；完成度 0/8 时它不会说「加油」，只说下一步该做哪一条。
+      </Text>
+    </Box>
+  </Box>
+</Slide>

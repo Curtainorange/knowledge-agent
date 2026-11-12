@@ -1,0 +1,47 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'column' }}>
+  <Box style={{ flexDirection: 'row', alignItems: 'center', gap: 12 }}>
+    <Box style={{ width: 6, height: 26, background: '#7C3AED', borderRadius: 3 }} />
+    <Text style={{ fontSize: 34, fontWeight: 'bold', color: '#1E1B4B', fontFamily: '微软雅黑' }}>
+      10 个主题，一半停在入门那一层
+    </Text>
+  </Box>
+  <Box style={{ width: '100%', height: 1, background: '#E5E7EB', marginTop: 16 }} />
+
+  <Box style={{ flexDirection: 'row', gap: 36, marginTop: 26 }}>
+    <Box style={{ width: 330, flexDirection: 'column' }}>
+      <Text style={{ fontSize: 14, color: '#7C3AED', fontWeight: 'bold', letterSpacing: 2, fontFamily: '微软雅黑' }}>
+        本 周 主 题 分 布
+      </Text>
+
+      <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 20, paddingBottom: 12, borderBottom: '1px solid #E5E7EB' }}>
+        <Text style={{ fontSize: 18, color: '#1E1B4B', fontFamily: '微软雅黑' }}>时间管理</Text>
+        <Text style={{ fontSize: 18, color: '#7C3AED', fontWeight: 'bold', fontFamily: 'Helvetica' }}>5 篇</Text>
+      </Box>
+      <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12, paddingBottom: 12, borderBottom: '1px solid #E5E7EB' }}>
+        <Text style={{ fontSize: 18, color: '#1E1B4B', fontFamily: '微软雅黑' }}>情绪管理</Text>
+        <Text style={{ fontSize: 18, color: '#7C3AED', fontWeight: 'bold', fontFamily: 'Helvetica' }}>4 篇</Text>
+      </Box>
+      <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12, paddingBottom: 12, borderBottom: '1px solid #E5E7EB' }}>
+        <Text style={{ fontSize: 18, color: '#1E1B4B', fontFamily: '微软雅黑' }}>刻意练习</Text>
+        <Text style={{ fontSize: 18, color: '#7C3AED', fontWeight: 'bold', fontFamily: 'Helvetica' }}>4 篇</Text>
+      </Box>
+      <Box style={{ flexDirection: 'row', justifyContent: 'space-between', alignItems: 'flex-end', marginTop: 12 }}>
+        <Text style={{ fontSize: 18, color: '#6B7280', fontFamily: '微软雅黑' }}>其余 7 类</Text>
+        <Text style={{ fontSize: 18, color: '#6B7280', fontFamily: 'Helvetica' }}>各 1–3 篇</Text>
+      </Box>
+
+      <Box style={{ background: '#F7F3FF', borderRadius: 6, padding: 14, marginTop: 22 }}>
+        <Text style={{ fontSize: 16, color: '#1E1B4B', lineHeight: 1.6, fontFamily: '微软雅黑' }}>
+          结构信号：情绪管理 4 篇<span style={{ fontWeight: 'bold', color: '#7C3AED' }}>全是入门</span>，刻意练习 4 篇全是进阶——偏科一目了然。
+        </Text>
+      </Box>
+    </Box>
+
+    <Box style={{ flex: 1, flexDirection: 'column' }}>
+      <Image src="assets/brief.jpg" style={{ width: 780, height: 429, borderRadius: 8, border: '1px solid #EDE9FE', objectFit: 'cover' }} />
+      <Text style={{ fontSize: 14, color: '#9CA3AF', marginTop: 12, fontFamily: '微软雅黑' }}>
+        真实界面 · 每条后面标着「入门 / 进阶 / 未分类」，右侧是它给出的结构信号
+      </Text>
+    </Box>
+  </Box>
+</Slide>

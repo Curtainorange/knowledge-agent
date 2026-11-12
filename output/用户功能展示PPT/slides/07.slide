@@ -1,0 +1,12 @@
+<Slide style={{ width: 1280, height: 720, padding: 60, background: '#FFFFFF', flexDirection: 'row', alignItems: 'center', gap: 44 }}>
+  <Text style={{ fontSize: 190, fontWeight: 'bold', color: '#EDE9FE', lineHeight: 1, fontFamily: 'Helvetica' }}>02</Text>
+  <Box style={{ flexDirection: 'column', justifyContent: 'center' }}>
+    <Text style={{ fontSize: 62, fontWeight: 'bold', color: '#1E1B4B', lineHeight: 1.2, fontFamily: '微软雅黑' }}>
+      把书读进去
+    </Text>
+    <Box style={{ width: 88, height: 1, background: '#C4B5FD', marginTop: 26 }} />
+    <Text style={{ fontSize: 20, color: '#4B5563', lineHeight: 1.7, marginTop: 26, fontFamily: '微软雅黑' }}>
+      书是它唯一信得过的原料：先有在读的书，<br />后面的建议、冲突、诊断才不是空转。
+    </Text>
+  </Box>
+</Slide>
