@@ -1,0 +1,70 @@
+' 统一绘图风格：直线（正交）走线 + 高分辨率 + 中文无衬线字体
+' 所有图通过 !include _style.puml 引用，改这一处即全图生效
+skinparam dpi 300
+skinparam linetype ortho
+skinparam shadowing false
+hide circle
+hide empty members
+skinparam classAttributeIconSize 0
+skinparam defaultFontName "Microsoft YaHei"
+skinparam defaultFontSize 18
+skinparam nodesep 35
+skinparam ranksep 70
+skinparam padding 1
+skinparam ArrowColor #2C3E50
+skinparam ArrowFontSize 16
+
+skinparam class {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+  HeaderBackgroundColor #EAF0F6
+  FontSize 19
+  AttributeFontSize 17
+}
+
+skinparam interface {
+  BackgroundColor #FBFCFE
+  BorderColor #566573
+  FontSize 18
+  AttributeFontSize 16
+}
+
+skinparam enum {
+  BackgroundColor #FBFCFE
+  BorderColor #566573
+  FontSize 17
+  AttributeFontSize 15
+}
+
+skinparam state {
+  BackgroundColor #FFFFFF
+  BorderColor #2C3E50
+  FontSize 17
+  AttributeFontSize 15
+}
+
+skinparam package {
+  BackgroundColor #FCFDFE
+  BorderColor #8FA0B3
+  FontSize 18
+  FontStyle bold
+}
+
+skinparam note {
+  BackgroundColor #FFFDF3
+  BorderColor #C9A227
+  FontSize 15
+}
+
+skinparam sequence {
+  ArrowColor #2C3E50
+  ArrowFontSize 15
+  ParticipantFontSize 16
+  ParticipantBorderColor #2C3E50
+  ParticipantBackgroundColor #F8FAFC
+  LifeLineBorderColor #AEB6BF
+  GroupBorderColor #B3BECB
+  GroupBackgroundColor #FCFDFE
+  GroupFontSize 14
+  NoteFontSize 14
+}

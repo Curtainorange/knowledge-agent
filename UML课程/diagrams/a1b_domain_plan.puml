@@ -1,0 +1,40 @@
+@startuml
+!include _style.puml
+skinparam ranksep 55
+
+class Learner {
+  learnerId : String
+  planParams : Map
+}
+class LearningGoal {
+  goalId : String
+  description : String
+  deadline : Date
+  priority : Integer
+  achieved : Boolean
+}
+class LearningPlan {
+  planId : String
+  version : Integer
+  content : Map
+}
+class PlanTask {
+  taskId : String
+  weekIndex : Integer
+  subject : String
+  minutes : Integer
+  status : TaskStatus
+  relatedItemIds : String[*]
+}
+enum "TaskStatus" as TS {
+  PENDING
+  DONE
+  SKIPPED
+}
+
+Learner "1" -down-> "0..*" LearningGoal : 设定
+LearningGoal "1" -down-> "0..*" LearningPlan : 拆解
+LearningPlan "1" *-- "1..*" PlanTask : 包含
+PlanTask -right-> TS : 处于
+
+@enduml

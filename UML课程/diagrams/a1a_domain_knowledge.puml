@@ -1,0 +1,59 @@
+@startuml
+!include _style.puml
+' 领域类图（一）：知识资产与冲突 —— 概念层，不含技术词汇
+
+class Learner {
+  learnerId : String
+  nickname : String
+  pushPreference : PushFrequency
+}
+class KnowledgeSource {
+  sourceId : String
+  kind : SourceKind
+  credentialRef : String
+  lastSyncAt : DateTime
+}
+class KnowledgeItem {
+  itemId : String
+  title : String
+  tags : String[*]
+  readingProgress : Double
+}
+class Claim {
+  claimId : String
+  statement : String
+  topic : String
+  polarity : Integer
+  confidence : Double
+}
+class Conflict {
+  conflictId : String
+  confidence : Double
+  pairKey : String
+  userState : UserState
+  retractedAt : DateTime
+  + evaluate(c : Double) : Boolean
+  + mark(s : UserState) : void
+}
+enum "ConflictType" as CT {
+  FACT_VS_FACT
+  GOAL_VS_ACTION
+  CONCEPT_OVERLAP
+}
+enum "UserState" as US {
+  UNSEEN
+  IGNORED
+  ACCEPTED
+}
+
+Learner "1" -down-> "0..*" KnowledgeSource : 接入
+Learner "1" -down-> "0..*" KnowledgeItem : 拥有
+Learner "1" -down-> "0..*" Conflict : 归属
+KnowledgeSource "1" -down-> "0..*" KnowledgeItem : 同步
+KnowledgeItem "1" *-- "1..*" Claim : 拆出
+Conflict "0..*" -down-> "1" CT : 分类
+Conflict "0..*" -down-> "1" US : 状态
+Conflict "0..*" -- "2" Claim : 涉及
+CT -[hidden]down- US
+
+@enduml

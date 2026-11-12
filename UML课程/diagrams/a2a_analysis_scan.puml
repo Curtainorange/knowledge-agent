@@ -1,0 +1,45 @@
+@startuml
+!include _style.puml
+' 分析类图（BCE）：L2 扫描用例
+
+class "ScanTrigger" <<boundary>> {
+  + trigger() : 扫描请求
+}
+class "ConflictScanCtrl" <<control>> {
+  + scan(userId) : 扫描结果
+}
+class "KnowledgeItem" <<entity>> {
+  itemId : String
+  + claims() : Claim[*]
+}
+class "Claim" <<entity>> {
+  claimId : String
+  statement : String
+}
+class "Conflict" <<entity>> {
+  confidence : Double
+  pairKey : String
+  + evaluate(c) : Boolean
+}
+interface "LLMJudge" <<interface>> {
+  + judge(a, b) : 置信度
+}
+interface "EmbeddingSvc" <<interface>> {
+  + similar(a, b) : 相似度
+}
+
+ScanTrigger "1" -down-> "1" ConflictScanCtrl : «trigger»
+ConflictScanCtrl "1" -down-> "0..*" KnowledgeItem : 读取
+ConflictScanCtrl "1" -down-> "0..*" Conflict : 写入
+KnowledgeItem "1" *-- "1..*" Claim : 拆出
+Conflict "0..*" -- "2" Claim : 比对
+ConflictScanCtrl ..> LLMJudge : 判定
+ConflictScanCtrl ..> EmbeddingSvc : 召回候选
+
+note bottom of LLMJudge
+  扫描只作用于 requester 本人条目，
+  产出的每条 Conflict 必归属 requester
+  （TABLE 8 越权失败例的落点）
+end note
+
+@enduml

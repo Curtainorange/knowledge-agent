@@ -1,0 +1,38 @@
+@startuml
+!include _style.puml
+skinparam ranksep 110
+' 设计类图（二）：领域实体 —— 规则由实体自己守，不放在编排器
+
+package "领域层　app/domain/entity" as DM {
+  class "Learner" <<entity>> {
+    - learnerId : String
+    - pushFrequency : PushFrequency
+    + canAccess(ownerId : String) : Boolean
+  }
+  class "KnowledgeItem" <<entity>> {
+    - itemId : String
+    - content : String
+    + claims() : List<Claim>
+  }
+  class "Claim" <<entity>> {
+    - claimId : String
+    - statement : String
+    - topic : String
+  }
+  class "Conflict" <<entity>> {
+    - confidence : Double
+    - pairKey : String
+    - userState : UserState
+    - retractedAt : DateTime
+    + evaluate(c : Double) : Boolean
+    + mark(s : UserState) : void
+    + belongsTo(learnerId : String) : Boolean
+  }
+}
+
+Learner "1" -down-> "0..*" KnowledgeItem : 拥有
+KnowledgeItem "1" *-- "1..*" Claim : 拆出
+Conflict "0..*" -- "2" Claim : 涉及
+Conflict "0..*" -left-> "1" Learner : 归属
+
+@enduml

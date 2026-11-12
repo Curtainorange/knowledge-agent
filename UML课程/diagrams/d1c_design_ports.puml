@@ -1,0 +1,46 @@
+@startuml
+!include _style.puml
+' 设计类图（三）：端口与实现 —— 依赖倒置，换供应商不动领域代码
+
+package "领域层　声明的端口" as PORT {
+  interface "ConflictRepository" <<repository>> {
+    + findByPair(userId : String, key : String) : Conflict
+    + upsert(c : Conflict) : Conflict
+  }
+  interface "LLMJudgePort" <<interface>> {
+    + judge(a : Claim, b : Claim) : Judgment
+  }
+}
+
+package "基础设施　外层实现" as INFRA {
+  class "SqlConflictRepository" <<repository>> {
+    - session : Session
+    - userId : String
+    + findByPair(userId : String, key : String) : Conflict
+    + upsert(c : Conflict) : Conflict
+  }
+  class "ModelGateway" <<service>> {
+    - chain : List<LLMProvider>
+    + judge(a : Claim, b : Claim) : Judgment
+    + chat(task : String, prompt : String) : String
+  }
+  interface "LLMProvider" <<interface>> {
+    + complete(req : Request) : Response
+  }
+  class "DeepSeekProvider" <<adapter>> {
+    + complete(req : Request) : Response
+  }
+}
+
+SqlConflictRepository .up.|> ConflictRepository
+ModelGateway .up.|> LLMJudgePort
+ModelGateway "1" o-- "0..*" LLMProvider : 策略链
+DeepSeekProvider .up.|> LLMProvider
+
+note bottom of DeepSeekProvider
+  领域只认 LLMJudgePort 这个接口；
+  网关 + 策略 + 供应商适配在基础设施层落地，
+  换模型或加降级不改领域代码（ADR-03）。
+end note
+
+@enduml

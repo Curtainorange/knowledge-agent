@@ -1,0 +1,47 @@
+@startuml
+!include _style.puml
+' 领域类图（三）：行为、诊断、简报 —— 概念层
+
+class Learner {
+  learnerId : String
+  nickname : String
+  pushPreference : PushFrequency
+}
+class CognitiveDiagnosis {
+  diagnosisId : String
+  pattern : String
+  rootCause : String
+  confidence : Double
+  reasoningChain : List
+  status : DiagnosisStatus
+}
+class LearningEvent {
+  eventId : String
+  kind : EventKind
+  occurredAt : DateTime
+  payload : Map
+}
+class Briefing {
+  briefingId : String
+  week : String
+  topicDistribution : Map
+  missingTopics : String[*]
+  conflictTrend : Integer
+}
+
+Learner "1" -down-> "0..*" CognitiveDiagnosis : 获得
+Learner "1" -down-> "0..*" LearningEvent : 产生
+Learner "1" -down-> "0..*" Briefing : 接收
+CognitiveDiagnosis ..> LearningEvent
+Briefing ..> LearningEvent
+
+CognitiveDiagnosis -[hidden]right- LearningEvent
+LearningEvent -[hidden]right- Briefing
+
+note bottom of Briefing
+  简报按周动态生成、不单独落库，
+  重复压制靠推送侧 content_hash 去重（ADR-07）。
+  诊断与简报都是「派生」产物，故用虚线依赖。
+end note
+
+@enduml

@@ -1,0 +1,38 @@
+@startuml
+!include _style.puml
+' 设计类图（一）：接口层 → 应用层 → 端口，依赖一律朝内
+
+package "接口层　app/api" as API {
+  class "L2Router" <<boundary>> {
+    + scan(token : Token) : ScanDTO
+    + list(token : Token) : List<ConflictDTO>
+    + feedback(token : Token, id : String, state : UserState) : void
+  }
+}
+
+package "应用层　app/agent" as APP {
+  class "L2Orchestrator" <<control>> {
+    - judge : LLMJudgePort
+    - conflicts : ConflictRepository
+    + scan(userId : String) : L2ScanResult
+    + decide(userId : String, conflictId : String, state : UserState) : void
+    + rejudge(userId : String, pairKey : String) : RejudgeResult
+  }
+}
+
+package "领域层　端口" as PORT {
+  interface "ConflictRepository" <<repository>> {
+    + findByPair(userId : String, key : String) : Conflict
+    + upsert(c : Conflict) : Conflict
+    + ignoredCount(userId : String, type : ConflictType) : int
+  }
+  interface "LLMJudgePort" <<interface>> {
+    + judge(a : Claim, b : Claim) : Judgment
+  }
+}
+
+L2Router "1" --> "1" L2Orchestrator : 转发
+L2Orchestrator --> ConflictRepository : 使用
+L2Orchestrator --> LLMJudgePort : 使用
+
+@enduml

@@ -1,0 +1,18 @@
+@startuml
+!include _style.puml
+' 包图：分层结构与依赖规则 —— 只允许由外向内
+
+package "web\n浏览器端"
+package "app/api\n接口层"
+package "app/agent\n应用层"
+package "app/core\n横切"
+package "app/domain\n领域层"
+package "app/infra\n基础设施"
+
+"web\n浏览器端" .down.> "app/api\n接口层" : HTTP / JSON
+"app/api\n接口层" .down.> "app/agent\n应用层" : 调用用例
+"app/agent\n应用层" .right.> "app/core\n横切" : 配置
+"app/agent\n应用层" .down.> "app/domain\n领域层" : 读写领域对象
+"app/agent\n应用层" .down.> "app/infra\n基础设施" : 判定/检索/推送
+
+@enduml

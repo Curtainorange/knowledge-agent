@@ -1,0 +1,31 @@
+@startuml
+!include _style.puml
+' 顺序图（一）：L2 扫描的设计级交互与事务边界
+
+actor "学习者" as U
+participant ":L2Router" as R <<boundary>>
+participant ":L2Orchestrator" as O <<control>>
+participant ":ConflictRepository" as REPO
+participant ":LLMJudgePort" as J <<interface>>
+
+U -> R : POST /l2/scan（JWT）
+R -> R : 验签解出 userId
+R -> O : scan(userId)
+O -> REPO : findByUser(userId)
+REPO --> O : 本人条目与主张
+O -> J : judge(a, b)
+J --> O : confidence
+
+alt confidence < 0.5（BR-L2-01）
+  O -> O : evaluate() 为假
+  note right : 不入库、不推送
+else ≥ 0.5 且该类型未收敛
+  O -> REPO : findByPair(pairKey)
+  O -> REPO : upsert(conflict)：单条提交
+  O -> O : enqueue(冲突提醒)
+end
+
+O --> R : ScanResult
+R --> U : 200 {found, suppressed}
+
+@enduml

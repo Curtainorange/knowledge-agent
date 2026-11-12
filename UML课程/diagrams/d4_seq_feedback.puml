@@ -1,0 +1,31 @@
+@startuml
+!include _style.puml
+' 顺序图（二）：L2 反馈与越权拦截（选定功能的第二条链路）
+
+actor "学习者" as U
+participant ":L2Router" as R <<boundary>>
+participant ":L2Orchestrator" as O <<control>>
+participant ":Conflict" as C <<entity>>
+participant ":ConflictRepository" as REPO
+
+U -> R : PATCH /conflicts/{id}/state
+R -> R : 验签解出 userId
+R -> O : decide(userId, id, state)
+O -> REPO : findById(userId, id)
+REPO --> O : conflict 或空
+
+alt conflict 为空
+  O --> R : 抛 NotFound
+  R --> U : 404
+else belongsTo(userId) 为假
+  O --> R : 抛 PermissionError
+  R --> U : 403（甲的数据不变）
+else 归属校验通过
+  O -> C : mark(state)
+  O -> REPO : upsert(conflict)
+  O -> O : ignoredCount(type)
+  note right : 达阈值则整类收敛（BR-L2-02）
+  R --> U : 204
+end
+
+@enduml

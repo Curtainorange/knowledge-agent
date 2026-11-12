@@ -1,0 +1,3982 @@
+[
+ {
+  "kind": "p",
+  "text": "产品需求分析 · 需求规格说明",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 1,
+  "text": "认知副驾 · 产品需求分析报告"
+ },
+ {
+  "kind": "p",
+  "text": "个人知识学习 AI 智能体 —— 产品范围与需求基线",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "周宇航　|　2026-10-08　|　V3.1",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "目录",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "p",
+  "text": "文档修订记录",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "一、项目背景",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "二、项目目标",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "三、目标用户",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "四、用户痛点分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "五、系统定位",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "六、业务流程分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "七、功能需求分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "八、数据需求分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "九、非功能需求分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "十、可行性分析",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "十一、MVP 功能范围",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "十二、预期效果",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "附录 A　验收标准",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "附录 B　参考资料",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "本报告定义「认知副驾」的产品范围与需求基线：明确做什么（功能需求）、做到什么程度（非功能需求）、如何与外部交互（接口需求）、需要管理哪些数据（数据需求），并给出可验证的验收标准与需求追踪关系，作为后续设计、开发、测试与验收的共同依据。",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "文档修订记录"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "版本",
+     "bold": true
+    },
+    {
+     "text": "日期",
+     "bold": true
+    },
+    {
+     "text": "修订人",
+     "bold": true
+    },
+    {
+     "text": "修订说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "V1.0",
+     "bold": false
+    },
+    {
+     "text": "2026-09",
+     "bold": false
+    },
+    {
+     "text": "周宇航",
+     "bold": false
+    },
+    {
+     "text": "首版需求分析，确立五层能力梯度（ L1–L5 ）与目标用户画像",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "V2.0",
+     "bold": false
+    },
+    {
+     "text": "2026-09",
+     "bold": false
+    },
+    {
+     "text": "周宇航",
+     "bold": false
+    },
+    {
+     "text": "三引擎混合架构简化为单一 LLM ；功能需求改写为分角色的用例（ Use Case ）形式",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "V3.0",
+     "bold": false
+    },
+    {
+     "text": "2026-09",
+     "bold": false
+    },
+    {
+     "text": "周宇航",
+     "bold": false
+    },
+    {
+     "text": "模型供应商由 Anthropic Claude 切换为国产 DeepSeek （ deepseek-flash ），改为每请求 reasoning 开关切换思考模式",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "V3.1",
+     "bold": false
+    },
+    {
+     "text": "2026-10-08",
+     "bold": false
+    },
+    {
+     "text": "周宇航",
+     "bold": false
+    },
+    {
+     "text": "补齐系统上下文、总体架构、业务流程、用例、数据实体关系等 14 张图 ；新增术语与缩略语表、数据字典、需求追踪矩阵、验收标准表；统一小节编号；修正模型层与接入方式的表述",
+     "bold": true
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "一、项目背景"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "1.1 时代背景与问题提出"
+ },
+ {
+  "kind": "p",
+  "text": "在信息过载的时代，知识工作者普遍面临一个困境：收藏了大量文章、保存了海量笔记、划了无数重点，但真正需要调用时却找不到，更谈不上消化吸收。「收藏」这一行为带来的心理安全感，掩盖了知识并未真正转化为个人认知的事实。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "1.2 现有方案的局限"
+ },
+ {
+  "kind": "p",
+  "text": "以 Notion、Obsidian、Evernote 为代表的传统知识管理工具，本质上是「存储与检索」系统，存在三大固有缺陷：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n无法处理模糊输入——用户必须输入精准关键词才能命中结果，而人对内容的记忆往往是碎片化、感官化的；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n无法主动发起行动——系统只能被动响应查询，不能主动提醒、追问、纠偏；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n无法进行逻辑推理和因果推断——无法发现收藏内容之间的矛盾，更无法基于行为数据诊断学习问题。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "1.3 产品提出"
+ },
+ {
+  "kind": "p",
+  "text": "「认知副驾」正是为解决上述问题而设计的 AI 智能体产品：通过持续对话与自主推理，帮助用户把「收藏的碎片」转化为「可调用的认知」，并持续修正学习方向。区别于传统工具的「被动存储」定位，认知副驾是一个主动型学习伙伴——它不仅回答问题，还主动发现矛盾、生成追问、监测行为偏离、诊断学习病根。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "技术背景：产品全部智能能力基于单一外部大语言模型服务（DeepSeek，模型名\r\ndeepseek-flash）提供，通过统一网关接入，不与多厂商混合编排，以降低架构复杂度与不确定性；模型层通过抽象接口封装，保留未来替换或新增服务商的能力。",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "1.4 术语与缩略语"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "术语 / 缩略语",
+     "bold": true
+    },
+    {
+     "text": "说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "LLM",
+     "bold": false
+    },
+    {
+     "text": "大语言模型（ Large Language Model ）；本产品单一依赖 DeepSeek",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "智能体（ Agent ）",
+     "bold": false
+    },
+    {
+     "text": "具备感知、推理、规划与行动能力，可自主发起行为的系统；区别于纯问答式对话",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L1–L5",
+     "bold": false
+    },
+    {
+     "text": "五级能力梯度： L1 认知挖掘、 L2 冲突检测、 L3 认知助产、 L4 路径自我修正、\r\nL5 偏误诊断",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Embedding",
+     "bold": false
+    },
+    {
+     "text": "文本向量表示，用于语义检索与相似度计算",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Function Calling",
+     "bold": false
+    },
+    {
+     "text": "模型函数调用机制，用于驱动外部动作",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "RAG",
+     "bold": false
+    },
+    {
+     "text": "检索增强生成（ Retrieval-Augmented Generation ）",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Prompt 缓存",
+     "bold": false
+    },
+    {
+     "text": "服务端提示缓存，命中可显著降低输入成本",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "误报抑制",
+     "bold": false
+    },
+    {
+     "text": "低置信度过滤 + 用户忽略收敛的组合机制，用于降低打扰",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC",
+     "bold": false
+    },
+    {
+     "text": "Use Case ，用例",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT",
+     "bold": false
+    },
+    {
+     "text": "Acceptance Test ，验收测试项",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "MVP",
+     "bold": false
+    },
+    {
+     "text": "最小可行产品（ Minimum Viable Product ）",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "认知闭环",
+     "bold": false
+    },
+    {
+     "text": "诊断 → 计划 → 监测 → 干预 → 再诊断的自进化链路",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "二、项目目标"
+ },
+ {
+  "kind": "p",
+  "text": "项目总体目标为：构建一个基于大语言模型的个人知识学习智能体，实现从「知识存储」到「认知转化」的跃迁。具体分解为五项可衡量的子目标：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    },
+    {
+     "text": "衡量指标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "G1",
+     "bold": false
+    },
+    {
+     "text": "将「收藏的碎片」转化为「可调用的认知」",
+     "bold": false
+    },
+    {
+     "text": "模糊检索一次命中率、多轮追问收敛轮数",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G2",
+     "bold": false
+    },
+    {
+     "text": "主动发现知识矛盾并提醒",
+     "bold": false
+    },
+    {
+     "text": "冲突检测覆盖新增内容比例、误报率",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G3",
+     "bold": false
+    },
+    {
+     "text": "引导用户问「该问没问」的问题",
+     "bold": false
+    },
+    {
+     "text": "认知简报每周推送的追问数",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G4",
+     "bold": false
+    },
+    {
+     "text": "计划偏离时自主纠偏",
+     "bold": false
+    },
+    {
+     "text": "行为偏离 → 干预 → 路径调整的平均时延",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G5",
+     "bold": false
+    },
+    {
+     "text": "定位学习病根并给出方案",
+     "bold": false
+    },
+    {
+     "text": "月度健康报告覆盖用户比例、诊断采纳率",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "三、目标用户"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "3.1 角色定义"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "角色",
+     "bold": true
+    },
+    {
+     "text": "角色编号",
+     "bold": true
+    },
+    {
+     "text": "说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "学习者",
+     "bold": false
+    },
+    {
+     "text": "U1",
+     "bold": false
+    },
+    {
+     "text": "主要交互对象，有收藏 / 笔记习惯的知识工作者或学生",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "知识源",
+     "bold": false
+    },
+    {
+     "text": "S1",
+     "bold": false
+    },
+    {
+     "text": "外部系统：本地书籍文件、微信读书等阅读平台",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "认知副驾系统",
+     "bold": false
+    },
+    {
+     "text": "SYS",
+     "bold": false
+    },
+    {
+     "text": "自身作为执行者，自主感知、推理、推送",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "3.2 用户画像摘要"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "特征维度",
+     "bold": true
+    },
+    {
+     "text": "描述",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "痛点",
+     "bold": false
+    },
+    {
+     "text": "收藏即遗忘、检索靠精确关键词、学习无体系",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "诉求",
+     "bold": false
+    },
+    {
+     "text": "主动挖掘、发现矛盾、被提醒、被纠偏、被诊断",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "使用频率",
+     "bold": false
+    },
+    {
+     "text": "每日碎片化使用 + 每周 / 每月被动接收简报",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "技术能力",
+     "bold": false
+    },
+    {
+     "text": "无需技术背景，纯自然语言交互",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "四、用户痛点分析"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "痛点",
+     "bold": true
+    },
+    {
+     "text": "具体表现",
+     "bold": true
+    },
+    {
+     "text": "根因分析",
+     "bold": true
+    },
+    {
+     "text": "产品对应能力",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "收藏即遗忘",
+     "bold": false
+    },
+    {
+     "text": "收藏夹与笔记库持续膨胀，调用率极低，「存了 = 学了」的错觉",
+     "bold": false
+    },
+    {
+     "text": "存储行为与认知加工脱节，缺乏后续激活机制",
+     "bold": false
+    },
+    {
+     "text": "L1 认知挖掘：模糊意图定位，多轮追问找回内容",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "检索依赖精确关键词",
+     "bold": false
+    },
+    {
+     "text": "只记得「橙色封面、讲拖延症」之类的碎片线索，无法检索",
+     "bold": false
+    },
+    {
+     "text": "传统工具基于关键词匹配，不支持语义与模糊输入",
+     "bold": false
+    },
+    {
+     "text": "L1 ：语义向量检索 + LLM 多轮澄清",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "知识矛盾无察觉",
+     "bold": false
+    },
+    {
+     "text": "先后收藏的观点相互冲突而不自知，认知持续被污染",
+     "bold": false
+    },
+    {
+     "text": "工具不做内容间关系分析",
+     "bold": false
+    },
+    {
+     "text": "L2 冲突检测：主动扫描 + 实时检测 + 误报抑制",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "学习无体系、不知问什么",
+     "bold": false
+    },
+    {
+     "text": "大量收藏某类主题却完全忽略关键盲区",
+     "bold": false
+    },
+    {
+     "text": "缺乏对知识结构的全局审视",
+     "bold": false
+    },
+    {
+     "text": "L3 认知助产：周认知简报 + 深度追问",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "计划执行偏离无纠偏",
+     "bold": false
+    },
+    {
+     "text": "立了学习目标，连续多日未执行也无人提醒",
+     "bold": false
+    },
+    {
+     "text": "计划工具不做行为监测与干预",
+     "bold": false
+    },
+    {
+     "text": "L4 路径自我修正：偏离监测 + 干预对话 + 重规划",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "学习问题难归因",
+     "bold": false
+    },
+    {
+     "text": "「总学不好、总拖延」，找不到病根",
+     "bold": false
+    },
+    {
+     "text": "缺乏基于行为数据的链式归因分析",
+     "bold": false
+    },
+    {
+     "text": "L5 偏误诊断：月度健康报告 + 主动归因诊断",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "五、系统定位"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "5.1 产品定义"
+ },
+ {
+  "kind": "p",
+  "text": "认知副驾是基于大语言模型的个人知识学习智能体，以「主动认知伙伴」而非「被动存储工具」为定位，通过五级递进的智能体主动性（L1→L5）覆盖从「帮用户找回知识」到「帮用户认识自己」的完整价值链。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "系统与外部实体的交互关系如下图，它是本报告全部需求的边界依据：方框内为系统职责，方框外为外部交互方。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image001.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 1　系统上下文图（System Context）。系统对内提供 L1–L5 五级能力，对外只与四类实体交互：学习者（意图与反馈）、知识源平台（只读同步）、大模型服务（推理调用）、推送通道（任务投递）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "5.2 与传统知识管理工具的对比"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "维度",
+     "bold": true
+    },
+    {
+     "text": "传统工具",
+     "bold": true
+    },
+    {
+     "text": "认知副驾",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "交互模式",
+     "bold": false
+    },
+    {
+     "text": "关键词检索，被动响应",
+     "bold": false
+    },
+    {
+     "text": "自然语言对话，支持模糊输入与多轮澄清",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "主动性",
+     "bold": false
+    },
+    {
+     "text": "零主动，等用户发起",
+     "bold": false
+    },
+    {
+     "text": "主动扫描冲突、主动推送简报、主动干预偏离",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "推理能力",
+     "bold": false
+    },
+    {
+     "text": "无",
+     "bold": false
+    },
+    {
+     "text": "语义比对、逻辑分析、因果推断、链式归因",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "知识关系",
+     "bold": false
+    },
+    {
+     "text": "孤立条目",
+     "bold": false
+    },
+    {
+     "text": "识别矛盾 / 互补 / 断层关系，含置信度评估",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "学习闭环",
+     "bold": false
+    },
+    {
+     "text": "无计划、无监测",
+     "bold": false
+    },
+    {
+     "text": "目标 → 计划 → 监测 → 干预 → 诊断全闭环",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "5.3 技术与架构定位"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n单一模型依赖：全部智能能力收敛到 DeepSeek API 统一网关，业务层不感知实现细节；通过抽象接口封装保留未来替换 / 新增服务商的能力。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n运行环境：服务端部署，Python / FastAPI 异步服务；模型层需联网访问 DeepSeek API。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n用户端：Web 对话工作台为主，功能页为辅；移动端以响应式 Web + PWA 接入。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "4. \r\n分层结构：用户交互层 / 应用服务层 / 领域能力层 / 数据与模型层四层，模型调用是唯一收口点。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image002.png"
+ },
+ {
+  "kind": "li",
+  "text": "图 2　系统总体架构图。四层结构中，领域能力层承载 L1–L5 五级能力，数据与模型层中的 LLM 网关是全部模型调用的唯一收口点。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "六、业务流程分析"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.1 总体业务主线"
+ },
+ {
+  "kind": "p",
+  "text": "知识接入\r\n→ 认知加工（向量化 + 主张提取）→ 主动服务（挖掘 / 冲突 / 简报 / 干预 / 诊断）→ 用户反馈 → 闭环修正（计划重规划 / 推荐收敛）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image003.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 3　总体业务主线图。从「知识存储」到「认知转化」的完整链路，末端反馈回流形成闭环。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.2 知识接入流程（UC-G-01）"
+ },
+ {
+  "kind": "p",
+  "text": "学习者授权接入知识源（本地书籍文件、微信读书等）→ 系统建立连接并同步原文 → 系统对新条目做向量化与核心主张提取（超大条目分块处理）→ 回传同步结果。连接失败可重试，不阻塞已有数据。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image004.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 4　知识接入流程图（对应 UC-G-01）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.3 模糊检索定位流程（UC-L1-01，L1）"
+ },
+ {
+  "kind": "p",
+  "text": "学习者输入碎片化线索（如「橙色封面，好像是讲拖延症的」）→ 系统解析产生多个候选匹配假设 → 候选不唯一时发起多轮追问 → 学习者回答缩小范围 → 循环直至定位 → 返回精准内容并附阅读历史提醒。假设唯一时直接交付；学习者无法回答时按最近相似度兜底返回。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image005.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 5　模糊检索定位流程图（对应 UC-L1-01）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.4 冲突检测流程（UC-L2-01/02/03，L2）"
+ },
+ {
+  "kind": "p",
+  "text": "两条触发路径：①每周定时主动扫描新增条目；②新文章收藏时实时检测。处理流程：提取核心主张 → 语义比对与逻辑分析 → 识别矛盾\r\n/ 互补 / 断层关系并过滤误报（低置信度不入库不推送）→ 形成冲突候选并推送提醒 → 学习者反馈「忽略 / 采纳」→ 反馈用于收敛与信任度量（同类型忽略 ≥3 次自动收敛）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image006.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 6　冲突检测流程图（对应 UC-L2-01 / 02 / 03）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "p",
+  "text": "冲突记录的用户状态在三个取值间迁移，收敛与重新激活规则如下图：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image007.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 7　冲突状态迁移图。同类型忽略累计 ≥3 次后进入收敛态，不再主动推荐；重新激活后回到可推荐状态。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.5 认知助产流程（UC-L3-01/02，L3）"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n周认知简报：每周定时分析知识库主题分布与认知深度 → 识别「大量存在 / 完全缺失」模式 → 生成 2–3 个启发式深度追问 → 汇总本周冲突 → 推送简报。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n深度追问：学习者完成问答或收藏新内容后，基于缺失项生成 1 个衔接当前话题的深度问题，附数据依据推送，可承接新一轮对话。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image008.png"
+ },
+ {
+  "kind": "li",
+  "text": "图 8　认知助产流程图（对应 UC-L3-01 / 02）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.6 计划制定与纠偏流程（UC-L4-01/02，L4）"
+ },
+ {
+  "kind": "p",
+  "text": "学习者设定学习目标（含期限与优先级）→ 系统拆解为周维度任务计划 → 回传确认 / 修改 → 计划生效进入行为监测。当连续 N 天（默认 3）未执行计划、行为模式显著变化或学习者主动请求时：系统聚合学习行为 → 分析偏离原因 → 生成路径调整建议\r\n→ 发起干预对话 → 学习者同意则重拆计划并确认新路径（含预期收益），拒绝则保持原计划并记录偏好。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image009.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 9　计划制定与纠偏流程图（对应 UC-L4-01 / 02）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.7 偏误诊断流程（UC-L5-01/02，L5）"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n月学习健康报告：每月定时批量分析行为数据 → 多因素归因 → 形成诊断报告（含置信度与推理链）→ 推送并询问是否采纳 → 采纳后解决方案拆为任务写入计划，与 L4 形成闭环。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n主动归因诊断：学习者主动询问「我为什么学不好 / 总拖延」→ 系统基于行为数据链式归因 → 返回诊断 + 可执行方案 → 可选写入计划。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image010.png"
+ },
+ {
+  "kind": "li",
+  "text": "图 10　偏误诊断流程图（对应 UC-L5-01 / 02）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "6.8 核心闭环"
+ },
+ {
+  "kind": "p",
+  "text": "诊断（L5）→ 方案写入计划（L4）→ 行为监测 → 偏离干预 → 新行为数据 → 再诊断，形成「越用越懂用户」的自进化学习闭环。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 529,
+  "src": "reqdoc.files/image011.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 11　核心闭环示意图。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "七、功能需求分析"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "7.1 功能架构"
+ },
+ {
+  "kind": "p",
+  "text": "功能按参与角色组织为用例（Use Case），包含两大支撑能力（知识接入、推送与计划管理）与五级核心脑力能力（按智能体主动性从低到高 L1→L5）：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "· L1 认知挖掘——被动响应的模糊检索定位；",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "· L2 冲突检测——系统主动扫描与实时检测知识矛盾；",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "· L3 认知助产——系统主动生成追问与简报，引导思考；",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "· L4 路径自我修正——监测行为偏离并主动干预重规划；",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "· \r\nL5 偏误诊断——归因诊断学习病根并给出方案。",
+  "ordered": false,
+  "bold": true
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image012.png"
+ },
+ {
+  "kind": "li",
+  "text": "图 12　功能架构图。上层为统一交互入口，中层为五级核心能力，下层为两项支撑能力。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "7.2 用例总览"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "用例编号",
+     "bold": true
+    },
+    {
+     "text": "用例名",
+     "bold": true
+    },
+    {
+     "text": "主角色",
+     "bold": true
+    },
+    {
+     "text": "能力",
+     "bold": true
+    },
+    {
+     "text": "优先级",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "UC-G-01",
+     "bold": false
+    },
+    {
+     "text": "知识库接入",
+     "bold": false
+    },
+    {
+     "text": "学习者 / 系统",
+     "bold": false
+    },
+    {
+     "text": "支撑 — 知识接入",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-G-02",
+     "bold": false
+    },
+    {
+     "text": "主动推送偏好管理",
+     "bold": false
+    },
+    {
+     "text": "学习者",
+     "bold": false
+    },
+    {
+     "text": "支撑 — 推送管理",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L1-01",
+     "bold": false
+    },
+    {
+     "text": "模糊意图挖掘定位",
+     "bold": false
+    },
+    {
+     "text": "学习者",
+     "bold": false
+    },
+    {
+     "text": "L1 认知挖掘",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L2-01",
+     "bold": false
+    },
+    {
+     "text": "知识冲突主动扫描",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L2 冲突检测",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L2-02",
+     "bold": false
+    },
+    {
+     "text": "新内容实时冲突检测",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L2 冲突检测",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L2-03",
+     "bold": false
+    },
+    {
+     "text": "冲突反馈（忽略 / 采纳）",
+     "bold": false
+    },
+    {
+     "text": "学习者",
+     "bold": false
+    },
+    {
+     "text": "L2 冲突检测",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L3-01",
+     "bold": false
+    },
+    {
+     "text": "周认知简报生成",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L3 认知助产",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L3-02",
+     "bold": false
+    },
+    {
+     "text": "深度追问生成",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L3 认知助产",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L4-01",
+     "bold": false
+    },
+    {
+     "text": "学习计划制定与重规划",
+     "bold": false
+    },
+    {
+     "text": "学习者 / 系统",
+     "bold": false
+    },
+    {
+     "text": "L4 路径自我修正",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L4-02",
+     "bold": false
+    },
+    {
+     "text": "行为偏离监测与干预",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L4 路径自我修正",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L5-01",
+     "bold": false
+    },
+    {
+     "text": "月学习健康报告",
+     "bold": false
+    },
+    {
+     "text": "系统",
+     "bold": false
+    },
+    {
+     "text": "L5 偏误诊断",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "UC-L5-02",
+     "bold": false
+    },
+    {
+     "text": "学习归因诊断",
+     "bold": false
+    },
+    {
+     "text": "学习者 / 系统",
+     "bold": false
+    },
+    {
+     "text": "L5 偏误诊断",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "p",
+  "text": "用例与参与者的整体关系如下图：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image013.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 13　系统用例图。学习者（U1）为唯一人类参与者，知识源平台（S1）为外部系统参与者；12 个用例按五级能力与两项支撑能力分组。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "7.3 关键用例规约摘要"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "用例",
+     "bold": true
+    },
+    {
+     "text": "触发条件",
+     "bold": true
+    },
+    {
+     "text": "核心流程要点",
+     "bold": true
+    },
+    {
+     "text": "关键扩展 / 异常",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "知识库接入",
+     "bold": false
+    },
+    {
+     "text": "用户授权",
+     "bold": false
+    },
+    {
+     "text": "授权 → 同步原文 → 向量化与主张提取 → 回传结果",
+     "bold": false
+    },
+    {
+     "text": "超大条目分块；连接失败可重试不阻塞",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "推送偏好管理",
+     "bold": false
+    },
+    {
+     "text": "用户设置",
+     "bold": false
+    },
+    {
+     "text": "选择频率 → 保存 → 按偏好调度推送",
+     "bold": false
+    },
+    {
+     "text": "同类型忽略 ≥3 次 → 自动收敛",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "模糊意图定位",
+     "bold": false
+    },
+    {
+     "text": "模糊 / 感官化输入",
+     "bold": false
+    },
+    {
+     "text": "线索 → 候选假设 → 多轮追问 → 定位交付 + 阅读历史提醒",
+     "bold": false
+    },
+    {
+     "text": "唯一命中直接交付；无法回答按相似度兜底",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "冲突主动扫描",
+     "bold": false
+    },
+    {
+     "text": "每周定时",
+     "bold": false
+    },
+    {
+     "text": "扫描 → 主张提取 → 语义比对 → 过滤误报 → 候选（含置信度） → 推送",
+     "bold": false
+    },
+    {
+     "text": "低置信度不入库不推送",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "实时冲突检测",
+     "bold": false
+    },
+    {
+     "text": "收藏新文章",
+     "bold": false
+    },
+    {
+     "text": "入库即检测 → 实时推送提醒",
+     "bold": false
+    },
+    {
+     "text": "同扫描流程",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "冲突反馈",
+     "bold": false
+    },
+    {
+     "text": "存在冲突提醒",
+     "bold": false
+    },
+    {
+     "text": "查看 → 忽略 / 采纳 → 记录反馈",
+     "bold": false
+    },
+    {
+     "text": "同类型忽略 ≥3 次收敛",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "周认知简报",
+     "bold": false
+    },
+    {
+     "text": "每周定时",
+     "bold": false
+    },
+    {
+     "text": "主题分布分析 → 缺失模式识别 → 生成 2–3 个追问 → 汇总冲突 → 推送",
+     "bold": false
+    },
+    {
+     "text": "—",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "深度追问",
+     "bold": false
+    },
+    {
+     "text": "问答完成 / 新收藏后",
+     "bold": false
+    },
+    {
+     "text": "获取上下文 → 生成 1 个衔接性深度问题 → 附数据依据推送",
+     "bold": false
+    },
+    {
+     "text": "可承接新对话",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "计划制定与重规划",
+     "bold": false
+    },
+    {
+     "text": "用户设定目标",
+     "bold": false
+    },
+    {
+     "text": "目标 → 周维度拆解 → 确认 → 写入 → 进入监测",
+     "bold": false
+    },
+    {
+     "text": "调整时进入重规划流程",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "偏离监测与干预",
+     "bold": false
+    },
+    {
+     "text": "连续 3 天未执行 / 模式突变 / 主动请求",
+     "bold": false
+    },
+    {
+     "text": "聚合行为 → 归因 → 调整建议 → 干预对话 → 同意重拆 / 拒绝保留",
+     "bold": false
+    },
+    {
+     "text": "拒绝时记录偏好",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "月健康报告",
+     "bold": false
+    },
+    {
+     "text": "每月定时",
+     "bold": false
+    },
+    {
+     "text": "批量分析 → 多因素归因 → 诊断报告（置信度 + 推理链） → 推送 → 询问采纳",
+     "bold": false
+    },
+    {
+     "text": "采纳后写入计划闭环",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "归因诊断",
+     "bold": false
+    },
+    {
+     "text": "用户主动询问",
+     "bold": false
+    },
+    {
+     "text": "提问 → 链式归因 → 诊断 + 可执行方案 → 可写入计划",
+     "bold": false
+    },
+    {
+     "text": "—",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "7.4 用户侧接口功能框架"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "能力",
+     "bold": true
+    },
+    {
+     "text": "接口需求",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "对话",
+     "bold": false
+    },
+    {
+     "text": "支持多轮自然语言交互，可跟随 Tool 调用完成动作",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "知识管理",
+     "bold": false
+    },
+    {
+     "text": "新增 / 查询 / 导入知识条目",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "目标与计划",
+     "bold": false
+    },
+    {
+     "text": "设定目标、查看 / 调整计划",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "冲突管理",
+     "bold": false
+    },
+    {
+     "text": "查看冲突列表、反馈忽略 / 采纳",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "诊断与报告",
+     "bold": false
+    },
+    {
+     "text": "查询最新诊断、健康报告",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "偏好设置",
+     "bold": false
+    },
+    {
+     "text": "更新推送频率与其他偏好",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "成本查询",
+     "bold": false
+    },
+    {
+     "text": "查询模型费用明细",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "7.5 需求追踪矩阵"
+ },
+ {
+  "kind": "p",
+  "text": "每一条需求都必须能回溯到用例与验收项，无依据的功能不得进入范围（反向检查）：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "需求 / 目标",
+     "bold": true
+    },
+    {
+     "text": "承载用例",
+     "bold": true
+    },
+    {
+     "text": "关键规则",
+     "bold": true
+    },
+    {
+     "text": "验收项",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "G1 碎片变认知",
+     "bold": false
+    },
+    {
+     "text": "UC-L1-01",
+     "bold": false
+    },
+    {
+     "text": "多轮追问收敛轮数 ≤ 3",
+     "bold": false
+    },
+    {
+     "text": "AT-01",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G2 矛盾主动提醒",
+     "bold": false
+    },
+    {
+     "text": "UC-L2-01 / 02 / 03",
+     "bold": false
+    },
+    {
+     "text": "置信度 < 0.5 丢弃；同类型忽略 ≥3 次收敛",
+     "bold": false
+    },
+    {
+     "text": "AT-02 、 AT-03",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G3 引导提问",
+     "bold": false
+    },
+    {
+     "text": "UC-L3-01 / 02",
+     "bold": false
+    },
+    {
+     "text": "每周推送 2–3 个追问，附数据依据",
+     "bold": false
+    },
+    {
+     "text": "AT-04",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G4 自主纠偏",
+     "bold": false
+    },
+    {
+     "text": "UC-L4-01 / 02",
+     "bold": false
+    },
+    {
+     "text": "连续 3 天未执行触发干预；拒绝则记录偏好",
+     "bold": false
+    },
+    {
+     "text": "AT-05",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G5 病根诊断",
+     "bold": false
+    },
+    {
+     "text": "UC-L5-01 / 02",
+     "bold": false
+    },
+    {
+     "text": "诊断须含归因链与置信度",
+     "bold": false
+    },
+    {
+     "text": "AT-06",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "权限与数据隔离",
+     "bold": false
+    },
+    {
+     "text": "全部业务用例",
+     "bold": false
+    },
+    {
+     "text": "仅可操作本人资源，越权拒绝且数据不变",
+     "bold": false
+    },
+    {
+     "text": "AT-07",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "降级可用性",
+     "bold": false
+    },
+    {
+     "text": "全部能力",
+     "bold": false
+    },
+    {
+     "text": "向量库不可用时回退关键词检索",
+     "bold": false
+    },
+    {
+     "text": "AT-08",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "打扰控制",
+     "bold": false
+    },
+    {
+     "text": "UC-G-02 、 UC-L2-03",
+     "bold": false
+    },
+    {
+     "text": "频率偏好 + 免打扰 + 自动收敛",
+     "bold": false
+    },
+    {
+     "text": "AT-03",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "八、数据需求分析"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "8.1 核心数据实体"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "实体",
+     "bold": true
+    },
+    {
+     "text": "用途",
+     "bold": true
+    },
+    {
+     "text": "关键属性",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "User （用户）",
+     "bold": false
+    },
+    {
+     "text": "账号、偏好",
+     "bold": false
+    },
+    {
+     "text": "昵称、推送频率、加密 key",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "KnowledgeItem （知识条目）",
+     "bold": false
+    },
+    {
+     "text": "知识库基本单位",
+     "bold": false
+    },
+    {
+     "text": "标题、正文、来源、标签、阅读进度、核心主张",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Claim （核心主张）",
+     "bold": false
+    },
+    {
+     "text": "冲突比对的最小单位",
+     "bold": false
+    },
+    {
+     "text": "主张文本、所属条目、向量",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "LearningGoal （学习目标）",
+     "bold": false
+    },
+    {
+     "text": "目标管理",
+     "bold": false
+    },
+    {
+     "text": "描述、期限、优先级、是否达成",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "LearningPlan （学习计划）",
+     "bold": false
+    },
+    {
+     "text": "计划管理",
+     "bold": false
+    },
+    {
+     "text": "目标关联、结构化计划内容",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "PlanTask （计划任务）",
+     "bold": false
+    },
+    {
+     "text": "任务拆解",
+     "bold": false
+    },
+    {
+     "text": "周次、主题、状态、关联条目",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "CognitiveDiagnosis （诊断报告）",
+     "bold": false
+    },
+    {
+     "text": "偏误诊断输出",
+     "bold": false
+    },
+    {
+     "text": "行为模式、归因、置信度、推理链、状态",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict （观点冲突）",
+     "bold": false
+    },
+    {
+     "text": "冲突检测产物",
+     "bold": false
+    },
+    {
+     "text": "条目 A/B 、冲突类型、细节、建议、用户状态",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conversation （会话）",
+     "bold": false
+    },
+    {
+     "text": "对话状态",
+     "bold": false
+    },
+    {
+     "text": "状态机状态、上下文",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "PushLog （推送日志）",
+     "bold": false
+    },
+    {
+     "text": "推送追溯与去重",
+     "bold": false
+    },
+    {
+     "text": "类型、内容 hash 、渠道、用户反馈",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "p",
+  "text": "实体之间的关系如下图：用户拥有知识条目与学习目标；知识条目分解为核心主张；主张之间比对产生观点冲突；诊断结论可写入计划任务，构成闭环。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "img",
+  "width_px": 528,
+  "src": "reqdoc.files/image014.png"
+ },
+ {
+  "kind": "p",
+  "text": "图 14　核心数据实体关系图（E-R）。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "8.2 数据字典（关键字段）"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "实体",
+     "bold": true
+    },
+    {
+     "text": "字段",
+     "bold": true
+    },
+    {
+     "text": "类型",
+     "bold": true
+    },
+    {
+     "text": "说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "User",
+     "bold": false
+    },
+    {
+     "text": "user_id / display_name",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "用户标识与昵称",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "User",
+     "bold": false
+    },
+    {
+     "text": "push_frequency",
+     "bold": false
+    },
+    {
+     "text": "enum",
+     "bold": false
+    },
+    {
+     "text": "weekly / daily / quiet",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "KnowledgeItem",
+     "bold": false
+    },
+    {
+     "text": "item_id / title / content",
+     "bold": false
+    },
+    {
+     "text": "string / text",
+     "bold": false
+    },
+    {
+     "text": "主键、标题与正文",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "KnowledgeItem",
+     "bold": false
+    },
+    {
+     "text": "source",
+     "bold": false
+    },
+    {
+     "text": "enum",
+     "bold": false
+    },
+    {
+     "text": "来源：手动录入 / 书籍摘录 / 微信读书",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "KnowledgeItem",
+     "bold": false
+    },
+    {
+     "text": "read_progress",
+     "bold": false
+    },
+    {
+     "text": "float",
+     "bold": false
+    },
+    {
+     "text": "阅读进度 0–1",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "KnowledgeItem",
+     "bold": false
+    },
+    {
+     "text": "is_deleted / deleted_at",
+     "bold": false
+    },
+    {
+     "text": "bool / datetime",
+     "bold": false
+    },
+    {
+     "text": "软删除标记，不物理删除",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Claim",
+     "bold": false
+    },
+    {
+     "text": "claim_id / text",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "主张标识与文本",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Claim",
+     "bold": false
+    },
+    {
+     "text": "item_id",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "所属知识条目（外键）",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "conflict_id",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "主键",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "claim_a_id / claim_b_id",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "冲突双方主张（外键）",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "conflict_type",
+     "bold": false
+    },
+    {
+     "text": "enum",
+     "bold": false
+    },
+    {
+     "text": "矛盾 / 互补 / 断层",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "confidence",
+     "bold": false
+    },
+    {
+     "text": "float",
+     "bold": false
+    },
+    {
+     "text": "置信度 0–1 ； < 0.5 丢弃",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "user_state",
+     "bold": false
+    },
+    {
+     "text": "enum",
+     "bold": false
+    },
+    {
+     "text": "unseen / ignored / accepted",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conflict",
+     "bold": false
+    },
+    {
+     "text": "ignore_count",
+     "bold": false
+    },
+    {
+     "text": "int",
+     "bold": false
+    },
+    {
+     "text": "同类型忽略计数， ≥3 触发收敛",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "LearningGoal",
+     "bold": false
+    },
+    {
+     "text": "goal_id / description",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "目标标识与描述",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "LearningGoal",
+     "bold": false
+    },
+    {
+     "text": "target_date / priority",
+     "bold": false
+    },
+    {
+     "text": "date / int",
+     "bold": false
+    },
+    {
+     "text": "期限与优先级",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "LearningPlan",
+     "bold": false
+    },
+    {
+     "text": "plan_id / goal_id",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "计划标识与所属目标",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "PlanTask",
+     "bold": false
+    },
+    {
+     "text": "task_id / week / topic / status",
+     "bold": false
+    },
+    {
+     "text": "string / int",
+     "bold": false
+    },
+    {
+     "text": "任务拆解与状态",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "CognitiveDiagnosis",
+     "bold": false
+    },
+    {
+     "text": "pattern / root_cause",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "行为模式与归因结论",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "CognitiveDiagnosis",
+     "bold": false
+    },
+    {
+     "text": "confidence / reasoning_chain",
+     "bold": false
+    },
+    {
+     "text": "float / list",
+     "bold": false
+    },
+    {
+     "text": "置信度与推理链",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "PushLog",
+     "bold": false
+    },
+    {
+     "text": "push_type / content_hash / channel",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "推送类型、去重哈希与渠道",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "Conversation",
+     "bold": false
+    },
+    {
+     "text": "conversation_id / state",
+     "bold": false
+    },
+    {
+     "text": "string",
+     "bold": false
+    },
+    {
+     "text": "会话标识与状态机状态",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "8.3 数据存储策略"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "存储",
+     "bold": true
+    },
+    {
+     "text": "承载数据",
+     "bold": true
+    },
+    {
+     "text": "说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "关系库",
+     "bold": false
+    },
+    {
+     "text": "用户 / 目标 / 计划 / 诊断 / 冲突 \r\n/ 推送日志",
+     "bold": false
+    },
+    {
+     "text": "事务强一致",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "向量索引",
+     "bold": false
+    },
+    {
+     "text": "知识条目与主张的 Embedding",
+     "bold": false
+    },
+    {
+     "text": "语义检索",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "缓存",
+     "bold": false
+    },
+    {
+     "text": "会话状态 / 限流 / 短期记忆",
+     "bold": false
+    },
+    {
+     "text": "低延迟",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "对象存储",
+     "bold": false
+    },
+    {
+     "text": "原文附件 / 长文快照",
+     "bold": false
+    },
+    {
+     "text": "大文件",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "8.4 数据安全与生命周期"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n敏感分级：用户知识内容属敏感个人数据，加密存储、最小化收集；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n软删除：全表软删（is_deleted + deleted_at），避免误删不可恢复；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n生命周期：归档（不参与检索、可恢复）→ 保留期到期后物理清除（合规可擦除）；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "4. \r\n追溯：推送与模型调用留痕，支持审计与成本归因。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "九、非功能需求分析"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "9.1 性能需求"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "指标",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "性能 -1",
+     "bold": false
+    },
+    {
+     "text": "对话首字响应",
+     "bold": false
+    },
+    {
+     "text": "≤ 3s （普通任务）；深度推理显示「思考中」占位",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "性能 -2",
+     "bold": false
+    },
+    {
+     "text": "语义检索 P95",
+     "bold": false
+    },
+    {
+     "text": "≤ 500ms",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "性能 -3",
+     "bold": false
+    },
+    {
+     "text": "批量扫描吞吐",
+     "bold": false
+    },
+    {
+     "text": "异步执行，不阻塞在线请求",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "性能 -4",
+     "bold": false
+    },
+    {
+     "text": "周 / 月简报生成",
+     "bold": false
+    },
+    {
+     "text": "后台任务完成，用户无感知等待",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "9.2 易用性需求"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "指标",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "易用 -1",
+     "bold": false
+    },
+    {
+     "text": "交互方式",
+     "bold": false
+    },
+    {
+     "text": "纯自然语言对话，零学习成本",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "易用 -2",
+     "bold": false
+    },
+    {
+     "text": "知识接入",
+     "bold": false
+    },
+    {
+     "text": "用户一次授权即可，无需额外操作",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "易用 -3",
+     "bold": false
+    },
+    {
+     "text": "打扰控制",
+     "bold": false
+    },
+    {
+     "text": "推送可设频率与免打扰，避免过度打扰",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "9.3 可靠性需求"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "指标",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "可靠 -1",
+     "bold": false
+    },
+    {
+     "text": "模型服务容错",
+     "bold": false
+    },
+    {
+     "text": "DeepSeek API 异常自动重试（重试 2 次），不因单次失败中断",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "可靠 -2",
+     "bold": false
+    },
+    {
+     "text": "状态一致性",
+     "bold": false
+    },
+    {
+     "text": "关键写操作走事务，计划 / 诊断采用乐观锁防覆盖",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "可靠 -3",
+     "bold": false
+    },
+    {
+     "text": "任务可靠性",
+     "bold": false
+    },
+    {
+     "text": "定时任务具备失败重试与死信告警；支持断点续跑",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "可靠 -4",
+     "bold": false
+    },
+    {
+     "text": "依赖降级",
+     "bold": false
+    },
+    {
+     "text": "向量库不可用时回退关键词检索，功能降级不中断",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "9.4 安全与合规需求"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "指标",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "安全 -1",
+     "bold": false
+    },
+    {
+     "text": "传输",
+     "bold": false
+    },
+    {
+     "text": "全链路 TLS 加密",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "安全 -2",
+     "bold": false
+    },
+    {
+     "text": "存储",
+     "bold": false
+    },
+    {
+     "text": "用户知识内容加密落库，最小化日志",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "安全 -3",
+     "bold": false
+    },
+    {
+     "text": "隔离",
+     "bold": false
+    },
+    {
+     "text": "账号 key / 额度隔离，防越权",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "安全 -4",
+     "bold": false
+    },
+    {
+     "text": "数据使用",
+     "bold": false
+    },
+    {
+     "text": "不做超越授权范围的数据使用；删除支持软删 + 合规可擦除",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "安全 -5",
+     "bold": false
+    },
+    {
+     "text": "输出校验",
+     "bold": false
+    },
+    {
+     "text": "模型输出经敏感词 / 内容校验过滤",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "9.5 可扩展性与可维护性需求"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "指标",
+     "bold": true
+    },
+    {
+     "text": "目标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "扩展 -1",
+     "bold": false
+    },
+    {
+     "text": "知识库源扩展",
+     "bold": false
+    },
+    {
+     "text": "连接器插件化，新增来源不影响核心流程",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "扩展 -2",
+     "bold": false
+    },
+    {
+     "text": "能力扩展",
+     "bold": false
+    },
+    {
+     "text": "五大能力独立模块，可单独增删 / 灰度",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "维护 -1",
+     "bold": false
+    },
+    {
+     "text": "可观测性",
+     "bold": false
+    },
+    {
+     "text": "统一 request_id 全链路日志，成本与调用埋点齐全",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "维护 -2",
+     "bold": false
+    },
+    {
+     "text": "可配置性",
+     "bold": false
+    },
+    {
+     "text": "规则 / 提示词 / 推送策略配置化热更新",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "十、可行性分析"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "10.1 技术可行性"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n模型能力成熟：单一依赖的 DeepSeek API 需支持工具调用、思考模式、长上下文与 Prompt 缓存，均为当前主流大模型已具备的成熟能力；统一网关封装了重试、限流、熔断与成本埋点，单点依赖风险已有工程手段缓冲，且抽象接口保留了未来替换 / 新增服务商的能力。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n技术栈成熟：Python / FastAPI 异步服务、关系型数据库、向量检索、缓存与对象存储均为业界广泛验证的组件，语义检索、RAG 式召回为成熟工程范式。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n架构降级保障：向量检索不可用可回退关键词检索，功能降级不中断，保证核心可用性。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "10.2 经济可行性"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n成本可控机制内置：Prompt 缓存降低输入成本；成本与调用埋点齐全；用户侧提供成本查询接口，模型费用透明可核算；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n异步化摊薄峰值：批量扫描与周 / 月简报均为后台异步任务，避开在线高峰，降低算力峰值成本；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n单模型架构降低运维成本：相比多厂商混合编排，单一 LLM 依赖显著降低网关复杂度、联调与维护成本。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "10.3 操作（用户）可行性"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n纯自然语言交互、零学习成本，目标用户无需技术背景；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n知识接入一次授权即可，无额外操作负担；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n推送频率可设并有免打扰与自动收敛机制，打扰风险可控。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "10.4 法律与合规可行性"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n全链路 TLS 传输加密 + 落库加密，满足数据安全基线；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n数据使用不超越授权范围，软删 + 合规可擦除满足用户数据删除权；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n账号隔离与最小化日志降低数据泄露与滥用风险；模型输出经敏感词 / 内容校验过滤，降低生成内容风险。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "10.5 主要风险与应对"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "风险",
+     "bold": true
+    },
+    {
+     "text": "应对措施",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "模型 API 单点故障 / 限流",
+     "bold": false
+    },
+    {
+     "text": "自动重试 2 次、限流熔断、统一网关隔离；抽象接口保留替换服务商能力",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "冲突检测误报导致用户流失",
+     "bold": false
+    },
+    {
+     "text": "置信度阈值过滤 + 用户忽略 ≥3 次自动收敛的误报抑制机制",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "主动推送过度打扰",
+     "bold": false
+    },
+    {
+     "text": "频率偏好 + 免打扰 + 推送日志去重 + 自动收敛",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "知识内容敏感泄露",
+     "bold": false
+    },
+    {
+     "text": "加密存储、最小化收集、账号隔离、输出校验、审计留痕",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "十一、MVP 功能范围"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "11.1 范围界定原则"
+ },
+ {
+  "kind": "p",
+  "text": "以「验证核心价值闭环」为原则，优先交付高优先级用例与核心闭环链路，砍掉编辑器、协作与社交化等非核心能力。",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "11.2 MVP 包含的功能"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "层级",
+     "bold": true
+    },
+    {
+     "text": "功能",
+     "bold": true
+    },
+    {
+     "text": "优先级",
+     "bold": true
+    },
+    {
+     "text": "说明",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "支撑能力",
+     "bold": false
+    },
+    {
+     "text": "知识库接入（ UC-G-01 ）",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    },
+    {
+     "text": "一切功能的前提，首期支持本地书籍与微信读书同步",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "支撑能力",
+     "bold": false
+    },
+    {
+     "text": "推送偏好管理（ UC-G-02 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "频率设置与打扰控制",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L1",
+     "bold": false
+    },
+    {
+     "text": "模糊意图挖掘定位（ UC-L1-01 ）",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    },
+    {
+     "text": "核心差异化能力，直接命中「收藏即遗忘」痛点",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L2",
+     "bold": false
+    },
+    {
+     "text": "知识冲突主动扫描（ UC-L2-01 ）",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    },
+    {
+     "text": "每周定时全量扫描",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L2",
+     "bold": false
+    },
+    {
+     "text": "实时冲突检测（ UC-L2-02 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "新收藏即检测",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L2",
+     "bold": false
+    },
+    {
+     "text": "冲突反馈（ UC-L2-03 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "忽略 / 采纳与自动收敛",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L3",
+     "bold": false
+    },
+    {
+     "text": "周认知简报（ UC-L3-01 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "每周推送追问与冲突汇总",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L3",
+     "bold": false
+    },
+    {
+     "text": "深度追问（ UC-L3-02 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "问答 / 收藏后衔接式追问",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L4",
+     "bold": false
+    },
+    {
+     "text": "计划制定与重规划（ UC-L4-01 ）",
+     "bold": false
+    },
+    {
+     "text": "高",
+     "bold": false
+    },
+    {
+     "text": "目标拆解为周维度任务",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L4",
+     "bold": false
+    },
+    {
+     "text": "偏离监测与干预（ UC-L4-02 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "连续 3 天未执行触发干预",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L5",
+     "bold": false
+    },
+    {
+     "text": "月学习健康报告（ UC-L5-01 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "月度诊断与方案落地",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "L5",
+     "bold": false
+    },
+    {
+     "text": "归因诊断（ UC-L5-02 ）",
+     "bold": false
+    },
+    {
+     "text": "中",
+     "bold": false
+    },
+    {
+     "text": "用户主动询问式诊断",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "11.3 MVP 明确不做（首期排除）"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\nWeb 编辑器；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n多人协作；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n内容创作社交化。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "11.4 MVP 交付形态"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n用户端：Web 对话工作台 + 功能页（桌面端、原生 App 为后续扩展）；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n模型层：单一 DeepSeek API 统一网关接入；",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n接口范围：对话、知识管理、目标与计划、冲突管理、诊断与报告、偏好设置、成本查询七类用户侧接口框架。",
+  "ordered": true,
+  "bold": true
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "十二、预期效果"
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "12.1 用户价值"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n从「存了」到「会用」：模糊线索即可找回内容，收藏真正转化为可调用的认知资产；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n从「不知道」到「被提醒」：知识矛盾主动暴露，认知污染得以及时纠正；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n从「被动接收」到「主动思考」：系统持续追问「该问没问」的问题，弥补认知盲区；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "4. \r\n从「立目标」到「能达成」：计划偏离被主动干预，学习路径持续自我修正；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "5. \r\n从「迷茫」到「有数」：学习问题获得基于行为数据的归因诊断与可执行方案。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "12.2 量化衡量指标"
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "对应目标",
+     "bold": true
+    },
+    {
+     "text": "核心指标",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "G1 碎片变认知",
+     "bold": false
+    },
+    {
+     "text": "模糊检索一次命中率 ↑ 、多轮追问收敛轮数 ↓",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G2 矛盾主动提醒",
+     "bold": false
+    },
+    {
+     "text": "冲突检测覆盖新增内容比例 ↑ 、误报率 ↓",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G3 引导提问",
+     "bold": false
+    },
+    {
+     "text": "认知简报每周推送的追问数（含用户参与率）",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G4 自主纠偏",
+     "bold": false
+    },
+    {
+     "text": "行为偏离 → 干预 → 路径调整的平均时延 ↓",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "G5 病根诊断",
+     "bold": false
+    },
+    {
+     "text": "月度健康报告覆盖用户比例 ↑ 、诊断采纳率 ↑",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 3,
+  "text": "12.3 业务与产品层面预期"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n形成「接入→挖掘→冲突→追问→纠偏→诊断」的差异化智能体能力壁垒，与传统知识管理工具形成清晰定位区隔；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\n通过五级能力独立模块化与灰度机制，支持按数据反馈逐级放量，快速迭代；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\n闭环数据（反馈、信任度量、行为数据）持续积累，形成「越用越懂用户」的产品护城河，为后续模型服务商扩展与能力升级奠定基础。",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "附录 A　验收标准"
+ },
+ {
+  "kind": "p",
+  "text": "验收项与需求追踪矩阵一一对应，用于测试用例设计与验收判定：",
+  "ordered": false,
+  "bold": false
+ },
+ {
+  "kind": "table",
+  "rows": [
+   [
+    {
+     "text": "编号",
+     "bold": true
+    },
+    {
+     "text": "测试条件",
+     "bold": true
+    },
+    {
+     "text": "预期结果",
+     "bold": true
+    },
+    {
+     "text": "依据",
+     "bold": true
+    }
+   ],
+   [
+    {
+     "text": "AT-01",
+     "bold": false
+    },
+    {
+     "text": "输入模糊线索「橙色封面、好像是讲拖延症的」",
+     "bold": false
+    },
+    {
+     "text": "系统发起追问或直接定位，收敛轮数 ≤ 3 ，返回内容附阅读历史",
+     "bold": false
+    },
+    {
+     "text": "G1 / UC-L1-01",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-02",
+     "bold": false
+    },
+    {
+     "text": "冲突置信度分别为 0.49 与 0.50",
+     "bold": false
+    },
+    {
+     "text": "0.49 不入库不推送； 0.50 入库且可查询",
+     "bold": false
+    },
+    {
+     "text": "G2 / 冲突过滤规则",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-03",
+     "bold": false
+    },
+    {
+     "text": "同一类型冲突累计第 3 次「忽略」",
+     "bold": false
+    },
+    {
+     "text": "该类型不再出现在主动推荐中",
+     "bold": false
+    },
+    {
+     "text": "G2 / 收敛规则",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-04",
+     "bold": false
+    },
+    {
+     "text": "知识库连续两周无新增内容",
+     "bold": false
+    },
+    {
+     "text": "周简报仍按时生成，明确提示「本周无新增」而非静默失败",
+     "bold": false
+    },
+    {
+     "text": "G3 / UC-L3-01",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-05",
+     "bold": false
+    },
+    {
+     "text": "学习计划连续 3 天未执行",
+     "bold": false
+    },
+    {
+     "text": "触发干预对话，给出含预期收益的调整建议",
+     "bold": false
+    },
+    {
+     "text": "G4 / UC-L4-02",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-06",
+     "bold": false
+    },
+    {
+     "text": "收藏 20 篇、完整读完 2 篇",
+     "bold": false
+    },
+    {
+     "text": "诊断报告给出归因链（非仅完成率）与可执行方案",
+     "bold": false
+    },
+    {
+     "text": "G5 / UC-L5-01",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-07",
+     "bold": false
+    },
+    {
+     "text": "用户乙请求修改用户甲的资源",
+     "bold": false
+    },
+    {
+     "text": "拒绝（ 404 / 403 ）；甲的数据与状态保持不变",
+     "bold": false
+    },
+    {
+     "text": "权限与数据隔离规则",
+     "bold": false
+    }
+   ],
+   [
+    {
+     "text": "AT-08",
+     "bold": false
+    },
+    {
+     "text": "向量检索服务不可用",
+     "bold": false
+    },
+    {
+     "text": "自动回退关键词检索，主链路不中断，并标注降级状态",
+     "bold": false
+    },
+    {
+     "text": "可靠性要求",
+     "bold": false
+    }
+   ]
+  ]
+ },
+ {
+  "kind": "h",
+  "level": 2,
+  "text": "附录 B　参考资料"
+ },
+ {
+  "kind": "li",
+  "text": "1. \r\n《认知副驾》产品定位与五层能力梯度说明（项目内部文档）；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "2. \r\nGB/T 8567—2006《计算机软件文档编制规范》——软件需求规格说明章节结构参考；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "3. \r\nIEEE Std 830—1998《Recommended\r\nPractice for Software Requirements Specifications》——需求可验证性与追踪关系参考；",
+  "ordered": true,
+  "bold": false
+ },
+ {
+  "kind": "li",
+  "text": "4. \r\nDeepSeek 开放平台 API 文档——模型接入与计费口径依据。",
+  "ordered": true,
+  "bold": false
+ }
+]

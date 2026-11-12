@@ -1,0 +1,42 @@
+@startuml
+!include _style.puml
+' 分析类图（BCE）：L2 反馈与越权
+
+class "ConflictPanel" <<boundary>> {
+  + show(c : Conflict) : void
+  + onFeedback(state : UserState) : void
+}
+class "FeedbackCtrl" <<control>> {
+  + decide(userId, conflictId, state) : void
+  - assertOwner(conflict, userId) : void
+}
+class "Conflict" <<entity>> {
+  confidence : Double
+  userState : UserState
+  retractedAt : DateTime
+  + belongsTo(learnerId) : Boolean
+  + mark(s : UserState) : void
+}
+class "Learner" <<entity>> {
+  learnerId : String
+  pushPreference : PushFrequency
+}
+
+ConflictPanel "1" -down-> "1" FeedbackCtrl : ① 提交反馈
+FeedbackCtrl "1" -down-> "0..*" Conflict : ② 校验归属后改状态
+Conflict "0..*" -down-> "1" Learner : 归属
+ConflictPanel ..> Conflict : 展示
+
+note right of Conflict
+  越权防线（TABLE 8）：
+  乙持本人身份改甲的冲突 → 拒绝，
+  甲的 Conflict 一行不变。
+  边界类不得直接改实体。
+end note
+
+note right of Learner
+  收敛阈值（忽略 ≥3）是类型级判定，
+  不在单条冲突的状态上：单条只记 IGNORED。
+end note
+
+@enduml

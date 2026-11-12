@@ -55,3 +55,6 @@ output/**/_frames_*/
 # 视频分段落与旧版素材（成片由 film_run.py + compose.py 重新生成）
 output/认知副驾功能汇报-2026-11-11/video/_segments/
 output/认知副驾功能汇报-2026-11-11/video/_旧版_5fps/
+
+# --- UML 课程的逐页预览图（自查排版用，不入库）---
+UML课程/.preview*/

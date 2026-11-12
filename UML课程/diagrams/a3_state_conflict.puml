@@ -1,0 +1,28 @@
+@startuml
+!include _style.puml
+skinparam nodesep 90
+' 状态图：一条 Conflict 的生命周期
+
+state "候选\n配对完成，待阈值判定" as S1
+state "待反馈\n唯一对外可见状态" as S2
+state "已采纳\n用户确认该冲突成立" as S3
+state "已忽略\n用户判为误报" as S4
+state "已撤回\n读路径一律过滤" as S5
+state "丢弃\n不入库、不留痕" as S6
+
+[*] -down-> S1
+S1 -down-> S6 : 低于 0.5\n（BR-L2-01）
+S1 -down-> S2 : 不低于 0.5\n且未收敛
+S2 -down-> S3 : mark(ACCEPTED)
+S2 -down-> S4 : mark(IGNORED)
+S3 -down-> S5 : 重判推翻 / 复核改判
+S4 -down-> S5 : 重判推翻 / 复核改判
+S5 -down-> [*]
+
+note right of S4
+  收敛是类型级判定：单条只记 IGNORED，
+  同类型累计忽略 ≥3 后整类不再主动推荐
+  （BR-L2-02），不画成某条冲突的状态。
+end note
+
+@enduml
