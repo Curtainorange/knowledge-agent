@@ -95,8 +95,9 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
     CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
     # 全网找书：用户要的是**库外**那本书本身（含资源在哪），不是库里的条目。
-    # example 必须被本地规则命中（test_agent_router 会逐条验证）：
-    # 「找本」命中 _FIND_BOOK_VERBS，且「书」是书籍词
+    # example 必须被本地规则命中（test_agent_router 会逐条验证）。注意这只是
+    # **hint 覆盖率**，不是判据：`route()` 默认 allow_model=True，hint 只塞进 prompt
+    # 供模型参考，模型可以推翻。「找本」命中 _FIND_BOOK_VERBS，且「书」是书籍词。
     CapabilitySpec("book_find", "全网找书", "帮我找本心理学的书"),
     # 示例必须被本地规则命中（test_agent_router 会逐条验证）：
     # "材料" + "找" 命中 _RESEARCH_WORDS / _RESEARCH_VERBS
@@ -270,10 +271,6 @@ _CORRECTION_WORDS = ("我说的是", "不是这个意思", "你理解错", "不�
 _TAG_PATTERN = re.compile(r"#([^\s#]{1,16})")
 # 书名只认《》形式：自然语言里的裸书名没法可靠切出来，宁缺毋滥
 _BOOK_TITLE_PATTERN = re.compile(r"《([^《》]{1,80})》")
-# 「找本心理学的书」→ 心理学。「找一本 / 找几本」都算；非贪婪保证停在「的」上，
-# 否则「找本讲决策的书」会连「的书」一起吞进去。
-_FIND_TAG_PATTERN = re.compile(r"找(?:一|几)?本(.{1,12}?)的?书")
-_TAG_MAX = 8
 _TITLE_MAX = 40
 _GOAL_MAX = 256
 
@@ -415,28 +412,13 @@ def parse_book_title(text: str) -> str:
     """从「通读《三体》」里剥出书名；没有《》就返回空串，由执行层出选择卡。
 
     和 `parse_goal` 同一套路：书名只在《》里认，裸书名没法可靠切出来。
+
+    这不算「用关键词猜语义」：书名号是确定性的语法标记，`《》` 之间就是书名本身，
+    不存在歧义。而「找本心理学的书」里的「心理学」是自由文本，切出来是猜，所以那类
+    抽取一律交给模型（见 `AGENT_ROUTE` 的 `book_find.args.tags`）。
     """
     found = _BOOK_TITLE_PATTERN.findall(text or "")
     return found[0].strip() if found else ""
-
-
-def extract_book_tags(text: str) -> list[str]:
-    """从「找本心理学的书」里抽出「心理学」。抽不出返回空列表。
-
-    只在「找…本…的书」这个句式里取，因为这是用户明确说出方向的说法。
-    剥掉「讲 / 关于 / 有关」这类前缀：它们是句式的一部分，不是标签本身
-    （目录里的标签是「决策」，不是「讲决策」）。
-    """
-    tags: list[str] = []
-    for raw in _FIND_TAG_PATTERN.findall(text or ""):
-        tag = raw.strip()
-        for prefix in ("讲", "关于", "有关", "跟", "和"):
-            if tag.startswith(prefix):
-                tag = tag[len(prefix):]
-        tag = tag.strip(" 的、，,")
-        if tag and len(tag) <= _TAG_MAX and tag not in tags:
-            tags.append(tag)
-    return tags
 
 
 def _match_local(text: str) -> CapabilityRoute | None:

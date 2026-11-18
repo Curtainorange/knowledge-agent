@@ -473,15 +473,18 @@ def _book_find(
     两条退路都要有：
     - 目录里没有、又没配 Key → 说清是哪个条件缺的，别让用户猜；
     - 目录里没有、有 Key → 联网定位书名（`book_finder`），候选照样带资源字段。
+
+    **方向词只认模型给的，这里不做正则切词。** 「找本关于决策与偏见的书」用正则切出来
+    是「关于决策与偏见」，而目录里的标签是「决策」「思维」——切词会把一句人能看懂的
+    语义揉成一个查不到的字符串，然后告诉用户「没有」。模型没给方向就不猜，
+    直接走联网：那边的检索词规划本身就是语义判断。
     """
-    from app.agent.router import extract_book_tags, parse_book_title
+    from app.agent.router import parse_book_title
     from app.books import catalog
 
     title = str(args.get("title") or "").strip() or parse_book_title(message)
     raw_tags = args.get("tags")
     tags = [str(t).strip() for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
-    if not tags:
-        tags = extract_book_tags(message)
 
     if title:
         entries = catalog.lookup(title, limit=3)

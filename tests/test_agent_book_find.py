@@ -46,6 +46,32 @@ def _entry(title: str, *, formats=("epub", "mobi"), tags=("测试",), author="�
 
 
 @pytest.fixture
+def model_says(monkeypatch):
+    """让分流模型给出指定结论（模拟「模型读懂了这句话」）。
+
+    这一层测的是**模型判定之后怎么分发**，语义判定本身在 `test_agent_router` 里测。
+    也正因为方向词由模型给，这里一律不依赖关键词抽取：模型没给 tags，
+    `_book_find` 就该退到联网，而不是自己从原话里切一个词出来去查库。
+    """
+
+    def _apply(capability: str = "book_find", **args):
+        from app.agent.router import CapabilityRoute
+
+        def _fake(self, text, *, user_id, history=None, hint=None):
+            return CapabilityRoute(
+                capability=capability,
+                args=args,
+                confidence=0.9,
+                reason="测试预置（模型判定）",
+                source="model",
+            )
+
+        monkeypatch.setattr("app.agent.router.CapabilityRouter._model_route", _fake)
+
+    return _apply
+
+
+@pytest.fixture
 def catalog_hit(monkeypatch):
     """目录里只有《人类简史》《思考，快与慢》两本，其余查不到。"""
     books = {
@@ -75,8 +101,13 @@ def catalog_hit(monkeypatch):
         "不记得书名了，主角被困在荒岛用日记活下来",
     ],
 )
-def test_local_rule_routes_to_book_find(message):
-    """这些说法必须被本地规则命中——它们足够明确，不该再花一次模型调用。"""
+def test_local_hint_points_to_book_find(message):
+    """本地规则只产出**先验**（hint），不决定结果——真正判意图的是模型。
+
+    `route()` 默认 `allow_model=True`，hint 只是塞进 prompt 的一句参考，
+    模型可以推翻它（`_model_route` 的注释与 `test_agent_router` 都锁着这一点）。
+    这里测的是「这条说法作为先验够不够准」：先验偏了，模型拿到的是错线索。
+    """
     from app.agent.router import _match_local
 
     route = _match_local(message)
@@ -109,7 +140,8 @@ def test_book_find_does_not_steal_neighbours(message, expected):
 # ---- 本地命中 ---------------------------------------------------------------
 
 
-def test_resource_card_when_catalog_has_epub(client, catalog_hit):
+def test_resource_card_when_catalog_has_epub(client, catalog_hit, model_says):
+    model_says(title="人类简史")
     headers = auth_headers(client, "book_find_epub")
     body = _send(client, headers, "哪里有《人类简史》的 epub")
 
@@ -123,8 +155,9 @@ def test_resource_card_when_catalog_has_epub(client, catalog_hit):
     assert "有 epub" in body["reply"]
 
 
-def test_browse_by_tag_when_no_title(client, catalog_hit):
-    """「找本心理学的书」里没有书名，只能按标签挑。"""
+def test_browse_by_tag_when_no_title(client, catalog_hit, model_says):
+    """方向词由模型给（`args.tags`），不是从原话里切出来的。"""
+    model_says(tags=["心理学"])
     headers = auth_headers(client, "book_find_tag")
     body = _send(client, headers, "帮我找本心理学的书")
 
@@ -136,12 +169,13 @@ def test_browse_by_tag_when_no_title(client, catalog_hit):
     assert "心理学" in body["reply"]
 
 
-def test_mobi_only_is_reported_as_unreadable(client, monkeypatch):
+def test_mobi_only_is_reported_as_unreadable(client, monkeypatch, model_says):
     """只有 mobi/azw3 时必须直说读不了，不能含糊成「找到了」。"""
     monkeypatch.setattr(
         "app.books.catalog.lookup",
         lambda title, **kw: [_entry("人类简史", formats=("mobi", "azw3"))],
     )
+    model_says(title="人类简史")
     headers = auth_headers(client, "book_find_mobi")
     body = _send(client, headers, "哪里有《人类简史》")
 
@@ -149,13 +183,41 @@ def test_mobi_only_is_reported_as_unreadable(client, monkeypatch):
     assert "读不了" in body["reply"]
 
 
+def test_no_tag_guessing_when_model_gives_none(client, monkeypatch, model_says):
+    """模型没给方向词时**不许自己切**，直接走联网（那边才是按语义规划检索词）。
+
+    反例是「找本关于决策与偏见的书」：用正则切会得到「关于决策与偏见」，
+    目录里的标签却是「决策」。切出来的字符串查不到，用户会以为书库里没有。
+    """
+    monkeypatch.setattr("app.books.catalog.lookup", lambda title, **kw: [])
+    monkeypatch.setattr("app.books.catalog.browse_catalog", lambda **kw: [])
+    monkeypatch.setattr(websearch, "available", lambda: True)
+
+    seen: dict = {}
+
+    def _fake_find(**kwargs):
+        seen.update(kwargs)
+        from app.agent.book_finder import BookSearchResult
+
+        return BookSearchResult(state="not_found", note="没找到对得上的书。")
+
+    monkeypatch.setattr(book_finder, "find_books", _fake_find)
+    model_says()  # 模型判了 book_find，但没给 tags（也没给 title）
+
+    headers = auth_headers(client, "book_find_noguess")
+    _send(client, headers, "找本关于决策与偏见的书")
+
+    assert seen, "没有方向词时必须走联网，而不是拿切词结果去查目录"
+
+
 # ---- 联网兜底 ---------------------------------------------------------------
 
 
-def test_falls_back_to_web_search_when_catalog_misses(client, monkeypatch):
+def test_falls_back_to_web_search_when_catalog_misses(client, monkeypatch, model_says):
     """本地查不到才联网，且候选照样带「去哪拿」字段。"""
     monkeypatch.setattr("app.books.catalog.lookup", lambda title, **kw: [])
     monkeypatch.setattr(websearch, "available", lambda: True)
+    model_says()
 
     called: dict = {}
 
@@ -193,11 +255,12 @@ def test_falls_back_to_web_search_when_catalog_misses(client, monkeypatch):
     assert "鲁滨逊" in body["reply"]
 
 
-def test_without_key_says_which_condition_is_missing(client, monkeypatch):
+def test_without_key_says_which_condition_is_missing(client, monkeypatch, model_says):
     """目录没有、检索也没配 Key：说清缺什么，绝不凭记忆编书名。"""
     monkeypatch.setattr("app.books.catalog.lookup", lambda title, **kw: [])
     monkeypatch.setattr("app.books.catalog.browse_catalog", lambda **kw: [])
     monkeypatch.setattr(websearch, "available", lambda: False)
+    model_says()
 
     headers = auth_headers(client, "book_find_nokey")
     body = _send(client, headers, "哪里有《不存在的书》")
@@ -210,8 +273,9 @@ def test_without_key_says_which_condition_is_missing(client, monkeypatch):
 # ---- 路由与卡片的一致性 ------------------------------------------------------
 
 
-def test_card_always_carries_href_back_to_the_page(client, catalog_hit):
+def test_card_always_carries_href_back_to_the_page(client, catalog_hit, model_says):
     """卡片上留一条回原页面的深链：卡片是摘要，完整视图在「我的」页。"""
+    model_says(tags=["心理学"])
     headers = auth_headers(client, "book_find_href")
     body = _send(client, headers, "帮我找本心理学的书")
     assert body["card"]["href"] == "mine.html"
@@ -224,13 +288,14 @@ def test_card_always_carries_href_back_to_the_page(client, catalog_hit):
 # 跳过不是漏测：真实环境里它有，测试环境里它没有，硬要求它存在会让 CI 永远红。
 
 
-def test_real_catalog_answers_a_tag_query(client):
-    """真实书目 + 真实本地规则，端到端跑一次「找本心理学的书」。"""
+def test_real_catalog_answers_a_tag_query(client, model_says):
+    """真实书目 + 真实分派，端到端跑一次「找本心理学的书」。"""
     from app.books import catalog
 
     if not catalog.CATALOG_PATH.exists():
         pytest.skip("离线书目未导入（scripts/import_book_catalog.py）")
 
+    model_says(tags=["心理学"])
     headers = auth_headers(client, "book_find_real")
     body = _send(client, headers, "帮我找本心理学的书")
 
