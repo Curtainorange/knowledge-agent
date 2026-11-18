@@ -215,3 +215,30 @@ def test_card_always_carries_href_back_to_the_page(client, catalog_hit):
     headers = auth_headers(client, "book_find_href")
     body = _send(client, headers, "帮我找本心理学的书")
     assert body["card"]["href"] == "mine.html"
+
+
+# ---- 真数据冒烟 -------------------------------------------------------------
+#
+# 上面所有用例都拿替身喂数据，证明的是「逻辑对」；这条证明「接上真书目也能用」。
+# `data/` 是 git-ignored，干净检出时没有这个文件，所以按存在性跳过——
+# 跳过不是漏测：真实环境里它有，测试环境里它没有，硬要求它存在会让 CI 永远红。
+
+
+def test_real_catalog_answers_a_tag_query(client):
+    """真实书目 + 真实本地规则，端到端跑一次「找本心理学的书」。"""
+    from app.books import catalog
+
+    if not catalog.CATALOG_PATH.exists():
+        pytest.skip("离线书目未导入（scripts/import_book_catalog.py）")
+
+    headers = auth_headers(client, "book_find_real")
+    body = _send(client, headers, "帮我找本心理学的书")
+
+    card = body["card"]
+    assert card["kind"] == "book_find"
+    assert card["mode"] == "browse"
+    assert card["items"], "真实书目里「心理学」标签下不可能一本都没有"
+    # 每一条都得是能点开的东西：有链接，且格式字段是这三种之一
+    for item in card["items"]:
+        assert item["resource_url"].startswith("http")
+        assert item["has_epub"] is True
