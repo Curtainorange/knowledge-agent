@@ -94,6 +94,11 @@ EGRESS_PURPOSE: dict[str, str] = {
     # 对一次（只读），update.bat 用 `git pull --ff-only` 取代码。登记它是因为「这个目录
     # 到底是不是 git 仓库」是线上最常见的一类事故，必须能自动判（2026-11-09 现场）。
     "github.com": "代码仓库：部署期 git 拉取与版本比对（只读，运行时不请求）",
+    # 离线书目导入（2026-11-18）。只由 `scripts/import_book_catalog.py` 手动跑，
+    # 产物落 `data/book_catalog.json`；**运行时一次都不请求**——检索走本地文件。
+    # 之所以要登记而不是用变量拼 URL 绕开：注释里的 URL 也会被扫描到，
+    # 护栏宁可多认一个主机，也不要留一个「机制上查不到」的洞。
+    "raw.githubusercontent.com": "离线书目导入（scripts/import_book_catalog.py，手动跑，运行时不请求）",
     # 主动推送的微信通道（个人通知，非模型层）。sctapi 是发送网关，sct 是注册/文档页
     # （只出现在 config.py 注释里，运行时不请求）。
     "sctapi.ftqq.com": "Server酱 微信推送网关（app/push/channels.py，个人通知）",
