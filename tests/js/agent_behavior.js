@@ -119,6 +119,40 @@ check('已命中项被排除', filtered.indexOf('已命中') === -1);
 check('其他可能被保留', filtered.indexOf('其他') !== -1);
 check('无剩余候选时不渲染折叠块', CCA.candidatesHtml([{ item_id: 'i1' }], ['i1']) === '');
 
+console.log('\n全网找书卡片：只有 epub 才给下载入口');
+const findEpub = CCA.renderCard({
+  kind: 'book_find',
+  mode: 'resource',
+  title: '《人类简史》',
+  items: [{
+    title: '人类简史', author: '尤瓦尔·赫拉利', tags: ['历史', '科普'],
+    resource_url: 'https://url89.ctfile.com/f/1', has_epub: true
+  }],
+  note: '链接指向网盘分享页'
+});
+check('多标签全部显示', findEpub.indexOf('历史 · 科普') !== -1);
+check('有 epub 时给下载链接', findEpub.indexOf('打开下载页') !== -1);
+check('网盘链接被透出', findEpub.indexOf('https://url89.ctfile.com/f/1') !== -1);
+
+const findMobi = CCA.renderCard({
+  kind: 'book_find',
+  mode: 'resource',
+  items: [{ title: '人类简史', resource_url: 'https://url89.ctfile.com/f/2', has_epub: false }]
+});
+check('只有 mobi 时不给下载链接', findMobi.indexOf('打开下载页') === -1);
+check('只有 mobi 时明说读不了', findMobi.indexOf('读不了') !== -1);
+
+const findEvil = CCA.renderCard({
+  kind: 'book_find',
+  mode: 'browse',
+  items: [{
+    title: '"><script>x</script>', tags: ['<b>'],
+    resource_url: 'javascript:alert(1)', has_epub: true
+  }]
+});
+check('书名里的脚本被转义', findEvil.indexOf('<script>') === -1);
+check('非 http(s) 的资源链接不出链接', findEvil.indexOf('javascript:') === -1);
+
 console.log('\nL3 简报卡片：分布、结构信号、追问');
 const brief = CCA.renderCard({
   kind: 'l3_brief',

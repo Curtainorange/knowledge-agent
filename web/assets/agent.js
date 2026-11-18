@@ -715,6 +715,66 @@ window.CCA = (function () {
     return '<div class="brief">' + parts.join('') + '</div>';
   }
 
+  /* ---- 全网找书（book_find）-------------------------------------------------
+
+     三种 mode 共用一套渲染：
+     - resource：命中具体一本，重点是「有 epub，去哪拿」；
+     - browse：只说了方向，按标签给一批候选；
+     - web：本地目录没有，联网定位出来的（带出处与把握度）。
+
+     **只有 has_epub 才给「打开下载页」**：上传白名单只认 .txt/.epub/.pdf，
+     网盘里只有 mobi/azw3 时给链接等于让人白下一份、还以为阅读器坏了。 */
+  function bookFindHtml(card) {
+    var parts = [];
+    if (card.title) {
+      parts.push('<div class="sg-refs-title">' + esc(card.title) + '</div>');
+    }
+    if (card.summary) {
+      parts.push('<div class="meta">' + esc(card.summary) + '</div>');
+    }
+    parts.push((card.items || []).map(function (item) {
+      var rows = [];
+      var head = '<strong>' + esc('《' + String(item.title || '') + '》') + '</strong>';
+      if (item.author) {
+        head += '<span class="meta">' + esc(item.author) + '</span>';
+      }
+      if (typeof item.confidence === 'number' && item.confidence > 0) {
+        head += '<span class="badge">' + Math.round(item.confidence * 100) + '%</span>';
+      }
+      rows.push('<div class="cf-block">' + head + '</div>');
+      if ((item.tags || []).length) {
+        rows.push('<div class="meta">分类：' + esc(item.tags.join(' · ')) + '</div>');
+      }
+      if (item.why) {
+        rows.push('<div class="meta">' + esc(item.why) + '</div>');
+      }
+      var res = safeHref(item.resource_url);
+      if (res && item.has_epub) {
+        rows.push('<div class="meta">有 epub：<a href="' + esc(res) +
+          '" target="_blank" rel="noopener noreferrer">打开下载页</a></div>');
+      } else if (res) {
+        rows.push('<div class="meta">网盘只有 mobi/azw3，阅读器读不了</div>');
+      }
+      var href = safeHref(item.url);
+      if (href) {
+        rows.push('<div class="meta">出处：<a href="' + esc(href) +
+          '" target="_blank" rel="noopener noreferrer">' + esc(item.site || '网页') + '</a></div>');
+      }
+      return rows.join('');
+    }).join(''));
+    if (card.note) {
+      parts.push('<div class="notice">' + esc(card.note) + '</div>');
+    }
+    if (card.href) {
+      parts.push('<div class="meta"><a href="' + esc(card.href) + '">在我的页面里看</a></div>');
+    }
+    var actions = actionsRow(card);
+    if (actions) {
+      parts.push(actions);
+    }
+    return '<div class="brief">' + parts.join('') + '</div>';
+  }
+
   /* ---- 需求确认卡（B 模块）-------------------------------------------------
 
      一次最多两题，全部是按钮（自由文本题直接让用户在下面输入框说）。
@@ -967,6 +1027,7 @@ window.CCA = (function () {
     books: booksHtml,
     book_digest: bookDigestHtml,
     book_recommend: bookRecommendHtml,
+    book_find: bookFindHtml,
     research: researchHtml,
     pending: pendingHtml,
     failed: failedHtml,
