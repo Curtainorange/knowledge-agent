@@ -137,10 +137,11 @@ class FoundBook:
     url: str = ""
     site: str = ""
     # ---- 去哪拿（来自离线目录，不是模型给的）----
-    # 这三个字段永远不由模型填：模型只负责「是哪本书」，资源位置由本地书目查出来。
+    # 这几个字段永远不由模型填：模型只负责「是哪本书」，资源位置由本地书目查出来。
     # 混在一起会出事——模型编一个网盘链接，用户点进去发现是空的，比没查到更糟。
     resource_url: str = ""
     resource_category: str = ""
+    resource_tags: list[str] = field(default_factory=list)
     has_epub: bool = False
 
 
@@ -267,6 +268,8 @@ def _attach_resources(books: list[FoundBook]) -> None:
         entry = hits[0]
         book.resource_url = entry.link
         book.resource_category = entry.category
+        # 标签全带上：源数据里一本书平均挂 2.1 个标签，只给第一个等于把分类砍掉一半。
+        book.resource_tags = list(entry.categories)
         book.has_epub = entry.has_epub
 
 

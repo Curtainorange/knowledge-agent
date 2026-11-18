@@ -326,7 +326,7 @@ def test_found_book_carries_download_resource(session, fake_search, monkeypatch)
                 title="鲁滨逊漂流记",
                 author="笛福",
                 link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
-                categories=("经典",),
+                categories=("经典", "文学", "冒险"),
                 formats=("epub", "mobi", "azw3"),
             )
         ],
@@ -343,6 +343,8 @@ def test_found_book_carries_download_resource(session, fake_search, monkeypatch)
     assert result.books[0].resource_url.startswith("https://url89.ctfile.com/")
     assert result.books[0].has_epub is True
     assert result.books[0].resource_category == "经典"
+    # 一本书挂多个标签是常态（平均 2.1 个），卡片与接口都要拿得到全部
+    assert result.books[0].resource_tags == ["经典", "文学", "冒险"]
 
 
 def test_resource_stays_empty_when_catalog_misses(session, fake_search, monkeypatch):
@@ -417,7 +419,7 @@ def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, 
                 title="鲁滨逊漂流记",
                 author="笛福",
                 link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
-                categories=("经典",),
+                categories=("经典", "文学", "冒险"),
                 formats=("epub", "mobi", "azw3"),
             )
         ],
@@ -437,9 +439,10 @@ def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, 
     assert body["searched"] == 2
     assert body["summary"] == "最可能是这本。"
     assert body["request_id"]
-    # 跨层契约：这两个字段由 mine.html 直接读取，缺一个按钮就不出现
+    # 跨层契约：这几个字段由 mine.html 直接读取，缺一个按钮/标签就不出现
     assert body["books"][0]["resource_url"].startswith("https://url89.ctfile.com/")
     assert body["books"][0]["has_epub"] is True
+    assert body["books"][0]["resource_tags"] == ["经典", "文学", "冒险"]
 
     anon = client.post("/api/v1/l1/book-search", json={"message": "找书"})
     assert anon.status_code == 401

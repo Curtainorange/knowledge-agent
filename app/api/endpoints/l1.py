@@ -131,8 +131,10 @@ class BookSearchBookOut(BaseModel):
     site: str = ""
     # 去哪拿：来自本地离线书目（`app/books/catalog.py`），查不到时为空。
     # `has_epub` 是给前端判断「能不能直接进阅读器」的——上传白名单只认 epub/txt/pdf。
+    # `resource_tags` 是这本书挂的全部标签（源数据平均 2.1 个），不是单个分类。
     resource_url: str = ""
     resource_category: str = ""
+    resource_tags: list[str] = Field(default_factory=list)
     has_epub: bool = False
 
 
@@ -175,6 +177,7 @@ def l1_book_search(
                 site=book.site,
                 resource_url=book.resource_url,
                 resource_category=book.resource_category,
+                resource_tags=list(book.resource_tags),
                 has_epub=book.has_epub,
             )
             for book in result.books

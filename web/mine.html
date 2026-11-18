@@ -265,12 +265,19 @@
           '" target="_blank" rel="noopener">打开下载页</a></span>'
         : '<span class="meta">网盘只有 mobi/azw3，阅读器读不了</span>';
     }
+    // 分类标签：源书目里一本书平均挂 2.1 个标签，全显示——
+    // 只显示第一个会让人以为它只有这一个类目。
+    var tags = (book.resource_tags || []).filter(Boolean);
+    var tagLine = tags.length
+      ? '<div class="meta">分类：' + esc(tags.join(' · ')) + '</div>'
+      : '';
     return '<div class="book">' +
       '<div class="book-title">《' + esc(book.title) + '》</div>' +
       '<div class="book-line">' + confidenceBadge(book.confidence) +
         (meta ? '<span class="meta">' + esc(meta) + '</span>' : '') +
       '</div>' +
       (book.why ? '<div class="why">' + esc(book.why) + '</div>' : '') +
+      tagLine +
       '<div class="actions">' +
         '<button class="sm" data-remember="' + index + '">记入知识库</button>' +
         source +
