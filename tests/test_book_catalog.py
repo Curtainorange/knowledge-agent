@@ -52,7 +52,7 @@ def _entry(title: str, author: str = "", formats=("epub", "mobi"), link: str = "
         title=title,
         author=author,
         link=link or f"https://example.com/{title}",
-        category="测试",
+        categories=("测试",),
         formats=tuple(formats),
     )
 
@@ -187,3 +187,54 @@ def test_lookup_goes_through_load(tmp_path):
     reset_cache()
     hits = load(path)
     assert hits and hits[0].title == "深度工作"
+
+
+# ---- 多标签 -----------------------------------------------------------------
+
+
+def test_load_merges_rows_sharing_a_link_and_keeps_every_tag(tmp_path):
+    """同一本书被多个标签收录是**正常**的，不是脏数据。
+
+    原仓库的 `md/` 是按标签组织的，一本《思考，快与慢》既在「认知」也在「心理学」，
+    导出成全量索引时就变成两行。正确处理是**合并成一条、标签全留**——
+    按「书名+作者+链接」去重会把除第一个以外的标签静默删掉，实测每本书平均丢 1.2 个标签。
+    """
+    path = tmp_path / "c.json"
+    path.write_text(
+        json.dumps(
+            [
+                {"title": "思考，快与慢", "author": "卡尼曼", "link": "https://x/1", "category": "认知", "formats": ["epub"]},
+                {"title": "思考，快与慢", "author": "卡尼曼", "link": "https://x/1", "category": "心理学", "formats": ["epub"]},
+                {"title": "思考，快与慢", "author": "卡尼曼", "link": "https://x/1", "category": "心理学", "formats": ["mobi"]},
+            ],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    reset_cache()
+    entries = load(path)
+
+    assert len(entries) == 1
+    assert entries[0].categories == ("认知", "心理学")   # 去重、保序，不丢
+    assert set(entries[0].formats) == {"epub", "mobi"}
+
+
+def test_category_property_is_the_first_tag():
+    """旧调用方（book_finder / 卡片）只认一个标签，给它主标签即可。"""
+    assert ResourceEntry(title="X", categories=("认知", "心理学")).category == "认知"
+    assert ResourceEntry(title="Y").category == ""
+
+
+def test_load_accepts_categories_array_from_new_format(tmp_path):
+    """导入脚本产出的新格式是 `categories` 数组；老格式是 `category` 字符串。两种都要认。"""
+    path = tmp_path / "c.json"
+    path.write_text(
+        json.dumps(
+            [{"title": "人类简史", "link": "https://x/2", "categories": ["历史", "科普"], "formats": ["epub"]}],
+            ensure_ascii=False,
+        ),
+        encoding="utf-8",
+    )
+    reset_cache()
+    entries = load(path)
+    assert entries[0].categories == ("历史", "科普")

@@ -5,18 +5,22 @@
 ——多一个会挂的依赖、多一份延迟、还要求服务器能连 GitHub。所以约定是
 **手动跑这个脚本，产物落盘，运行时只读文件**。
 
-数据事实（2026-11-18 实测）：24,071 条，其中 24,002 条挂在 `url89.ctfile.com`
-（城通网盘，带分享密码），另 69 条链接字段是字面量「链接未找到」。字段为
-title / author / link / category / language / level / formats。这里只留前五个里用得上
-的四个 + formats，`language` / `level` 全部是 Unknown 级别的占位值，留着只是让文件更大。
+数据事实（2026-11-18 实测）：24,071 行，其中 24,002 行挂在 `url89.ctfile.com`
+（城通网盘，带分享密码），另 69 行链接字段是字面量「链接未找到」。字段为
+title / author / link / category / language / level / formats。这里只留用得上四个
++ formats，`language` / `level` 全部是 Unknown 级别的占位值，留着只让文件更大。
+
+**行 ≠ 书**：源仓库的 `md/` 按标签组织，一本书挂几个标签就出现几行。24,071 行合并后
+是 11,348 本，每本平均 2.2 个标签（1 个 2,457 本 / 2 个 5,440 / 3 个 3,156 / 4 个 280）。
+这些行不是脏数据，差别就在标签上——所以**合并、标签取并集**，
+按「书名+作者+链接」去重会把标签静默删掉。
 
 用法：
 
     python scripts/import_book_catalog.py                # 从 GitHub 拉最新
     python scripts/import_book_catalog.py --file x.json  # 从本地已有文件导入（离线/内网）
 
-导入后统计会打印出来：总条数 / 去重后 / 含 epub 的条数。**含 epub 那个数字是重点**——
-上传白名单只认 .txt/.epub/.pdf，只有 mobi/azw3 的条目对阅读器无效。
+导入后统计会打印：行数 → 书数、标签总数与分布、含 epub 的本数。
 """
 from __future__ import annotations
 
@@ -25,6 +29,7 @@ import json
 import sys
 import urllib.error
 import urllib.request
+from collections import Counter
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -35,7 +40,7 @@ SOURCE_URL = "https://raw.githubusercontent.com/jbiaojerry/ebook-treasure-chest/
 DEFAULT_OUT = ROOT / "data" / "book_catalog.json"
 
 # 只留这些字段。少一个字段，24k 条的文件小一半。
-_KEEP = ("title", "author", "link", "category", "formats")
+_KEEP = ("title", "author", "link", "categories", "formats")
 _MISSING_LINK = "链接未找到"
 _TIMEOUT = 60
 
@@ -47,45 +52,74 @@ def _download(url: str) -> list:
     return json.loads(payload.decode("utf-8"))
 
 
-def _slim(raw: list) -> tuple[list[dict], dict[str, int]]:
-    """精简 + 去重 + 统计。返回 (条目, 计数)，计数用于打印给人看。"""
-    stats = {"raw": len(raw), "no_title": 0, "no_link": 0, "duplicate": 0}
-    seen: set[tuple[str, str, str]] = set()
-    entries: list[dict] = []
+def _tags(item: dict) -> list[str]:
+    raw = item.get("categories")
+    if not isinstance(raw, list):
+        raw = [item.get("category")] if item.get("category") else []
+    out: list[str] = []
+    for tag in raw:
+        text = str(tag or "").strip()
+        if text and text not in out:
+            out.append(text)
+    return out
+
+
+def _formats(item: dict) -> list[str]:
+    raw = item.get("formats")
+    if not isinstance(raw, list):
+        return []
+    return [str(f).strip() for f in raw if str(f).strip()]
+
+
+def _slim(raw: list) -> tuple[list[dict], dict]:
+    """按链接合并 + 精简 + 统计。
+
+    **合并而不是去重**：源仓库的 `md/` 按标签组织，一本书挂几个标签就出现几行。
+    这些行不是脏数据，它们的差别恰恰是标签——按「书名+作者+链接」去重会把标签静默删掉
+    （实测每本平均丢 1.2 个）。所以这里按链接聚合，标签取并集。
+    """
+    stats = {"raw": len(raw), "no_link": 0, "merged": 0}
+    slots: dict[str, dict] = {}
+    order: list[str] = []
 
     for item in raw:
         if not isinstance(item, dict):
             continue
-        title = str(item.get("title") or "").strip()
         link = str(item.get("link") or "").strip()
-        if not title:
-            stats["no_title"] += 1
-            continue
         if not link or link == _MISSING_LINK:
             stats["no_link"] += 1
             continue
-
+        title = str(item.get("title") or "").strip()
         author = str(item.get("author") or "").strip()
-        key = (title, author, link)
-        if key in seen:
-            stats["duplicate"] += 1
-            continue
-        seen.add(key)
 
-        formats = item.get("formats")
-        if not isinstance(formats, list):
-            formats = []
-        entries.append(
-            {
+        slot = slots.get(link)
+        if slot is None:
+            slots[link] = {
                 "title": title,
                 "author": author,
                 "link": link,
-                "category": str(item.get("category") or "").strip(),
-                "formats": [str(f).strip() for f in formats if str(f).strip()],
+                "categories": _tags(item),
+                "formats": _formats(item),
             }
-        )
+            order.append(link)
+            continue
 
+        stats["merged"] += 1
+        if not slot["title"] and title:
+            slot["title"] = title
+        if not slot["author"] and author:
+            slot["author"] = author
+        for tag in _tags(item):
+            if tag not in slot["categories"]:
+                slot["categories"].append(tag)
+        for fmt in _formats(item):
+            if fmt not in slot["formats"]:
+                slot["formats"].append(fmt)
+
+    entries = [slots[link] for link in order if slots[link]["title"]]
     stats["kept"] = len(entries)
+    stats["tags"] = sum(len(e["categories"]) for e in entries)
+    stats["tag_dist"] = dict(sorted(Counter(len(e["categories"]) for e in entries).items()))
     stats["epub"] = sum(1 for e in entries if any(f.upper() == "EPUB" for f in e["formats"]))
     return entries, stats
 
@@ -132,10 +166,12 @@ def main() -> int:
 
     size_mb = args.out.stat().st_size / (1024 * 1024)
     print(
-        f"原始 {stats['raw']} 条 → 保留 {stats['kept']} 条"
-        f"（无书名 {stats['no_title']} / 无链接 {stats['no_link']} / 重复 {stats['duplicate']}）"
+        f"原始 {stats['raw']} 条 → 合并为 {stats['kept']} 本"
+        f"（并掉 {stats['merged']} 条同书多标签的行 / 无链接 {stats['no_link']}）"
     )
-    print(f"其中有 epub 的 {stats['epub']} 条（只有 epub 能进阅读器）")
+    dist = " / ".join(f"{n} 个 {c} 本" for n, c in stats["tag_dist"].items())
+    print(f"标签共 {stats['tags']} 个，平均 {stats['tags'] / max(stats['kept'], 1):.1f} 个/本（{dist}）")
+    print(f"其中有 epub 的 {stats['epub']} 本")
     print(f"写入：{args.out}（{size_mb:.1f} MB）")
     return 0
 

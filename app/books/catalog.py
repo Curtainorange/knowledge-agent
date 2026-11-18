@@ -57,13 +57,25 @@ _MIN_PARTIAL_LEN = 2
 
 @dataclass(frozen=True)
 class ResourceEntry:
-    """一条资源。`formats` 是网盘里实际提供的格式，不是我们支持的格式。"""
+    """一条资源。`formats` 是网盘里实际提供的格式，`categories` 是这本书挂的全部标签。
+
+    一本书有多个标签是**正常**的，不是脏数据：源仓库的 `md/` 按标签组织，
+    《思考，快与慢》既在「认知」也在「心理学」，导出成全量索引就是两行。
+    实测每本书平均 2.2 个标签（1 个 2,457 本 / 2 个 5,440 / 3 个 3,156 / 4 个 280）。
+    所以载入时按链接合并、标签全留，绝不能按「书名+作者+链接」去重——
+    那样每本书会被静默丢掉 1.2 个标签。
+    """
 
     title: str
     author: str = ""
     link: str = ""
-    category: str = ""
+    categories: tuple[str, ...] = ()
     formats: tuple[str, ...] = ()
+
+    @property
+    def category(self) -> str:
+        """主标签。给只认单个标签的旧调用方（找书卡片）用，完整标签看 `categories`。"""
+        return self.categories[0] if self.categories else ""
 
     @property
     def has_epub(self) -> bool:
@@ -138,6 +150,26 @@ def search(
 _CACHE: dict[Path, list[ResourceEntry]] = {}
 
 
+def _tags(item: dict) -> list[str]:
+    """取一本书的全部标签。新格式是 `categories` 数组，老格式是 `category` 字符串。"""
+    raw = item.get("categories")
+    if not isinstance(raw, list):
+        raw = [item.get("category")] if item.get("category") else []
+    tags: list[str] = []
+    for tag in raw:
+        text = str(tag or "").strip()
+        if text and text not in tags:
+            tags.append(text)
+    return tags
+
+
+def _formats(item: dict) -> list[str]:
+    raw = item.get("formats")
+    if not isinstance(raw, list):
+        return []
+    return [str(f).strip() for f in raw if str(f).strip()]
+
+
 def _read(path: Path) -> list[ResourceEntry]:
     try:
         raw = json.loads(path.read_text(encoding="utf-8"))
@@ -152,25 +184,57 @@ def _read(path: Path) -> list[ResourceEntry]:
         logger.warning("book catalog has unexpected shape path=%s type=%s", path, type(raw).__name__)
         return []
 
-    entries: list[ResourceEntry] = []
+    # 按链接合并：同一本书挂在多个标签下会重复出现，合并成一条、标签取并集。
+    # 用 dict 存中间态而非直接 append，是因为这一步的目的就是**不丢标签**；
+    # 顺带让「data 文件里还有重复行」也不会变成同一本书出现三次。
+    slots: dict[str, dict] = {}
+    order: list[str] = []
     for item in raw:
         if not isinstance(item, dict):
             continue
-        title = str(item.get("title") or "").strip()
         link = str(item.get("link") or "").strip()
-        # 无书名无法被检索；无链接的条目是死数据（原始数据里有一批字面量占位）。
-        if not title or not link or link == _MISSING_LINK:
+        # 无链接的条目是死数据（原始数据里有一批字面量占位）。
+        if not link or link == _MISSING_LINK:
             continue
-        formats = item.get("formats") or []
-        if not isinstance(formats, list):
-            formats = []
+        title = str(item.get("title") or "").strip()
+        author = str(item.get("author") or "").strip()
+
+        slot = slots.get(link)
+        if slot is None:
+            slots[link] = {
+                "title": title,
+                "author": author,
+                "categories": _tags(item),
+                "formats": _formats(item),
+            }
+            order.append(link)
+            continue
+
+        # 后续行只补空缺，不覆盖：先到的那行是这个链接的原始记录。
+        if not slot["title"] and title:
+            slot["title"] = title
+        if not slot["author"] and author:
+            slot["author"] = author
+        for tag in _tags(item):
+            if tag not in slot["categories"]:
+                slot["categories"].append(tag)
+        for fmt in _formats(item):
+            if fmt not in slot["formats"]:
+                slot["formats"].append(fmt)
+
+    entries: list[ResourceEntry] = []
+    for link in order:
+        slot = slots[link]
+        # 合并完仍无书名的条目检索不到，只能丢。
+        if not slot["title"]:
+            continue
         entries.append(
             ResourceEntry(
-                title=title,
-                author=str(item.get("author") or "").strip(),
+                title=slot["title"],
+                author=slot["author"],
                 link=link,
-                category=str(item.get("category") or "").strip(),
-                formats=tuple(str(f).strip() for f in formats if str(f).strip()),
+                categories=tuple(slot["categories"]),
+                formats=tuple(slot["formats"]),
             )
         )
     return entries

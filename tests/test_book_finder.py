@@ -326,7 +326,7 @@ def test_found_book_carries_download_resource(session, fake_search, monkeypatch)
                 title="鲁滨逊漂流记",
                 author="笛福",
                 link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
-                category="经典",
+                categories=("经典",),
                 formats=("epub", "mobi", "azw3"),
             )
         ],
@@ -417,7 +417,7 @@ def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, 
                 title="鲁滨逊漂流记",
                 author="笛福",
                 link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
-                category="经典",
+                categories=("经典",),
                 formats=("epub", "mobi", "azw3"),
             )
         ],
