@@ -37,12 +37,19 @@ from sqlalchemy.orm import Session
 
 from app.agent import cards as cards_mod
 from app.agent import research
+from app.agent import book_finder
 from app.agent.conflict_view import conflict_views
 from app.agent import book_orchestrator
 from app.agent.cards import (
     books_card,
     books_reply,
     brief_reply,
+    book_browse_card,
+    book_browse_reply,
+    book_find_card,
+    book_find_reply,
+    book_resource_card,
+    book_resource_reply,
     deviation_reply,
     diagnosis_reply,
     digest_reply,
@@ -356,6 +363,12 @@ def execute_capability(
         )
         return research_reply(result), research_card(key=key, result=result)
 
+    if capability == "book_find":
+        return _book_find(
+            gateway=gateway, session=session, user_id=user_id, key=key,
+            message=message, args=args or {},
+        )
+
     if capability == "book_compare":
         return _execute_book_compare(
             user_id=user_id, session=session, gateway=gateway, key=key, args=args or {},
@@ -440,6 +453,69 @@ def _execute_suggestion(
     intake.mark_ready_for_suggestion(ctx)
     intake.save(session, conversation=conversation, ctx=ctx)
     return sugg.reply_text(outcome), card
+
+
+def _book_find(
+    *,
+    gateway: ModelGateway,
+    session: Session,
+    user_id: str,
+    key: str,
+    message: str,
+    args: dict,
+) -> tuple[str, dict]:
+    """全网找书：**先用离线目录，查不到才联网**。
+
+    顺序不能反。离线目录是确定性的、毫秒级、不花 token；联网要找模型规划检索词、
+    再判定，十几秒并且可能失败。用户说「《人类简史》在哪下」时，先联网就是白白
+    把一次本地查表变成一次外部请求。
+
+    两条退路都要有：
+    - 目录里没有、又没配 Key → 说清是哪个条件缺的，别让用户猜；
+    - 目录里没有、有 Key → 联网定位书名（`book_finder`），候选照样带资源字段。
+    """
+    from app.agent.router import extract_book_tags, parse_book_title
+    from app.books import catalog
+
+    title = str(args.get("title") or "").strip() or parse_book_title(message)
+    raw_tags = args.get("tags")
+    tags = [str(t).strip() for t in raw_tags if str(t).strip()] if isinstance(raw_tags, list) else []
+    if not tags:
+        tags = extract_book_tags(message)
+
+    if title:
+        entries = catalog.lookup(title, limit=3)
+        if entries:
+            return book_resource_reply(entries, title), book_resource_card(
+                key=key, entries=entries, query=title
+            )
+
+    if tags and not title:
+        entries = catalog.browse_catalog(tags=tags, limit=cards_mod.BOOK_FIND_ROWS)
+        if entries:
+            return book_browse_reply(entries, tags), book_browse_card(
+                key=key, entries=entries, tags=tags
+            )
+
+    # 本地没有 → 只能联网。没有 Key 就说清楚：这里**不能**退化成「凭记忆列几本书」，
+    # 编出来的书名和真的看起来一模一样，用户照着去找才发现不存在。
+    from app.llm import websearch
+
+    if not websearch.available():
+        card = notice_card(
+            title="本地书目里没有，也联网不了",
+            note=(
+                "这份离线书目收了一万一千多本，没有匹配上；联网检索还缺模型 Key"
+                "（检索走同一个凭据），配好之后再来。"
+            ),
+            href="mine.html",
+        )
+        return card["note"], card
+
+    result = book_finder.find_books(
+        gateway=gateway, session=session, user_id=user_id, message=message
+    )
+    return book_find_reply(result), book_find_card(key=key, result=result)
 
 
 def _l5_soft_title(state: str) -> str:

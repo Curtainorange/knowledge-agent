@@ -318,6 +318,7 @@ class Copilot:
             "book_digest": self._execute,
             "book_recommend": self._execute,
             "book_compare": self._execute,
+            "book_find": self._execute,
             "book_discuss": self._book_discuss,
             "research": self._execute,
             "suggestion": self._execute,
