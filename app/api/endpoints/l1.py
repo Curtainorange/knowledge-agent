@@ -129,6 +129,11 @@ class BookSearchBookOut(BaseModel):
     confidence: float = 0.0
     url: str = ""
     site: str = ""
+    # 去哪拿：来自本地离线书目（`app/books/catalog.py`），查不到时为空。
+    # `has_epub` 是给前端判断「能不能直接进阅读器」的——上传白名单只认 epub/txt/pdf。
+    resource_url: str = ""
+    resource_category: str = ""
+    has_epub: bool = False
 
 
 class BookSearchResponse(BaseModel):
@@ -168,6 +173,9 @@ def l1_book_search(
                 confidence=book.confidence,
                 url=book.url,
                 site=book.site,
+                resource_url=book.resource_url,
+                resource_category=book.resource_category,
+                has_epub=book.has_epub,
             )
             for book in result.books
         ],

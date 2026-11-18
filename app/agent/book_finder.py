@@ -20,6 +20,8 @@
   unavailable / failed，不复用一张「大概是这本」的卡片糊过去。
 - **不入库。** 本模块不 import 任何仓储；候选只活在这次回合里。用户点「记入知识库」
   才由既有录入链路写——他是过滤器，搜错一本不该变成他的知识。
+  （`app/books/catalog` 是只读的离线书目文件，不是仓储：它只回答「哪有资源」，
+  不写任何东西，也不进 prompt。）
 
 task_type 复用 `l1_mining`（reasoning=on）：这仍然是「一点模糊线索 → 定位到具体对象」，
 只是检索面从知识库换成了全网。不新开 task_type，避免无谓扩大 harness 登记面与成本口径。
@@ -32,6 +34,7 @@ from dataclasses import dataclass, field
 from pydantic import BaseModel, Field, field_validator
 from sqlalchemy.orm import Session
 
+from app.books import catalog
 from app.llm import websearch
 from app.llm.exceptions import LLMError
 from app.llm.gateway import ModelGateway
@@ -133,6 +136,12 @@ class FoundBook:
     confidence: float = 0.0
     url: str = ""
     site: str = ""
+    # ---- 去哪拿（来自离线目录，不是模型给的）----
+    # 这三个字段永远不由模型填：模型只负责「是哪本书」，资源位置由本地书目查出来。
+    # 混在一起会出事——模型编一个网盘链接，用户点进去发现是空的，比没查到更糟。
+    resource_url: str = ""
+    resource_category: str = ""
+    has_epub: bool = False
 
 
 @dataclass
@@ -207,6 +216,7 @@ def find_books(
 
     index = {f"S{i}": item for i, item in enumerate(results, 1)}
     books = _clean_books(match.books, index, exclude_titles)
+    _attach_resources(books)
 
     if books:
         return BookSearchResult(
@@ -235,6 +245,29 @@ def find_books(
 
 
 # ---- 内部 ------------------------------------------------------------------
+
+
+def _attach_resources(books: list[FoundBook]) -> None:
+    """给每本候选补一条「去哪拿」。原地修改，查不到就保持空。
+
+    为什么放在 `find_books` 里而不是调用点：接口（`app/api/endpoints/l1.py`）与
+    将来的对话能力都会调 `find_books`，放调用点会漏一处，两处口径随后必然分叉。
+
+    查不到是常态——目录一万多条，包不住所有书。**没资源绝不改变找书结论**：
+    「我确定是这本书」和「我这儿有它的下载」是两件事，前者成立、后者不成立很常见。
+    """
+    for book in books:
+        try:
+            hits = catalog.lookup(book.title, author=book.author, limit=1)
+        except Exception as exc:  # 目录文件坏了不该把一次成功的找书打成 500
+            logger.warning("资源目录查询失败 title=%r err=%s", book.title, exc)
+            continue
+        if not hits:
+            continue
+        entry = hits[0]
+        book.resource_url = entry.link
+        book.resource_category = entry.category
+        book.has_epub = entry.has_epub
 
 
 def _clean_history(history: list[str] | None) -> list[str]:

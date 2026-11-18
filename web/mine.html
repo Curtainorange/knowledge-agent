@@ -256,6 +256,15 @@
       ? '<span class="meta">出处：<a href="' + esc(book.url) + '" target="_blank" rel="noopener">' +
         esc(book.site || '网页') + '</a></span>'
       : '';
+    // 去哪儿拿：来自本地离线书目，跟模型无关。有 epub 才给链接——
+    // 上传白名单只认 .txt/.epub/.pdf，网盘里只有 mobi/azw3 的话给人链接等于让人白下一份。
+    var resource = '';
+    if (book.resource_url) {
+      resource = book.has_epub
+        ? '<span class="meta">有 epub：<a href="' + esc(book.resource_url) +
+          '" target="_blank" rel="noopener">打开下载页</a></span>'
+        : '<span class="meta">网盘只有 mobi/azw3，阅读器读不了</span>';
+    }
     return '<div class="book">' +
       '<div class="book-title">《' + esc(book.title) + '》</div>' +
       '<div class="book-line">' + confidenceBadge(book.confidence) +
@@ -265,6 +274,7 @@
       '<div class="actions">' +
         '<button class="sm" data-remember="' + index + '">记入知识库</button>' +
         source +
+        resource +
       '</div>' +
     '</div>';
   }

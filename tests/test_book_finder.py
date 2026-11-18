@@ -17,6 +17,7 @@ import pytest
 
 from app.agent import book_finder
 from app.api import deps
+from app.books.catalog import ResourceEntry
 from app.domain.repositories.knowledge_repository import KnowledgeRepository
 from app.llm import websearch
 from app.llm.completion import Completion
@@ -315,6 +316,78 @@ def test_nothing_is_written_to_the_knowledge_base(session, fake_search):
     assert before == after == 0
 
 
+def test_found_book_carries_download_resource(session, fake_search, monkeypatch):
+    """找到书名之后要能告诉用户「去哪拿」，否则他还得自己去搜资源。"""
+    monkeypatch.setattr(
+        book_finder.catalog,
+        "lookup",
+        lambda *a, **k: [
+            ResourceEntry(
+                title="鲁滨逊漂流记",
+                author="笛福",
+                link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
+                category="经典",
+                formats=("epub", "mobi", "azw3"),
+            )
+        ],
+    )
+    gateway, _ = _gateway([
+        _queries("荒岛 日记 小说"),
+        _match({"title": "《鲁滨逊漂流记》", "author": "笛福", "why": "对得上", "confidence": 0.8, "source_id": "S1"}),
+    ])
+
+    result = book_finder.find_books(
+        gateway=gateway, session=session, user_id="u1", message="荒岛日记"
+    )
+
+    assert result.books[0].resource_url.startswith("https://url89.ctfile.com/")
+    assert result.books[0].has_epub is True
+    assert result.books[0].resource_category == "经典"
+
+
+def test_resource_stays_empty_when_catalog_misses(session, fake_search, monkeypatch):
+    """目录里没有这本书是常态（2.4 万条不可能包住所有书），不能因此改变找书结论。"""
+    monkeypatch.setattr(book_finder.catalog, "lookup", lambda *a, **k: [])
+    gateway, _ = _gateway([
+        _queries("荒岛 日记 小说"),
+        _match({"title": "《鲁滨逊漂流记》", "why": "对得上", "confidence": 0.8, "source_id": "S1"}),
+    ])
+
+    result = book_finder.find_books(
+        gateway=gateway, session=session, user_id="u1", message="荒岛日记"
+    )
+
+    assert result.state == "found"
+    assert result.books[0].resource_url == ""
+    assert result.books[0].has_epub is False
+
+
+def test_mobi_only_resource_is_not_marked_readable(session, fake_search, monkeypatch):
+    """只有 mobi/azw3 时链接照给，但 has_epub 必须为 False。
+
+    上传白名单只认 .txt/.epub/.pdf；把只有 mobi 的条目说成「能读」，
+    用户会下一份打不开的文件，然后以为阅读器坏了。
+    """
+    monkeypatch.setattr(
+        book_finder.catalog,
+        "lookup",
+        lambda *a, **k: [
+            ResourceEntry(title="鲁滨逊漂流记", link="https://url89.ctfile.com/f/x", formats=("mobi", "azw3"))
+        ],
+    )
+    gateway, _ = _gateway([
+        _queries("荒岛 日记 小说"),
+        _match({"title": "《鲁滨逊漂流记》", "why": "对得上", "confidence": 0.8, "source_id": "S1"}),
+    ])
+
+    result = book_finder.find_books(
+        gateway=gateway, session=session, user_id="u1", message="荒岛日记"
+    )
+
+    assert result.books[0].resource_url.endswith("/x")
+    assert result.books[0].has_epub is False
+
+
 def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, monkeypatch):
     """接口层：结构与鉴权。前端只认这套字段，改字段要同步 mine.html。
 
@@ -334,6 +407,21 @@ def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, 
             ),
         ])[0],
     )
+    # 资源库独立于模型：这里给一条确定的 epub，断言接口把它原样透出来。
+    # 不 mock 的话，结果取决于 `data/book_catalog.json` 在不在、收录了哪一版 —— 那样测的是数据不是代码。
+    monkeypatch.setattr(
+        book_finder.catalog,
+        "lookup",
+        lambda *a, **k: [
+            ResourceEntry(
+                title="鲁滨逊漂流记",
+                author="笛福",
+                link="https://url89.ctfile.com/f/31084289-1-abc?p=8866",
+                category="经典",
+                formats=("epub", "mobi", "azw3"),
+            )
+        ],
+    )
 
     resp = client.post(
         "/api/v1/l1/book-search",
@@ -349,6 +437,9 @@ def test_endpoint_returns_books_and_requires_auth(client, session, fake_search, 
     assert body["searched"] == 2
     assert body["summary"] == "最可能是这本。"
     assert body["request_id"]
+    # 跨层契约：这两个字段由 mine.html 直接读取，缺一个按钮就不出现
+    assert body["books"][0]["resource_url"].startswith("https://url89.ctfile.com/")
+    assert body["books"][0]["has_epub"] is True
 
     anon = client.post("/api/v1/l1/book-search", json={"message": "找书"})
     assert anon.status_code == 401
