@@ -281,6 +281,99 @@ def test_card_always_carries_href_back_to_the_page(client, catalog_hit, model_sa
     assert body["card"]["href"] == "mine.html"
 
 
+# ---- 确认期接管 -------------------------------------------------------------
+
+
+def _make_conversation(client, headers, session, *, awaiting: bool = True) -> str:
+    """造一个会话，并把它置成「刚发过阅读建议确认卡、正等作答」的状态。
+
+    `state` 必须显式置回 `idle`：第一句话若被判成 L1 追问，会话会进入 `clarifying`，
+    此时 `copilot` 按 `allow_model=False` 走（本地规则直接定），模型分流根本不参与，
+    测的就不是「确认期接管」这件事了——这个坑第一次写时踩到了。
+    """
+    from app.agent import intake
+    from app.domain.models.conversation import Conversation
+
+    body = _send(client, headers, "你好")
+    conv_id = body["conversation_id"]
+
+    conv = session.get(Conversation, conv_id)
+    conv.state = "idle"
+    conv.reading_context = intake.IntakeContext(
+        awaiting=awaiting,
+        book={"title": "时间管理"},
+        missing=["goal", "self_level", "help_type"],
+    ).to_dict()
+    session.commit()
+
+    # 确认确实落库了：确认期接管的判据全在这两个字段上，写丢了整条用例就变成假绿
+    session.expire_all()
+    landed = session.get(Conversation, conv_id)
+    assert (landed.reading_context or {}).get("awaiting") is awaiting
+    assert landed.state == "idle"
+    return conv_id
+
+
+def test_book_find_is_not_swallowed_by_pending_intake(client, session, catalog_hit, model_says):
+    """现场 bug：「我想读《三体》，能下吗」被确认卡吞掉。
+
+    会话里有个没走完的阅读建议确认（`awaiting=True`），用户说了句明确的找书诉求。
+    `_intake_wants` 会因为句子里有 `《三体》` 而认为这是「你在读哪本书」这个槽位的答案，
+    于是回一张「读这个主要是为了什么」的确认卡——用户问的是去哪下书，
+    系统问他读书图什么。
+
+    确认期接管只该接「自由文本回答」，不该接「去外面拿一本书」这类明确动作。
+    """
+    model_says(title="人类简史")
+    headers = auth_headers(client, "book_find_intake")
+    conv_id = _make_conversation(client, headers, session)
+
+    resp = client.post(
+        "/api/v1/agent/chat",
+        json={"conversation_id": conv_id, "message": "我想读《人类简史》，能下吗"},
+        headers=headers,
+    )
+    assert resp.status_code == 200, resp.text
+    body = resp.json()
+
+    assert body["capability"] == "book_find", "找书诉求不该被确认卡接管"
+    assert body["card"]["kind"] == "book_find"
+
+
+def test_intake_wants_itself_is_untouched(client, session, catalog_hit, model_says):
+    """对照：门禁判据本身没被改坏，排除只发生在调用点。
+
+    `_intake_wants` 对「找书」这句话依然返回 True（它只看句子里有没有可抽的槽位，
+    这没错——句子里的书名确实是「你在读哪本书」槽位的一个合理答案）。
+    真正拦住它的是 `INTAKE_BYPASS`：`book_find` 这类明确外部动作不进确认门禁。
+    把这两件事分开断言，是为了以后有人「顺手把判据改严」时能立刻看出区别。
+    """
+    from app.agent import intake
+    from app.agent.copilot import INTAKE_BYPASS, Copilot
+    from app.domain.models.conversation import Conversation
+
+    headers = auth_headers(client, "book_find_intake_ctrl")
+    conv_id = _make_conversation(client, headers, session)
+    conv = session.get(Conversation, conv_id)
+
+    class _Noop:
+        """判据只看文本，不该碰模型。真碰了就该在这里炸出来。"""
+
+        def chat(self, **kwargs):
+            raise AssertionError("_intake_wants 不该调用模型")
+
+    cop = Copilot(gateway=_Noop(), session=session)
+
+    # 普通回答仍然被判据接住
+    assert cop._intake_wants("主要是为了解决实际问题", conv) is True
+    # 找书那句话判据也会命中（书名被当成书槽位），所以必须在调用点排除
+    assert cop._intake_wants("我想读《人类简史》，能下吗", conv) is True
+    assert "book_find" in INTAKE_BYPASS
+    assert "chat" not in INTAKE_BYPASS
+    # 确认卡本身的功能没动：发卡仍然会把 awaiting 置起来
+    assert intake.IntakeContext.from_dict(conv.reading_context).awaiting is True
+
+
 # ---- 真数据冒烟 -------------------------------------------------------------
 #
 # 上面所有用例都拿替身喂数据，证明的是「逻辑对」；这条证明「接上真书目也能用」。
