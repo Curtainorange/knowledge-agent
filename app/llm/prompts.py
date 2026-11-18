@@ -229,12 +229,12 @@ L5_DIAGNOSE = PromptSpec(
 
 AGENT_ROUTE = PromptSpec(
     name="agent_route",
-    version="v10",
+    version="v13",
     text=(
         "你是「认知副驾」对话入口的意图分流器。读整句，判断用户真正想做的那件事，"
         "并抽出这件事需要的参数。输出严格 JSON："
         '{"capability":"l1|l2|l3|l4_goal|l4_plan|l4_deviation|l5|knowledge_add|weread_sync|books|'
-        'book_digest|book_discuss|book_recommend|research|chat",'
+        'book_digest|book_discuss|book_recommend|book_find|research|chat",'
         '"args":{},"confidence":0..1,"reason":"","unhandled":[]}。'
         "各能力语义："
         "l1=用模糊线索找回知识库里某条已有内容，args 留空；"
@@ -262,6 +262,19 @@ AGENT_ROUTE = PromptSpec(
         "book_discuss=就通读过的书继续提问或讨论（前提是已有通读笔记），"
         'args 形如 {"title":"书名或空","question":"用户想聊的问题"}；'
         "book_recommend=从**他的书架与知识库**里挑书，说谁该读什么，args 留空；"
+        "book_find=他要不在书架里的**某一本书本身**，以及能不能拿到：说书名让找资源、"
+        "只记得情节想认出是哪本书、或者说个方向想找几本书来看（如「找本心理学的书」）。"
+        'args 形如 {"title":"《》里的书名","tags":["方向词"]}，没有就留空；'
+        "**说了方向就必须给 tags**：每个元素是能对上书目分类的核心词"
+        "（「找本关于决策与偏见的书」→ [\"决策\",\"偏见\"]，「找本心理学的书」→ [\"心理学\"]），"
+        "不要带「关于 / 讲 / 有关的」这类虚词。tags 留空会退到联网检索，白花十几秒。"
+        "**注意「想读」不等于要建议**：用户说「我想读《三体》，能下吗」「这本书哪有」"
+        "「有电子版吗」时，他要的是那本书本身与它的资源，用 book_find；"
+        "只有在他问「我接下来该读什么」「怎么读」时才是阅读建议。"
+        "会话里正在跑阅读建议的确认流程，也不改变这一点——用户随时可以中途去要一本书。"
+        "**book_find 与 research 的落点不同**：前者是「一本书 + 它的下载」，"
+        "后者是「一批材料 / 课程 / 论文 / 书单清单」。说「找几本书」用 book_find，"
+        "说「找些学习资料、有什么课程」用 research。"
         "research=需要**外部的新资料**：找学习材料、要课程/教材/论文/书单、"
         "问某个领域现在有什么值得学的、某个知识点权威说法是什么、最近有什么进展。"
         'args 形如 {"topic":"要找的主题","question":"他原话里的具体诉求"}。'

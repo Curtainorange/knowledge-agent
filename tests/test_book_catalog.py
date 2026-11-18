@@ -21,6 +21,7 @@ import json
 
 from app.books.catalog import (
     ResourceEntry,
+    browse,
     load,
     normalize,
     reset_cache,
@@ -238,3 +239,72 @@ def test_load_accepts_categories_array_from_new_format(tmp_path):
     reset_cache()
     entries = load(path)
     assert entries[0].categories == ("历史", "科普")
+
+
+# ---- 按标签找书 -------------------------------------------------------------
+
+
+def _tagged(title: str, *tags: str) -> ResourceEntry:
+    return ResourceEntry(
+        title=title,
+        author="某作者",
+        link=f"https://example.com/{title}",
+        categories=tuple(tags),
+        formats=("epub",),
+    )
+
+
+def test_browse_by_single_tag():
+    """「找本心理学的书」——没有书名，只能按标签挑。"""
+    entries = [
+        _tagged("思考，快与慢", "思维", "心理学", "决策"),
+        _tagged("深度工作", "效率", "方法"),
+        _tagged("被讨厌的勇气", "心理学", "成长"),
+    ]
+    hits = browse(entries, tags=["心理学"])
+    assert [h.title for h in hits] == ["思考，快与慢", "被讨厌的勇气"]
+
+
+def test_browse_ranks_more_matched_tags_first():
+    """命中两个标签的比命中一个的更贴题。"""
+    entries = [
+        _tagged("深度工作", "效率"),
+        _tagged("思考，快与慢", "心理", "心理学"),
+    ]
+    hits = browse(entries, tags=["心理", "心理学"])
+    assert hits[0].title == "思考，快与慢"
+
+
+def test_browse_matches_tag_partially():
+    """用户说「心理」，目录里是「心理学」——互相包含就算命中。"""
+    entries = [_tagged("被讨厌的勇气", "心理学")]
+    assert browse(entries, tags=["心理"])[0].title == "被讨厌的勇气"
+
+
+def test_browse_without_match_returns_nothing():
+    entries = [_tagged("三体", "科幻")]
+    assert browse(entries, tags=["菜谱"]) == []
+
+
+def test_browse_requires_at_least_one_tag():
+    """没给标签就不该把全部书目倒出来。"""
+    entries = [_tagged("三体", "科幻")]
+    assert browse(entries, tags=[]) == []
+    assert browse(entries, tags=["  "]) == []
+
+
+def test_search_prefers_the_book_whose_tags_match():
+    """书名一样时（重名书很常见），用户给的标签决定取哪一条。"""
+    entries = [
+        ResourceEntry(title="心理学", author="张三", link="https://x/a", categories=("教材",), formats=("epub",)),
+        ResourceEntry(title="心理学", author="李四", link="https://x/b", categories=("入门",), formats=("epub",)),
+    ]
+    hits = search(entries, "心理学", tags=["入门"])
+    assert hits[0].author == "李四"
+
+
+def test_search_with_tags_does_not_drop_title_matches():
+    """标签只加分、不做过过滤：用户给的标签可能不在目录词表里，过滤会把唯一的正确结果杀掉。"""
+    entries = [_tagged("人类简史", "历史", "科普")]
+    hits = search(entries, "人类简史", tags=["社科"])
+    assert [h.title for h in hits] == ["人类简史"]

@@ -357,6 +357,121 @@ def research_reply(result) -> str:
     return body
 
 
+# ---- 全网找书（book_find）---------------------------------------------------
+#
+# 三种视图共用一个 `kind`，靠 `mode` 区分：
+# - `resource`：命中具体一本，重点是「有 epub，去哪拿」；
+# - `browse`：用户只说了方向（「找本心理学的书」），按标签给一批候选；
+# - `web`：本地目录没有，联网定位出来的候选（带出处与把握度）。
+#
+# 为什么不拆三个 kind：前端渲染的是同一种形状（一串书 + 一条说明），
+# 拆开只会让 `agent.js` 里出现三段几乎一样的代码。
+
+BOOK_FIND_ROWS = 8
+
+
+def _resource_item(entry) -> dict:
+    return {
+        "title": entry.title,
+        "author": entry.author,
+        "tags": list(entry.categories),
+        "resource_url": entry.link,
+        "has_epub": entry.has_epub,
+    }
+
+
+def _found_item(book) -> dict:
+    return {
+        "title": book.title,
+        "author": book.author,
+        "why": book.why,
+        "confidence": round(float(book.confidence or 0), 2),
+        "url": book.url,
+        "site": book.site,
+        "tags": list(book.resource_tags),
+        "resource_url": book.resource_url,
+        "has_epub": book.has_epub,
+    }
+
+
+def _book_find_shell(*, key: str, mode: str, items: list[dict], **extra) -> dict:
+    card = {
+        "kind": "book_find",
+        "key": key,
+        "mode": mode,
+        "href": "mine.html",
+        "items": items,
+        "note": "",
+        "title": "",
+    }
+    card.update(extra)
+    return card
+
+
+def book_resource_card(*, key: str, entries, query: str) -> dict:
+    """本地目录命中：重点是格式与链接。"""
+    return _book_find_shell(
+        key=key,
+        mode="resource",
+        items=[_resource_item(e) for e in entries[:3]],
+        title=f"《{query}》",
+        note="链接指向网盘分享页，选 epub 那一份下载。",
+    )
+
+
+def book_resource_reply(entries, query: str) -> str:
+    """命中时的回复。**只有真的能进阅读器才说「可以读」**。
+
+    上传白名单只认 .txt/.epub/.pdf；网盘里只有 mobi/azw3 时说「可以读」，
+    用户会下一份打不开的文件，然后以为阅读器坏了。
+    """
+    top = entries[0]
+    if top.has_epub:
+        return f"《{top.title}》有 epub，点卡片上的「打开下载页」去拿。"
+    return f"《{top.title}》找到了，但网盘只有 mobi/azw3，阅读器读不了这两种格式。"
+
+
+def book_browse_card(*, key: str, entries, tags: list[str]) -> dict:
+    label = "、".join(tags[:3])
+    return _book_find_shell(
+        key=key,
+        mode="browse",
+        items=[_resource_item(e) for e in entries[:BOOK_FIND_ROWS]],
+        title=f"按「{label}」挑了几本",
+        note="书目里的分类是粗标签，不代表内容一定对路；点链接自己翻一下目录再下。",
+    )
+
+
+def book_browse_reply(entries, tags: list[str]) -> str:
+    label = "、".join(tags[:3])
+    return f"按「{label}」挑了 {len(entries)} 本，看看有没有你要的。"
+
+
+def book_find_card(*, key: str, result) -> dict:
+    """联网定位的候选。与 l1 的找书不同：这里顺带给出「去哪拿」。"""
+    items = [_found_item(b) for b in (result.books or [])]
+    return _book_find_shell(
+        key=key,
+        mode="web",
+        items=items,
+        title="可能是什么书" if items else "",
+        summary=result.summary or "",
+        question=result.question or "",
+        searched=result.searched,
+        queries=list(result.queries or [])[:5],
+        note=result.note or "候选只用于定位书名，没有进你的知识库。",
+    )
+
+
+def book_find_reply(result) -> str:
+    if result.state == "found" and result.books:
+        titles = "、".join(f"《{b.title}》" for b in result.books[:3])
+        return f"找到 {len(result.books)} 个可能：{titles}"
+    if result.state == "clarify":
+        return result.question or "再多给我一点细节？"
+    return result.note or "这次没找到，换个说法再试一次。"
+
+
 # ---- L4 目标 / 计划 / 偏离 --------------------------------------------------
 #
 # L4 的卡片上有一类**特殊按钮**：`sends`——点它等于替用户发一句话。

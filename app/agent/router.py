@@ -37,7 +37,7 @@ Capability = Literal[
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "book_find", "research",
     "suggestion", "chat",
 ]
 
@@ -45,7 +45,7 @@ KNOWN_CAPABILITIES: tuple[str, ...] = (
     "l1", "l2", "l3",
     "l4_goal", "l4_plan", "l4_deviation",
     "l5", "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "book_find", "research",
     "suggestion", "chat",
 )
 
@@ -57,7 +57,7 @@ FALLBACK_CAPABILITY = "chat"
 WIRED_CAPABILITIES: frozenset[str] = frozenset({
     "l1", "l2", "l3", "l4_goal", "l4_plan", "l4_deviation", "l5",
     "knowledge_add", "weread_sync", "books",
-    "book_digest", "book_discuss", "book_recommend", "book_compare", "research",
+    "book_digest", "book_discuss", "book_recommend", "book_compare", "book_find", "research",
     "suggestion", "chat",
 })
 
@@ -94,6 +94,11 @@ CAPABILITY_CATALOG: tuple[CapabilitySpec, ...] = (
     CapabilitySpec("book_digest", "通读一本书", "通读《三体》"),
     CapabilitySpec("book_discuss", "聊书", "聊聊这本书"),
     CapabilitySpec("book_recommend", "推荐书籍", "推荐几本书"),
+    # 全网找书：用户要的是**库外**那本书本身（含资源在哪），不是库里的条目。
+    # example 必须被本地规则命中（test_agent_router 会逐条验证）。注意这只是
+    # **hint 覆盖率**，不是判据：`route()` 默认 allow_model=True，hint 只塞进 prompt
+    # 供模型参考，模型可以推翻。「找本」命中 _FIND_BOOK_VERBS，且「书」是书籍词。
+    CapabilitySpec("book_find", "全网找书", "帮我找本心理学的书"),
     # 示例必须被本地规则命中（test_agent_router 会逐条验证）：
     # "材料" + "找" 命中 _RESEARCH_WORDS / _RESEARCH_VERBS
     CapabilitySpec("research", "找学习材料", "帮我找一些学人工智能的材料"),
@@ -235,6 +240,23 @@ _RESEARCH_VERBS = ("找", "收集", "整理", "推荐", "查", "搜", "有哪些
 # 这类闲聊式提问也拉进来——那种时候用户往往还没让我读过其中一本。
 _COMPARE_WORDS = ("对比", "比较", "比一比", "差异", "区别")
 
+# 全网找书（book_find）：用户要的是**库外**那本书本身，不是库里的条目。
+# 与三个邻居的分界各有一条硬条件：
+# - 与 L1：库内 vs 库外。出现「书架 / 库里 / 我存的」一律判 L1——那是在找回自己的东西。
+# - 与 research：要的是**某一本书**，不是一个主题的材料，所以书籍词是硬条件。
+# - 与 book_recommend：推荐是在他自己的书架里挑，出现「推荐 / 书单」就不抢。
+_FIND_BOOK_VERBS = (
+    "找本", "找一本", "找几本", "找些书", "找书", "搜书", "想读",
+    # 用「哪里」而不是「哪有」：「哪里有《X》」里「哪」和「有」中间隔着「里」，
+    # 「哪有」是匹配不上的（真机踩过一次）。「哪里」把「哪里能下 / 哪里有 / 哪里可以下」全覆盖。
+    "哪里", "在哪下", "下载", "电子版", "资源",
+)
+# 「只记得情节 / 不记得书名」是最典型的找书场景：连书名都没有。
+# 它和「按书名查资源」是同一件事的前后两步，归同一个能力。
+_FIND_BOOK_CLUES = ("不记得书名", "记不清书名", "忘记书名", "想不起书名", "记得情节", "只记得")
+_FIND_BOOK_INNER = ("书架", "库里", "知识库", "我存", "之前存", "我记", "笔记里")
+_FIND_BOOK_EXCLUDE = ("推荐", "书单")
+
 # 阅读建议（B 模块）。三条规则都刻意写窄：
 # - 只认「明确要建议」的说法。宽泛的「怎么办 / 我该做啥」不在此列——那可能只是闲聊，
 #   误判会白花一次模型调用，而且会绕过"先确认"的门禁。
@@ -273,6 +295,23 @@ _GOAL_MAX = 256
 
 def _has_any(text: str, words: tuple[str, ...]) -> bool:
     return any(word in text for word in words)
+
+
+def _looks_like_book_find(text: str) -> bool:
+    """是不是「去外面找那本书」。只做先验，判得窄——模型可以推翻。
+
+    判窄的代价是有些说法会落到 chat / research，收益是不会把「找回我自己那条笔记」
+    误判成「去网上找一本书」。后者更贵：它会绕过库内检索、白花一次联网检索。
+    """
+    if _has_any(text, _FIND_BOOK_INNER) or _has_any(text, _FIND_BOOK_EXCLUDE):
+        return False
+    if _has_any(text, _FIND_BOOK_CLUES):
+        return True
+    # 书名号本身就是「在说某本书」的强信号：「我想读《三体》」里没有「书」字。
+    has_book = ("书" in text) or ("《" in text) or ("epub" in text.lower())
+    if not has_book:
+        return False
+    return _has_any(text, _FIND_BOOK_VERBS)
 
 
 def _link_args(text: str) -> dict:
@@ -373,6 +412,10 @@ def parse_book_title(text: str) -> str:
     """从「通读《三体》」里剥出书名；没有《》就返回空串，由执行层出选择卡。
 
     和 `parse_goal` 同一套路：书名只在《》里认，裸书名没法可靠切出来。
+
+    这不算「用关键词猜语义」：书名号是确定性的语法标记，`《》` 之间就是书名本身，
+    不存在歧义。而「找本心理学的书」里的「心理学」是自由文本，切出来是猜，所以那类
+    抽取一律交给模型（见 `AGENT_ROUTE` 的 `book_find.args.tags`）。
     """
     found = _BOOK_TITLE_PATTERN.findall(text or "")
     return found[0].strip() if found else ""
@@ -417,6 +460,13 @@ def _match_local(text: str) -> CapabilityRoute | None:
     # 2. 同步微信读书
     if _has_any(text, _SYNC_WORDS) and ("同步" in text or "拉取" in text):
         return hit("weread_sync", "识别到同步微信读书")
+
+    # 2.4 全网找书（book_find）—— 排在 research 与 L1 之前。
+    #     排在 research 前：像「找几本书单」这种说法两边都够得着，但用户要的是书本身，
+    #     不是一份材料清单。
+    #     排在 L1 前：L1 的条件是 `text.startswith("找")`，会直接把「找本心理学的书」截走。
+    if _looks_like_book_find(text):
+        return hit("book_find", "识别到要找库外的书")
 
     # 2.5 找外部学习材料（research）—— 必须排在 L1 与书籍之前：
     #     「帮我找一些学人工智能的材料」开头是「帮我找」，会被 L1 的召回前缀截走；

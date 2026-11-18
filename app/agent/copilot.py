@@ -115,6 +115,15 @@ def _with_channel_tag(tags: list[str] | None) -> list[str]:
 # 这里只负责把标记词后面的内容剥出来当新的 question。
 _CORRECTION_MARKERS = ("我说的是", "不是这个意思", "你理解错", "不是这样")
 
+# 确认期不接管的能力：这些是**对外部世界的明确动作**，跟「你读这本书是为了什么、
+# 什么水平」没有关系。被接管就会答非所问——现场那次是把「我想读《三体》，能下吗」
+# 答成了一张需求确认卡，因为它把「想读」当成了「阅读目标」这项答案。
+#
+# 为什么在这里按能力排除、而不是把 `_intake_wants` 的判据改严：
+# 判据本身是对的（抽到了槽位才接管），问题在于「抽到槽位」不足以说明这句话
+# 是在回答确认卡——用户完全可以一边在确认流程里，一边说「顺便帮我找本书」。
+INTAKE_BYPASS = frozenset({"book_find", "research"})
+
 
 def _strip_correction(text: str) -> str:
     """从「不对，我说的是 Y」里剥出 Y。
@@ -233,7 +242,11 @@ class Copilot:
             # 复述只能靠说话（卡片里的文本框要另开一套提交交互），
             # 所以这条路必须由对话入口接住，否则用户说完会被当成普通聊天。
             early = self._probe_recall(conversation, user_id=user_id, message=message)
-        elif route.source != "local" and self._intake_wants(message, conversation):
+        elif (
+            route.source != "local"
+            and route.capability not in INTAKE_BYPASS
+            and self._intake_wants(message, conversation)
+        ):
             # 确认期接管：用户大概率是在回答「想解决什么 / 目标 / 水平」，而不是闲聊。
             # 判据见 `_intake_wants`——必须是"抽到了具体项"或"正缺那一项"，
             # 否则「今天天气不错」也会被当成答案塞进槽位，聊天就断了。
@@ -243,6 +256,10 @@ class Copilot:
             # 而模型分流可能把「怎么把它用到周会上」这种自由文本回答误判成
             # book_discuss / book_digest 之类的能力——若不接管，确认流程被跳过，
             # 用户等来的是一句「没确定要聊哪本书」，答非所问，看起来像系统没听懂。
+            #
+            # 为什么还要排除 `INTAKE_BYPASS`：找书 / 找资料是「去外面拿东西」的明确动作，
+            # 与确认卡的三个槽位无关。接管它们会把「我想读《三体》，能下吗」
+            # 答成一张「读这个主要是为了什么」的确认卡（现场就是这个现象）。
             early = self._suggestion_gate(
                 conversation, user_id=user_id, message=message, route=route
             )
@@ -318,6 +335,7 @@ class Copilot:
             "book_digest": self._execute,
             "book_recommend": self._execute,
             "book_compare": self._execute,
+            "book_find": self._execute,
             "book_discuss": self._book_discuss,
             "research": self._execute,
             "suggestion": self._execute,

@@ -26,6 +26,7 @@ import json
 import logging
 import re
 import unicodedata
+from collections.abc import Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
@@ -48,6 +49,9 @@ _SCORE_PREFIX = 0.92      # 书名以查询开头：最像目标书
 _SCORE_CONTAINS = 0.85    # 查询夹在书名中间 / 反向包含：相关，但不是它
 _SCORE_SIMILARITY_CAP = 0.75  # 兜底档，**永远低于包含**，只用来救错别字与简繁差异
 _SCORE_AUTHOR_BONUS = 0.1
+# 标签命中的加分。比作者小：标签是粗分类，作者是硬身份。
+# 它只在「分数已经过线」之后生效，用来分开重名书，不会把不相干的书拉进来。
+_SCORE_TAG_BONUS = 0.05
 # 相似度门槛：低于它宁可返回空。中文短书名之间 difflib 容易误伤
 # （「心理学」vs「理学」能到 0.8），所以只接受真的改了几个字的情况。
 _SIMILARITY_THRESHOLD = 0.72
@@ -126,24 +130,75 @@ def search(
     title: str,
     *,
     author: str = "",
+    tags: Sequence[str] = (),
     limit: int = 3,
 ) -> list[ResourceEntry]:
-    """在给定条目里查书名。空查询、查不到、limit<=0 都返回空列表。"""
+    """在给定条目里查书名。空查询、查不到、limit<=0 都返回空列表。
+
+    `tags` **只加分、不做过滤**：用户给的标签未必在目录的词表里（「社科」这种宽泛说法
+    目录里没有），用它过滤会把唯一正确的那条杀掉。重名书靠它分先后即可。
+    """
     query = normalize(title)
     if not query or limit <= 0:
         return []
     author_query = normalize(author)
+    tag_queries = _normalize_tags(tags)
 
     scored: list[tuple[float, int, int, ResourceEntry]] = []
     for entry in entries:
         score = _score(entry, query, author_query)
         if score <= 0:
             continue
+        if tag_queries and _tag_hits(entry, tag_queries):
+            score += _SCORE_TAG_BONUS
         # 同分时：先 epub（能直接读），再短的（更像正式书名，不像合集）。
         scored.append((score, 0 if entry.has_epub else 1, len(normalize(entry.title)), entry))
 
     scored.sort(key=lambda row: (-row[0], row[1], row[2], row[3].title))
     return [row[3] for row in scored[:limit]]
+
+
+def browse(
+    entries: list[ResourceEntry],
+    *,
+    tags: Sequence[str] = (),
+    limit: int = 10,
+) -> list[ResourceEntry]:
+    """按标签挑书——用户说不出书名、只说了个方向时（「找本心理学的书」）。
+
+    排序：命中标签数多的优先，其次 epub，剩下**保持目录原始顺序**。
+    刻意不按书名长度排：那会让「偏见」「坚毅」这类冷门短名排在《思考，快与慢》前面
+    ——数据里没有热度字段，与其用一个看似合理的代理指标挑错，不如老实按原序给一批候选，
+    让用户自己挑。`limit` 默认给到 10 也是这个原因：这一步的产出是候选集，不是答案。
+    """
+    tag_queries = _normalize_tags(tags)
+    if not tag_queries or limit <= 0:
+        return []
+
+    scored: list[tuple[int, int, int, ResourceEntry]] = []
+    for position, entry in enumerate(entries):
+        hits = _tag_hits(entry, tag_queries)
+        if not hits:
+            continue
+        scored.append((-hits, 0 if entry.has_epub else 1, position, entry))
+
+    scored.sort(key=lambda row: (row[0], row[1], row[2]))
+    return [row[3] for row in scored[:limit]]
+
+
+def _normalize_tags(tags: Sequence[str] | None) -> list[str]:
+    out: list[str] = []
+    for tag in tags or ():
+        text = normalize(tag)
+        if len(text) >= _MIN_PARTIAL_LEN and text not in out:
+            out.append(text)
+    return out
+
+
+def _tag_hits(entry: ResourceEntry, tag_queries: Sequence[str]) -> int:
+    """命中几个标签。互相包含就算命中——用户说「心理」，目录里是「心理学」。"""
+    own = [normalize(c) for c in entry.categories]
+    return sum(1 for q in tag_queries if any(q in c or c in q for c in own))
 
 
 # 载入缓存。按路径分别缓存：测试里会喂 tmp 路径，不能互相污染。
@@ -251,9 +306,20 @@ def load(path: Path | None = None) -> list[ResourceEntry]:
     return entries
 
 
-def lookup(title: str, *, author: str = "", limit: int = 3) -> list[ResourceEntry]:
+def lookup(
+    title: str,
+    *,
+    author: str = "",
+    tags: Sequence[str] = (),
+    limit: int = 3,
+) -> list[ResourceEntry]:
     """查一条书的可用资源。查不到返回空列表。"""
-    return search(load(), title, author=author, limit=limit)
+    return search(load(), title, author=author, tags=tags, limit=limit)
+
+
+def browse_catalog(*, tags: Sequence[str], limit: int = 10) -> list[ResourceEntry]:
+    """按标签从整个目录里挑书（书名未知时用）。"""
+    return browse(load(), tags=tags, limit=limit)
 
 
 def reset_cache() -> None:
